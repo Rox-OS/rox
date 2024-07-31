@@ -14,7 +14,9 @@ Biron is an experimental toy systems programming language built for Rox.
 * Sized integer types: `(S|U)int{8,16,32,64}`
 * Memory addressing type: `Address`
 * Designed to run on baremetal
-* Small: ~5k lines of C++
+  * No floating point
+  * No integer divisions
+* Small: ~5k lines of freestanding C++ with no dependencies
 
 ## Titan
 Titan is an experimental kernel written in Biron used for the Rox operating system.
@@ -27,7 +29,7 @@ This will build both Biron and Titan. It will (if the first time) fetch a precom
 ### Dependencies
   * LLVM 17 or 18
   * [xorriso](https://www.gnu.org/software/xorriso/)
-  * [qemu](https://www.qemu.org/)
+  * [qemu](https://www.qemu.org/) Optional if you want to run it.
 
 If you're on an ArchLinux distribution these dependencies can be downloaded easily with
 ```
