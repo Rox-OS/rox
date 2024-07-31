@@ -56,6 +56,21 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	Bool bm = false;
+	int file = -1;
+	for (int i = 0; i < argc; i++) {
+		if (argv[i][0] != '-' && file == -1) {
+			file = i;
+		} else if (argv[i][0] == '-' && argv[i][1] == 'b' && argv[i][2] == 'm') {
+			bm = true;
+		}
+	}
+
+	if (file == -1) {
+		fprintf(stderr, "Missing filename\n");
+		return 1;
+	}
+
 	auto llvm = LLVM::load();
 	if (!llvm) {
 		fprintf(stderr, "Could not load libLLVM\n");
@@ -63,9 +78,9 @@ int main(int argc, char **argv) {
 	}
 
 	// Load in file
-	FILE *fp = fopen(argv[0], "rb");
+	FILE *fp = fopen(argv[file], "rb");
 	if (!fp) {
-		fprintf(stderr, "Could not open '%s'\n", argv[0]);
+		fprintf(stderr, "Could not open '%s'\n", argv[file]);
 		return 1;
 	}
 
@@ -80,16 +95,16 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	if (fread(src.data(), n, 1, fp) != 1) {
-		fprintf(stderr, "Could not read '%s'\n", argv[0]);
+		fprintf(stderr, "Could not read '%s'\n", argv[file]);
 		fclose(fp);
 		return 1;
 	}
 	fclose(fp);
 
-	StringView name{argv[0], strlen(argv[0])};
-	auto dot = name.find_first_of('.');
+	StringView name{argv[file], strlen(argv[file])};
+	auto dot = name.find_last_of('.');
 	if (!dot) {
-		fprintf(stderr, "Unknown source file: %s\n", argv[0]);
+		fprintf(stderr, "Unknown source file: %s\n", argv[file]);
 		return 1;
 	}
 
@@ -101,7 +116,7 @@ int main(int argc, char **argv) {
 	}
 
 	StringBuilder builder{mallocator};
-	if (unit->dump(builder)) {
+	if (false && unit->dump(builder)) {
 		auto view = builder.view();
 		printf("%.*s\n", (int)view.length(), view.data());
 	}
@@ -140,27 +155,27 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	// Build "gcc name.o -o name"
-	StringBuilder link{mallocator};
-	link.append("gcc");
-	link.append(' ');
-	link.append(obj.view());
-	link.append(' ');
-	link.append("-o");
-	link.append(name);
-	link.append('\0');
-	if (!link.valid()) {
-		fprintf(stderr, "Out of memory\n");
-		return false;
-	}
+	if (!bm) {
+		// Build "gcc name.o -o name"
+		StringBuilder link{mallocator};
+		link.append("gcc");
+		link.append(' ');
+		link.append(obj.view());
+		link.append(' ');
+		link.append("-o");
+		link.append(name);
+		link.append('\0');
+		if (!link.valid()) {
+			fprintf(stderr, "Out of memory\n");
+			return false;
+		}
 
-	// We should have an executable now.
-	if (system(link.data()) != 0) {
-		fprintf(stderr, "Could not link executable\n");
-		return 1;
+		// We should have an executable now.
+		if (system(link.data()) != 0) {
+			fprintf(stderr, "Could not link executable\n");
+			return 1;
+		}
 	}
-
-	printf("Compiled: %.*s\n", (int)name.length(), name.data());
 
 	return 0;
 }

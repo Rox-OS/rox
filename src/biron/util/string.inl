@@ -49,6 +49,7 @@ struct StringView {
 	friend Bool operator!=(StringView lhs, StringView rhs) noexcept;
 	Bool starts_with(StringView other) const noexcept;
 	Maybe<Ulen> find_first_of(int ch) const noexcept;
+	Maybe<Ulen> find_last_of(int ch) const noexcept;
 	char *terminated(Allocator& allocator) const noexcept;
 private:
 	const char *m_data;

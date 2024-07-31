@@ -147,9 +147,9 @@ endif
 
 # Strip the binary when not a debug build.
 ifeq ($(DEBUG),1)
-	STRIP := strip
-else
 	STRIP := true
+else
+	STRIP := strip
 endif
 
 all: $(BIN)

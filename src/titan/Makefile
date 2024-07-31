@@ -9,7 +9,7 @@ LDFLAGS += -z max-page-size=0x1000
 LDFLAGS += -T link.ld
 
 titan: $(BIRONC)
-	$(BIRONC) main.biron
+	$(BIRONC) -bm main.biron
 	$(LD) main.o $(LDFLAGS) -o $@
 
 $(BIRONC):

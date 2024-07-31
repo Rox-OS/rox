@@ -41,6 +41,16 @@ Maybe<Ulen> StringView::find_first_of(int ch) const noexcept {
 	return None{};
 }
 
+Maybe<Ulen> StringView::find_last_of(int ch) const noexcept {
+	Maybe<Ulen> found;
+	for (Ulen l = length(), i = 0; i < l; i++) {
+		if (operator[](i) == ch) {
+			found = i;
+		}
+	}
+	return found;
+}
+
 char* StringView::terminated(Allocator& allocator) const noexcept {
 	if (char *dst = reinterpret_cast<char *>(allocator.scratch(m_length + 1))) {
 		memcpy(dst, m_data, m_length);

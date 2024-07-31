@@ -943,7 +943,7 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 	if (!node) {
 		return nullptr;
 	}
-	m_scope = m_scope->prev;
+	m_scope = scope.prev;
 	return node;
 }
 
