@@ -103,20 +103,9 @@ Bool Codegen::emit(StringView name) noexcept {
 	llvm.DisposeMessage(error);
 	error = nullptr;
 
-	StringBuilder file{allocator};
-	file.append(name);
-	file.append('.');
-	file.append('o');
-	// Need a null terminator for LLVM EmitToFile
-	file.append('\0');
-	if (!file.valid()) {
-		fprintf(stderr, "Out of memory\n");
-		return false;
-	}
-
 	if (llvm.TargetMachineEmitToFile(machine,
 	                                 module,
-	                                 file.data(),
+	                                 name.terminated(allocator),
 	                                 LLVM::CodeGenFileType::Object,
 	                                 &error) != 0)
 	{
@@ -272,6 +261,12 @@ Bool AstDeferStmt::codegen(Codegen& gen) noexcept {
 Bool AstIfStmt::codegen(Codegen& gen) noexcept {
 	auto& llvm = gen.llvm;
 
+	if (init) {
+		if (!init->codegen(gen)) {
+			return false;
+		}
+	}
+
 	auto cond_v = expr->codegen(gen);
 	if (!cond_v) {
 		return false;
@@ -388,6 +383,12 @@ Bool AstForStmt::codegen(Codegen& gen) noexcept {
 	auto bb = llvm.GetInsertBlock(gen.builder);
 	auto function = llvm.GetBasicBlockParent(bb);
 
+	if (init) {
+		if (!(init->codegen(gen))) {
+			return false;
+		}
+	}
+
 	// Standard for expr loop
 	if (expr) {
 		auto for_test_bb = llvm.CreateBasicBlockInContext(gen.context, "for_test");
@@ -413,6 +414,17 @@ Bool AstForStmt::codegen(Codegen& gen) noexcept {
 			return false;
 		}
 		for_body_bb = llvm.GetInsertBlock(gen.builder);
+
+		// We do not have continue statement support yet so we can just put the
+		// post condition after the body for now. In the future we will need to have
+		// a common for_post_bb block which contains the post and a br back to the
+		// top so that continue can br to it too.
+		if (post) {
+			if (!(post->codegen(gen))) {
+				return false;
+			}
+		}
+
 		llvm.PositionBuilderAtEnd(gen.builder, for_body_bb);
 		llvm.BuildBr(gen.builder, for_test_bb); // Back to test
 
@@ -656,7 +668,7 @@ Maybe<Value> AstBinExpr::codegen(Codegen& gen) noexcept {
 		lhs = static_cast<AstTupleExpr*>(lhs)->exprs[0];
 	}
 	if (rhs->is_expr<AstTupleExpr>()) {
-		rhs = static_cast<AstTupleExpr*>(lhs)->exprs[0];
+		rhs = static_cast<AstTupleExpr*>(rhs)->exprs[0];
 	}
 
 	// Special case for 'as' since we do not want to emit the RHS as an expression.
@@ -800,8 +812,6 @@ Maybe<Value> AstIndexExpr::codegen(Codegen& gen) noexcept {
 	auto gep = llvm.BuildGEP2(gen.builder, lhs->type.type, lhs->value, &rhs->value, 1, "");
 	auto value = llvm.BuildLoad2(gen.builder, lhs->type.type, gep, "");
 	return Value { lhs->type.unqual(), value };
-
-	// return lhs;
 }
 
 Maybe<Value> AstIndexExpr::address(Codegen& gen) noexcept {
@@ -886,7 +896,6 @@ Bool AstFn::codegen(Codegen& gen) noexcept {
 		if (t_ret->type == gen.t_unit.type) {
 			llvm.BuildRetVoid(gen.builder);
 		} else {
-			// This is an error.
 			llvm.BuildRet(gen.builder, llvm.ConstInt(t_ret->type, 0, false));
 		}
 	}

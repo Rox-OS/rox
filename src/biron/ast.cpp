@@ -226,6 +226,11 @@ void AstIfStmt::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.repeat('\t', depth);
 	builder.append("if");
 	builder.append(' ');
+	if (init) {
+		init->dump(builder, 0);
+		builder.pop();
+		builder.append(' ');
+	}
 	expr->dump(builder);
 	builder.repeat('\t', depth);
 	then->dump(builder, depth);
@@ -254,7 +259,19 @@ void AstForStmt::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.repeat('\t', depth);
 	builder.append("for");
 	builder.append(' ');
+	if (init) {
+		init->dump(builder, 0);
+		builder.pop();
+		builder.append(' ');
+	}
 	expr->dump(builder);
+	if (post) {
+		builder.append(';');
+		builder.append(' ');
+		post->dump(builder, 0);
+		builder.pop(); // Remove '\n'
+		builder.pop(); // Remove ';'
+	}
 	body->dump(builder, depth);
 }
 

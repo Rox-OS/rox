@@ -37,6 +37,11 @@ struct StringView {
 	constexpr StringView slice(Ulen offset, Ulen length) noexcept {
 		return {m_data + offset, length};
 	}
+	StringView& operator=(const StringView& name) noexcept {
+		m_data = name.m_data;
+		m_length = name.m_length;
+		return *this;
+	}
 	auto data() const noexcept { return m_data; }
 	auto length() const noexcept { return m_length; }
 	char operator[](Ulen i) const noexcept { return m_data[i]; }

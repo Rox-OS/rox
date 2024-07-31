@@ -43,9 +43,23 @@ struct AstAsmStmt;
 struct AstFn;
 struct AstAsm;
 
+struct Scope {
+	constexpr Scope(Allocator& allocator, Scope* prev = nullptr) noexcept
+		: lets{allocator}
+		, args{nullptr}
+		, prev{prev}
+	{
+	}
+	Bool find(StringView name) const noexcept;
+	Array<AstLetStmt*> lets;
+	AstTupleType* args;
+	Scope* prev;
+};
+
 struct Parser {
 	constexpr Parser(StringView name, StringView data, Allocator& allocator) noexcept
 		: m_lexer{name, data}
+		, m_scope{nullptr}
 		, m_nodes{allocator}
 		, m_allocator{allocator}
 	{
@@ -81,7 +95,7 @@ struct Parser {
 	[[nodiscard]] AstIfStmt*      parse_if_stmt() noexcept;
 	[[nodiscard]] AstLetStmt*     parse_let_stmt() noexcept;
 	[[nodiscard]] AstForStmt*     parse_for_stmt() noexcept;
-	[[nodiscard]] AstStmt*        parse_expr_stmt() noexcept;
+	[[nodiscard]] AstStmt*        parse_expr_stmt(Bool semi) noexcept;
 	[[nodiscard]] AstAsmStmt*     parse_asm_stmt() noexcept;
 
 	// Top-level elements
@@ -91,6 +105,8 @@ struct Parser {
 	Maybe<Unit> parse() noexcept;
 
 private:
+	Bool has_symbol(StringView name) const noexcept;
+
 	template<typename... Ts>
 	void error(Token token, const char *message, Ts&&... args) {
 		if constexpr (sizeof...(Ts) == 0) {
@@ -148,6 +164,7 @@ private:
 	Token m_this_token;
 	Token m_last_token;
 	Maybe<Token> m_peek_token;
+	Scope* m_scope;
 	Array<AstNode*> m_nodes;
 	Allocator& m_allocator;
 };

@@ -1,0 +1,5 @@
+fn main(argc: Uint32, argv: **Uint8) {
+  for let i = 0 as Uint32; i < argc; i = i + 1 as Uint32 {
+    printf("Hello argument %d = %s\n", i, argv[i]);
+  }
+}

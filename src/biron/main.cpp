@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 	}
 
 	StringBuilder builder{mallocator};
-	if (false && unit->dump(builder)) {
+	if (unit->dump(builder)) {
 		auto view = builder.view();
 		printf("%.*s\n", (int)view.length(), view.data());
 	}
@@ -123,15 +123,44 @@ int main(int argc, char **argv) {
 		gen.dump();
 	}
 
-	if (!gen.emit(name.slice(0, *dot))) {
+	// Strip everything up to including '.'
+	name = name.slice(0, *dot);
+
+	// Build "name.o"
+	StringBuilder obj{mallocator};
+	obj.append(name);
+	obj.append('.');
+	obj.append('o');
+	if (!obj.valid()) {
+		fprintf(stderr, "Out of memory\n");
 		return 1;
 	}
 
-	// We should have a test.o file now
-	if (false && system("gcc test.o -o test") != 0) {
+	if (!gen.emit(obj.view())) {
+		return 1;
+	}
+
+	// Build "gcc name.o -o name"
+	StringBuilder link{mallocator};
+	link.append("gcc");
+	link.append(' ');
+	link.append(obj.view());
+	link.append(' ');
+	link.append("-o");
+	link.append(name);
+	link.append('\0');
+	if (!link.valid()) {
+		fprintf(stderr, "Out of memory\n");
+		return false;
+	}
+
+	// We should have an executable now.
+	if (system(link.data()) != 0) {
 		fprintf(stderr, "Could not link executable\n");
 		return 1;
 	}
+
+	printf("Compiled: %.*s\n", (int)name.length(), name.data());
 
 	return 0;
 }

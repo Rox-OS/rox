@@ -430,10 +430,13 @@ struct AstDeferStmt : AstStmt {
 	AstStmt* stmt;
 };
 
+struct AstLetStmt;
+
 struct AstIfStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::IF;
-	constexpr AstIfStmt(AstExpr* expr, AstBlockStmt* then, AstStmt* elif) noexcept 
+	constexpr AstIfStmt(AstLetStmt* init, AstExpr* expr, AstBlockStmt* then, AstStmt* elif) noexcept 
 		: AstStmt{Kind::IF}
+		, init{init}
 		, expr{expr}
 		, then{then}
 		, elif{elif}
@@ -441,6 +444,7 @@ struct AstIfStmt : AstStmt {
 	}
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 	[[nodiscard]] virtual Bool codegen(Codegen& gen) noexcept override;
+	AstLetStmt*   init;
 	AstExpr*      expr;
 	AstBlockStmt* then;
 	AstStmt*      elif; // Either IfStmt or BlockStmt
@@ -462,15 +466,19 @@ struct AstLetStmt : AstStmt {
 
 struct AstForStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::FOR;
-	constexpr AstForStmt(AstExpr* expr, AstBlockStmt* body) noexcept
+	constexpr AstForStmt(AstLetStmt* init, AstExpr* expr, AstStmt* post, AstBlockStmt* body) noexcept
 		: AstStmt{Kind::FOR}
+		, init{init}
 		, expr{expr}
+		, post{post}
 		, body{body}
 	{
 	}
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 	[[nodiscard]] virtual Bool codegen(Codegen& gen) noexcept override;
+	AstLetStmt*   init;
 	AstExpr*      expr;
+	AstStmt*      post;
 	AstBlockStmt* body;
 };
 

@@ -11,6 +11,37 @@
 
 namespace Biron {
 
+Bool Scope::find(StringView name) const noexcept {
+	// Just assume printf exists for debugging purposes.
+	if (name == "printf") {
+		return true;
+	}
+	for (Ulen l = lets.length(), i = 0; i < l; i++) {
+		if (lets[i]->name == name) {
+			return true;
+		}
+	}
+	// Check optional function arguments.
+	if (args) {
+		for (Ulen l = args->elems.length(), i = 0; i < l; i++) {
+			auto& elem = args->elems[i];
+			if (elem.name && *elem.name == name) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+Bool Parser::has_symbol(StringView name) const noexcept {
+	for (auto scope = m_scope; scope; scope = scope->prev) {
+		if (scope->find(name)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 Parser::~Parser() noexcept {
 	for (Ulen l = m_nodes.length(), i = 0; i < l; i++) {
 		m_nodes[i]->~AstNode();
@@ -247,6 +278,12 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 	}
 	auto token = next();
 	auto name = m_lexer.string(token.range);
+
+	if (!has_symbol(name)) {
+		ERROR("Undeclared symbol '%.*s'", (int)name.length(), name.data());
+		return nullptr;
+	}
+
 	auto expr = new_node<AstVarExpr>(token.range, name);
 	if (auto token = peek(); token.kind == Token::Kind::LPAREN) {
 		auto args = parse_tuple_expr();
@@ -681,7 +718,7 @@ AstStmt* Parser::parse_stmt() noexcept {
 	case Token::Kind::KW_FOR:
 		return parse_for_stmt();
 	default:
-		return parse_expr_stmt();
+		return parse_expr_stmt(true);
 	}
 	BIRON_UNREACHABLE();
 }
@@ -689,6 +726,8 @@ AstStmt* Parser::parse_stmt() noexcept {
 // BlockStmt
 //	::= '{' Stmt* '}'
 AstBlockStmt* Parser::parse_block_stmt() noexcept {
+	Scope scope{m_allocator, m_scope};
+	m_scope = &scope;
 	if (peek().kind != Token::Kind::LBRACE) {
 		ERROR("Expected '{'");
 		return nullptr;
@@ -710,7 +749,12 @@ AstBlockStmt* Parser::parse_block_stmt() noexcept {
 		return nullptr;
 	}
 	next(); // Consume '}'
-	return new_node<AstBlockStmt>(move(stmts));
+	auto node = new_node<AstBlockStmt>(move(stmts));
+	if (!node) {
+		return nullptr;
+	}
+	m_scope = m_scope->prev;
+	return node;
 }
 
 // ReturnStmt
@@ -752,13 +796,39 @@ AstDeferStmt* Parser::parse_defer_stmt() noexcept {
 };
 
 // IfStmt
-//	::= 'if' Expr BlockStmt ('else' (IfStmt | BlockStmt))?
+//	::= 'if' (LetStmt ';')? Expr BlockStmt ('else' (IfStmt | BlockStmt))?
 AstIfStmt* Parser::parse_if_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_IF) {
 		ERROR("Expected 'if'");
 		return nullptr;
 	}
 	next(); // Consume 'if'
+	AstLetStmt* init = nullptr;
+	// When we have a LET statement we introduce another scope. That is we compile
+	//	if let ident ...; Expr {
+	//		...
+	//	} else {
+	//		...
+	//	}
+	//
+	// Into
+	//	{
+	//		let ident ...;
+	//		if Expr {
+	//			...
+	//		} else {
+	//			...
+	//		}
+	//	}
+	//
+	// Which makes the let declaration become available to the else and else if.
+	Scope scope{m_allocator, m_scope};
+	if (peek().kind == Token::Kind::KW_LET) {
+		m_scope = &scope;
+		if (!(init = parse_let_stmt())) {
+			return nullptr;
+		}
+	}
 	auto expr = parse_expr();
 	if (!expr) {
 		return nullptr;
@@ -779,11 +849,16 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 			return nullptr;
 		}
 	}
-	return new_node<AstIfStmt>(expr, then, elif);
+	auto node = new_node<AstIfStmt>(init, expr, then, elif);
+	if (!node) {
+		return nullptr;
+	}
+	m_scope = m_scope->prev;
+	return node;
 }
 
 // LetStmt
-//	::= 'let' Ident ('=' Expr)?
+//	::= 'let' Ident ('=' Expr)? ';'
 AstLetStmt* Parser::parse_let_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_LET) {
 		ERROR("Expected 'let'");
@@ -796,6 +871,10 @@ AstLetStmt* Parser::parse_let_stmt() noexcept {
 	}
 	auto token = next();
 	auto name = m_lexer.string(token.range);
+	if (has_symbol(name)) {
+		ERROR("Duplicate symbol '%.*s'", (int)name.length(), name.data());
+		return nullptr;
+	}
 	AstExpr* init = nullptr;
 	if (peek().kind != Token::Kind::EQ) {
 		ERROR("Expected expression");
@@ -811,22 +890,48 @@ AstLetStmt* Parser::parse_let_stmt() noexcept {
 		return nullptr;
 	}
 	next(); // Consume ';'
-	return new_node<AstLetStmt>(name, init);
+	auto node = new_node<AstLetStmt>(name, init);
+	if (!node) {
+		return nullptr;
+	}
+	if (!m_scope->lets.push_back(node)) {
+		ERROR("Out of memory");
+		return nullptr;
+	}
+	return node;
 }
 
 // ForStmt
 //	::= 'for' BlockStmt
-//	::= 'for' Expr BlockStmt
+//	::= 'for' LetStmt? Expr BlockStmt
 AstForStmt* Parser::parse_for_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_FOR) {
 		ERROR("Expected 'for'");
 		return nullptr;
 	}
 	next(); // Consume 'for'
+	AstLetStmt* let = nullptr;
 	AstExpr* expr = nullptr;
-	// The expression is optional
+	Scope scope{m_allocator, m_scope};
+	if (peek().kind == Token::Kind::KW_LET) {
+		m_scope = &scope;
+		if (!(let = parse_let_stmt())) {
+			return nullptr;
+		}
+	}
 	if (peek().kind != Token::Kind::LBRACE) {
 		if (!(expr = parse_expr())) {
+			return nullptr;
+		}
+	}
+	AstStmt* post = nullptr;
+	if (peek().kind == Token::Kind::SEMI) {
+		next(); // Consume ';'
+		if (peek().kind == Token::Kind::LBRACE) {
+			ERROR("Expected expression statement");
+			return nullptr;
+		}
+		if (!(post = parse_expr_stmt(false))) {
 			return nullptr;
 		}
 	}
@@ -834,13 +939,18 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 	if (!body) {
 		return nullptr;
 	}
-	return new_node<AstForStmt>(expr, body);
+	auto node = new_node<AstForStmt>(let, expr, post, body);
+	if (!node) {
+		return nullptr;
+	}
+	m_scope = m_scope->prev;
+	return node;
 }
 
 // ExprStmt
 //	::= Expr ';'
 //	::= Expr '=' Expr ';'
-AstStmt* Parser::parse_expr_stmt() noexcept {
+AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 	auto expr = parse_expr();
 	if (!expr) {
 		return nullptr;
@@ -855,11 +965,13 @@ AstStmt* Parser::parse_expr_stmt() noexcept {
 		}
 		assignment = new_node<AstAssignStmt>(expr, value, AstAssignStmt::StoreOp::WR);
 	}
-	if (peek().kind != Token::Kind::SEMI) {
-		ERROR("Expected ';' after statement");
-		return nullptr;
+	if (semi) {
+		if (peek().kind != Token::Kind::SEMI) {
+			ERROR("Expected ';' after statement");
+			return nullptr;
+		}
+		next(); // Consume ';'
 	}
-	next(); // Consume ';'
 	if (assignment) {
 		return assignment;
 	}
@@ -906,6 +1018,8 @@ AstAsmStmt* Parser::parse_asm_stmt() noexcept {
 // Fn
 //	::= 'fn' TupleType? Ident TupleType ('->' Type)? BlockStmt
 AstFn* Parser::parse_fn() noexcept {
+	Scope scope{m_allocator, m_scope};
+	m_scope = &scope;
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
 		return nullptr;
@@ -927,6 +1041,8 @@ AstFn* Parser::parse_fn() noexcept {
 	}
 	if (type->elems.length() == 0) {
 		type = nullptr;
+	} else {
+		m_scope->args = type;
 	}
 	AstType* rtype = nullptr;
 	if (peek().kind == Token::Kind::ARROW) {
@@ -937,7 +1053,12 @@ AstFn* Parser::parse_fn() noexcept {
 	if (!body) {
 		return nullptr;
 	}
-	return new_node<AstFn>(generic, name, type, rtype, body);
+	auto node = new_node<AstFn>(generic, name, type, rtype, body);
+	if (!node) {
+		return nullptr;
+	}
+	m_scope = m_scope->prev;
+	return node;
 }
 
 // Asm
