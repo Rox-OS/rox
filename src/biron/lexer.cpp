@@ -1,0 +1,232 @@
+#include <biron/lexer.h>
+
+namespace Biron {
+
+static Bool is_space(int ch) noexcept {
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+}
+
+static Bool is_alpha(int ch) noexcept {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+}
+
+static Bool is_digit(int ch) noexcept {
+	return ch >= '0' && ch <= '9';
+}
+
+static Bool is_bin(int ch) noexcept {
+	return ch == '0' || ch == '1';
+}
+
+static Bool is_hex(int ch) noexcept {
+	return is_digit(ch) || (ch >= 'a' && ch <= 'f');
+}
+
+static Bool is_alnum(int ch) noexcept {
+	return is_alpha(ch) || is_digit(ch);
+}
+
+Token Lexer::next() noexcept {
+	using Kind = Token::Kind;
+	auto token = read();
+	while (token.kind == Kind::COMMENT) {
+		token = read();
+	}
+	return token;
+}
+
+Token Lexer::read() noexcept {
+	using Kind = Token::Kind;
+	Ulen n = 0;
+	while (peek() != -1 && is_space(peek())) fwd(); // Skip whitespace
+	switch (peek()) {
+	case -1:  return {Kind::END,      {fwd(), 0}};
+	case ',': return {Kind::COMMA,    {fwd(), 1}};
+	case ';': return {Kind::SEMI,     {fwd(), 1}};
+	case ':': return {Kind::COLON,    {fwd(), 1}};
+	case '(': return {Kind::LPAREN,   {fwd(), 1}};
+	case ')': return {Kind::RPAREN,   {fwd(), 1}};
+	case '[': return {Kind::LBRACKET, {fwd(), 1}};
+	case ']': return {Kind::RBRACKET, {fwd(), 1}};
+	case '{': return {Kind::LBRACE,   {fwd(), 1}};
+	case '}': return {Kind::RBRACE,   {fwd(), 1}};
+	case '+': return {Kind::PLUS,     {fwd(), 1}};
+	case '-':
+		n = fwd(); // Consume '-'
+		if (peek() == '>') {
+			fwd(); // Consume '>'
+			return {Kind::ARROW, {n, 2}};
+		} else {
+			return {Kind::MINUS, {n, 1}};
+		}
+		break;
+	case '*': return {Kind::STAR,    {fwd(), 1}};
+	case '%': return {Kind::PERCENT, {fwd(), 1}};
+	case '$': return {Kind::DOLLAR,  {fwd(), 1}};
+	case '|':
+		n = fwd(); // Consume '|'
+		if (peek() == '|') {
+			fwd(); // Consume '|'
+			return {Kind::LOR, {n, 2}};
+		} else {
+			return {Kind::BOR, {n, 1}};
+		}
+	case '&':
+		n = fwd(); // Consume '&'
+		if (peek() == '&') {
+			fwd(); // Consume '&'
+			return {Kind::LAND, {n, 2}};
+		} else {
+			return {Kind::BAND, {n, 1}};
+		}
+	case '.':
+		n = fwd(); // Consume '.'
+		if (peek() == '.') {
+			fwd();   // Consume '.'
+			if (peek() == '.') {
+				fwd(); // Consume '.'
+				return {Kind::ELLIPSIS, {n, 3}};
+			} else {
+				return {Kind::SEQUENCE, {n, 2}};
+			}
+		} else {
+			return {Kind::DOT, {n, 1}};
+		}
+		break;
+	case '!':
+		n = fwd(); // Consume '!'
+		if (peek() == '=') {
+			fwd(); // Consume '='
+			return {Kind::NEQ, {n, 3}};
+		} else {
+			return {Kind::NOT, {n, 1}};
+		}
+	case '=':
+		n = fwd(); // Consume '='
+		if (peek() == '=') {
+			fwd(); // Consume '='
+			return {Kind::EQEQ, {n, 2}};
+		} else {
+			return {Kind::EQ,   {n, 1}};
+		}
+		break;
+	case '<':
+		n = fwd(); // Consume '<'
+		switch (peek()) {
+		case '<': fwd(); return {Kind::LSHIFT, {n, 2}};
+		case '=': fwd(); return {Kind::LTE,    {n, 2}};
+		default:         return {Kind::LT,     {n, 1}};
+		}
+		break;
+	case '>':
+		n = fwd(); // Consume '>'
+		switch (peek()) {
+		case '>': fwd(); return {Kind::RSHIFT, {n, 2}};
+		case '=': fwd(); return {Kind::GTE,    {n, 2}};
+		default:         return {Kind::GT,     {n, 1}};
+		}
+		break;
+	case '\'':
+		n = fwd(); // Consume '\''
+		while (peek() != -1 && peek() != '\'') fwd();
+		fwd(); // Consume '\''
+		return {Kind::LIT_CHR, {n, m_offset - n}};
+	case '"':
+		n = fwd(); // Consume '"'
+		while (peek() != -1 && peek() != '"') {
+			if (peek() == '\\') fwd();
+			fwd(); // Consume '\'
+		}
+		fwd(); // Consume '"'
+		// NOTE(dweiler): The + 1 is to skip '"'
+		// NOTE(dweiler): The + 2 is since we want to subtract the quotes
+		return {Kind::LIT_STR, {n + 1, m_offset - (n + 2)}};
+	case '/':
+		n = fwd(); // Consume '/'
+		switch (peek()) {
+		case '/': // Single-line comment
+			fwd(); // Consume '/'
+			while (peek() != -1 && peek() != '\n') fwd();
+			return {Kind::COMMENT, {n, m_offset - n}};
+		case '*': // Multi-line comment
+			fwd(); // Consume '*'
+			for (int i = 1; i != 0 && peek() != -1; /**/) {
+				switch (peek()) {
+				case '/':
+					fwd(); // Consume '/'
+					if (peek() == '*') {
+						fwd(); // Consume '*'
+						i++; // Open comment (allow nesting)
+					}
+					break;
+				case '*':
+					fwd(); // Consume '*'
+					if (peek() == '/') {
+						fwd(); // Consume '/'
+						i--; // Close comment
+					}
+					break;
+				default:
+					fwd(); // Consume
+					break;
+				}
+			}
+			return {Kind::COMMENT, {n, m_offset - n}};
+		}
+		break;
+	default:
+		if (is_alpha(peek())) {
+			n = fwd();
+			while (peek() != -1 && (is_alnum(peek()) || peek() == '_')) fwd();
+			Ulen l = m_offset - n;
+			StringView ident = m_data.slice(n, l);
+			switch (l) {
+			case 2:
+				/**/ if (ident == "fn")     return {Kind::KW_FN,     {n, 2}};
+				else if (ident == "if")     return {Kind::KW_IF,     {n, 2}};
+				else if (ident == "as")     return {Kind::KW_AS,     {n, 2}};
+				break;
+			case 3:
+				/**/ if (ident == "let")    return {Kind::KW_LET,    {n, 3}};
+				else if (ident == "for")    return {Kind::KW_FOR,    {n, 3}};
+				else if (ident == "asm")    return {Kind::KW_ASM,    {n, 3}};
+				break;
+			case 4:
+				/**/ if (ident == "else")   return {Kind::KW_ELSE,   {n, 4}};
+				break;
+			case 5:
+				/**/ if (ident == "union")  return {Kind::KW_UNION,  {n, 5}};
+				else if (ident == "defer")  return {Kind::KW_DEFER,  {n, 5}};
+				break;
+			case 6:
+				/**/ if (ident == "struct") return {Kind::KW_STRUCT, {n, 6}};
+				else if (ident == "return") return {Kind::KW_RETURN, {n, 6}};
+				break;
+			}
+			return {Kind::IDENT, {n, l}};
+		} else if (is_digit(peek())) {
+			auto z = peek() == '0';
+			Ulen n = fwd(); // Consume digit
+			if (z) {
+				// Consumed a '0'
+				switch (peek()) {
+				case 'x':
+					fwd(); // Consume 'x'
+					while (peek() != -1 && is_hex(peek())) fwd();
+					break;
+				case 'b':
+					fwd(); // Consume 'b'
+					while (peek() != -1 && is_bin(peek())) fwd();
+					break;
+				}
+			} else {
+				while (peek() != -1 && is_digit(peek())) fwd();
+			}
+			Ulen l = m_offset - n;
+			return {Kind::LIT_INT, {n, l}};
+		}
+	}
+	return {Kind::UNKNOWN, {fwd(), 1}};
+}
+
+} // namespace Biron
