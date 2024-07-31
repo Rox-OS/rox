@@ -16,7 +16,8 @@ Biron is an experimental toy systems programming language built for Rox.
 * Designed to run on baremetal
   * No floating point
   * No integer divisions
-* Small: ~5k lines of freestanding C++ with no dependencies
+* Small: ~5k lines of freestanding C++ with no build dependencies
+  * Loads libLLVM dynamically at runtime.
 
 ## Titan
 Titan is an experimental kernel written in Biron used for the Rox operating system.

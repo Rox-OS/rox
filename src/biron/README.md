@@ -12,4 +12,7 @@ Biron is an experimental toy systems programming language built for Rox.
 * Sized integer types: `(S|U)int{8,16,32,64}`
 * Memory addressing type: `Address`
 * Designed to run on baremetal
-* Small: ~5k lines of C++
+  * No floating point
+  * No integer divisions
+* Small: ~5k lines of freestanding C++ with no build dependencies
+  * Loads libLLVM dynamically at runtime.
