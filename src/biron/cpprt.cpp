@@ -3,6 +3,7 @@
 
 #include <biron/util/types.inl>
 
+/*
 // These need to be in namespace std because the compiler generates mangled
 // names assuming so.
 namespace std {
@@ -22,7 +23,7 @@ using std::nothrow_t;
 // Simple macros to help stamp out disabled new and delete operators.
 #define NEW_TEMPLATE(...) \
 	void* operator __VA_ARGS__ noexcept { \
-		fprintf(stderr, "operator " #__VA_ARGS__ "is disabled\n"); \
+		fprintf(stderr, "operator " #__VA_ARGS__ " is disabled\n"); \
 		abort(); \
 	}
 
@@ -46,7 +47,7 @@ NEW(size_t)
 NEW(size_t, align_val_t)
 
 // Non-allocating placement allocation functions.
-NEW(size_t, void*);
+// NEW(size_t, void*);
 
 // Replacable non-throwing allocation functions.
 NEW(size_t, const nothrow_t&)
@@ -55,7 +56,12 @@ NEW(size_t, align_val_t, const nothrow_t&)
 // Replacable usual deallocation functions.
 DELETE(void*)
 DELETE(void*, align_val_t)
-DELETE(void*, size_t)
+
 DELETE(void*, size_t, align_val_t)
 DELETE(void*, const nothrow_t&);
-DELETE(void*, align_val_t, const nothrow_t&);
+DELETE(void*, align_val_t, const nothrow_t&)
+
+void operator delete(void*, size_t) {}
+void operator delete[](void*, size_t) {}
+
+*/

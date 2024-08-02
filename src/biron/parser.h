@@ -12,6 +12,8 @@ namespace Biron {
 // Forward declarations
 struct AstNode;
 
+struct AstAttr;
+
 struct AstExpr;
 struct AstTupleExpr;
 struct AstIntExpr;
@@ -46,12 +48,14 @@ struct AstAsm;
 struct Scope {
 	constexpr Scope(Allocator& allocator, Scope* prev = nullptr) noexcept
 		: lets{allocator}
+		, fns{allocator}
 		, args{nullptr}
 		, prev{prev}
 	{
 	}
 	Bool find(StringView name) const noexcept;
 	Array<AstLetStmt*> lets;
+	Array<AstFn*> fns;
 	AstTupleType* args;
 	Scope* prev;
 };
@@ -59,7 +63,9 @@ struct Scope {
 struct Parser {
 	constexpr Parser(StringView name, StringView data, Allocator& allocator) noexcept
 		: m_lexer{name, data}
+		, m_last_range{0, 0}
 		, m_scope{nullptr}
+		, m_caches{allocator}
 		, m_nodes{allocator}
 		, m_allocator{allocator}
 	{
@@ -93,13 +99,16 @@ struct Parser {
 	[[nodiscard]] AstReturnStmt*  parse_return_stmt() noexcept;
 	[[nodiscard]] AstDeferStmt*   parse_defer_stmt() noexcept;
 	[[nodiscard]] AstIfStmt*      parse_if_stmt() noexcept;
-	[[nodiscard]] AstLetStmt*     parse_let_stmt() noexcept;
+	[[nodiscard]] AstLetStmt*     parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept;
 	[[nodiscard]] AstForStmt*     parse_for_stmt() noexcept;
 	[[nodiscard]] AstStmt*        parse_expr_stmt(Bool semi) noexcept;
 	[[nodiscard]] AstAsmStmt*     parse_asm_stmt() noexcept;
 
+	// Attributes
+	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;
+
 	// Top-level elements
-	AstFn*  parse_fn() noexcept;
+	AstFn*  parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
 	AstAsm* parse_asm() noexcept;
 
 	Maybe<Unit> parse() noexcept;
@@ -148,23 +157,32 @@ private:
 
 	template<typename T, typename... Ts>
 	[[nodiscard]] T* new_node(Ts&&... args) noexcept {
-		Ulen offset = m_nodes.length();
-		if (!m_nodes.reserve(offset + 1)) {
+		for (Ulen l = m_caches.length(), i = 0; i < l; i++) {
+			auto& cache = m_caches[i];
+			if (cache.object_size() != sizeof(T)) {
+				continue;
+			}
+			if (auto addr = cache.allocate()) {
+				auto node = new (addr, Nat{}) T{forward<Ts>(args)...};
+				(void)m_nodes.push_back(node);
+				return node;
+			} else {
+				return nullptr;
+			}
+		}
+		if (!m_caches.emplace_back(m_allocator, sizeof(T), Ulen(1024))) {
 			return nullptr;
 		}
-		if (auto addr = m_allocator.allocate(sizeof(T))) {
-			auto node = new(addr, Nat{}) T{forward<Ts>(args)...};
-			(void)m_nodes.push_back(node); // Cannot fail
-			return node;
-		}
-		return nullptr;
+		return new_node<T>(forward<Ts>(args)...);
 	}
 
 	Lexer m_lexer;
 	Token m_this_token;
 	Token m_last_token;
+	Range m_last_range;
 	Maybe<Token> m_peek_token;
 	Scope* m_scope;
+	Array<Cache> m_caches;
 	Array<AstNode*> m_nodes;
 	Allocator& m_allocator;
 };

@@ -3,6 +3,7 @@
 #include <biron/parser.h>
 #include <biron/llvm.h>
 #include <biron/codegen.h>
+#include <biron/pool.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -126,7 +127,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	if (false) {
+	if (true || false) {
 		gen.dump();
 	}
 
@@ -134,7 +135,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	if (false) {
+	if (true || false) {
 		gen.dump();
 	}
 
@@ -167,7 +168,7 @@ int main(int argc, char **argv) {
 		link.append('\0');
 		if (!link.valid()) {
 			fprintf(stderr, "Out of memory\n");
-			return false;
+			return 1;
 		}
 
 		// We should have an executable now.

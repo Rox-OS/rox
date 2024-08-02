@@ -5,26 +5,32 @@
 #include <biron/util/array.inl>
 #include <biron/util/string.inl>
 
+#include <biron/pool.h>
+
 namespace Biron {
 
 struct AstFn;
 struct AstAsm;
+struct AstLetStmt;
 
 struct Type {
 	enum Flag {
 		UNSIGNED = 1 << 0,
 		SIGNED   = 1 << 1,
+		TUPLE    = 1 << 2,
 	};
 	constexpr Type(LLVM::TypeRef type, Uint32 flags, Type* base = nullptr) noexcept
 		: type{type}
 		, base{base}
 		, flags{flags}
+		, extent{0}
 	{
 	}
 	Type unqual() const noexcept { return base ? *base : *this; }
 	LLVM::TypeRef type;
 	Type*         base;
 	Uint32        flags;
+	Uint64        extent;
 };
 
 struct Value {
@@ -41,16 +47,21 @@ struct Unit {
 	constexpr Unit(Allocator& allocator) noexcept
 		: fns{allocator}
 		, asms{allocator}
+		, lets{allocator}
+		, caches{allocator}
 	{
 	}
 	Array<AstFn*> fns;
 	Array<AstAsm*> asms;
+	Array<AstLetStmt*> lets;
+	Array<Cache> caches;
 	Bool dump(StringBuilder& builder) const noexcept;
 };
 
 struct Var {
 	constexpr Var(StringView name, Type type, LLVM::ValueRef value)
-		: name{name}, value{type, value}
+		: name{name}
+		, value{type, value}
 	{
 	}
 	StringView name;
@@ -59,7 +70,8 @@ struct Var {
 
 struct Fn {
 	constexpr Fn(StringView name, Type type, LLVM::ValueRef value)
-		: name{name}, value{type, value}
+		: name{name}
+		, value{type, value}
 	{
 	}
 	StringView name;
@@ -100,7 +112,7 @@ struct Codegen {
 	Type                   t_slice;
 	LLVM::TargetMachineRef machine;
 
-	Unit                   *unit;
+	// Unit                   *unit;
 	Array<Var>             vars;
 	Array<Fn>              fns;
 	Array<Type*>           types;

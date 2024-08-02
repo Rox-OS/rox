@@ -49,7 +49,6 @@ Codegen::Codegen(LLVM& llvm, Allocator& allocator, const char* triple) noexcept
 	                                   LLVM::CodeGenOptLevel::Aggressive,
 	                                   LLVM::RelocMode::PIC,
 	                                   LLVM::CodeModel::Default)}
-	, unit{nullptr}
 	, vars{allocator}
 	, fns{allocator}
 	, types{allocator}
@@ -123,14 +122,23 @@ void Codegen::dump() noexcept {
 	llvm.DumpModule(module);
 }
 
-Bool Codegen::run(Unit& inunit) noexcept {
-	unit = &inunit;
-	auto& fns = unit->fns;
+Bool Codegen::run(Unit& unit) noexcept {
+	// Emit the constants first
+	auto& lets = unit.lets;
+	for (Ulen l = lets.length(), i = 0; i < l; i++) {
+		if (!lets[i]->codegen_global(*this)) {
+			return false;
+		}
+	}
+
+	// Emit the functions
+	auto& fns = unit.fns;
 	for (Ulen l = fns.length(), i = 0; i < l; i++) {
 		if (!fns[i]->codegen(*this)) {
 			return false;
 		}
 	}
+
 	return true;
 }
 
@@ -221,7 +229,7 @@ Maybe<Type> AstArrayType::codegen(Codegen& gen) noexcept {
 	if (!elems) {
 		return None{};
 	}
-	return Type { llvm.ArrayType2(base->type, elems->as_u32), 0 };
+	return Type { llvm.ArrayType2(base->type, elems->as_u32()), 0 };
 }
 
 Maybe<Type> AstSliceType::codegen(Codegen& gen) noexcept {
@@ -373,7 +381,42 @@ Bool AstLetStmt::codegen(Codegen& gen) noexcept {
 	if (!gen.vars.emplace_back(name, value->type, store)) {
 		return false;
 	}
+
+	// Apply any attributes needed
+	if (attrs) for (Ulen l = attrs->length(), i = 0; i < l; i++) {
+		auto& attr = (*attrs)[i];
+		if (attr->is_attr<AstAlignAttr>()) {
+			auto align = static_cast<AstAlignAttr&>(*attr);
+			llvm.SetAlignment(store, align.align);
+		}
+	}
+
 	llvm.BuildStore(gen.builder, value->value, store);
+	return true;
+}
+
+Bool AstLetStmt::codegen_global(Codegen& gen) noexcept {
+	auto& llvm = gen.llvm;
+	auto value = init->codegen(gen);
+	auto global = llvm.AddGlobal(gen.module, value->type.type, name.terminated(gen.allocator));
+	llvm.SetGlobalConstant(global, true);
+	llvm.SetInitializer(global, value->value);
+	if (!gen.vars.emplace_back(name, value->type, global)) {
+		return false;
+	}
+
+	// Apply any attributes needed
+	if (attrs) for (Ulen l = attrs->length(), i = 0; i < l; i++) {
+		auto& attr = (*attrs)[i];
+		if (attr->is_attr<AstSectionAttr>()) {
+			auto section = static_cast<AstSectionAttr&>(*attr);
+			llvm.SetSection(global, section.name.terminated(gen.allocator));
+		} else if (attr->is_attr<AstAlignAttr>()) {
+			auto align = static_cast<AstAlignAttr&>(*attr);
+			llvm.SetAlignment(global, align.align);
+		}
+	}
+
 	return true;
 }
 
@@ -455,10 +498,34 @@ Bool AstExprStmt::codegen(Codegen& gen) noexcept {
 
 // EXPR
 Maybe<Array<Value>> AstTupleExpr::explode(Codegen& gen) noexcept {
+	auto& llvm = gen.llvm;
 	Array<Value> values{gen.allocator};
 	for (Ulen l = exprs.length(), i = 0; i < l; i++) {
-		if (auto expr = exprs[i]->codegen(gen)) {
-			if (!values.push_back(move(*expr))) {
+		auto expr = exprs[i];
+		if (expr->is_expr<AstExplodeExpr>()) {
+			auto explode = static_cast<AstExplodeExpr*>(expr);
+			auto packed = explode->address(gen);
+			if (!packed) {
+				return None{};
+			}
+			// We need to now copy out of packed into values
+			// llvm.StructGetTypeAtIndex
+			auto n = llvm.CountStructElementTypes(packed->type.type);
+			Array<LLVM::ValueRef> gep{gen.allocator};
+			for (Ulen i = 0; i < n; i++) {
+				LLVM::ValueRef indices[] = {
+					llvm.ConstInt(gen.t_u32.type, 0, false),
+					llvm.ConstInt(gen.t_u32.type, i, false)
+				};
+				auto addr = llvm.BuildGEP2(gen.builder, packed->type.type, packed->value, indices, 2, "");
+				auto type = llvm.StructGetTypeAtIndex(packed->type.type, i);
+				auto load = llvm.BuildLoad2(gen.builder, type, addr, "");
+				if (!values.emplace_back(Type { type, 0 }, load)) {
+					return None{};
+				}
+			}
+		} else if (auto code = expr->codegen(gen)) {
+			if (!values.push_back(move(*code))) {
 				return None{};
 			}
 		} else {
@@ -467,7 +534,8 @@ Maybe<Array<Value>> AstTupleExpr::explode(Codegen& gen) noexcept {
 	}
 	return values;
 }
-Maybe<Value> AstTupleExpr::codegen(Codegen& gen) noexcept {
+
+Maybe<Value> AstTupleExpr::address(Codegen& gen) noexcept {
 	auto& llvm = gen.llvm;
 
 	auto explosion = explode(gen);
@@ -489,21 +557,51 @@ Maybe<Value> AstTupleExpr::codegen(Codegen& gen) noexcept {
 	// Create a structure matching the tuple.
 	auto t = Type {
 		llvm.StructTypeInContext(gen.context, ts.data(), ts.length(), false),
-		0,
+		Type::TUPLE,
 	};
 	auto v = llvm.BuildAlloca(gen.builder, t.type, "tuple");
+	Array<LLVM::ValueRef> geps{gen.allocator};
 	for (Ulen l = explosion->length(), i = 0; i < l; i++) {
-		auto& exploded = (*explosion)[i];
-		// Generate stores into the structure of the values.
 		LLVM::ValueRef indices[] = {
 			llvm.ConstInt(gen.t_u32.type, 0, false),
 			llvm.ConstInt(gen.t_u32.type, i, false),
 		};
-		auto ptr = llvm.BuildGEP2(gen.builder, t.type, v, indices, 2, "tuple_elem");
-		llvm.BuildStore(gen.builder, exploded.value, ptr);
+		auto addr = llvm.BuildGEP2(gen.builder, t.type, v, indices, 2, "");
+		if (!geps.push_back(addr)) {
+			return None{};
+		}
+	}
+	for (Ulen l = explosion->length(), i = 0; i < l; i++) {
+		auto& exploded = (*explosion)[i];
+		llvm.BuildStore(gen.builder, exploded.value, geps[i]);
 	}
 
-	return Value { t, llvm.BuildLoad2(gen.builder, t.type, v, "") };
+	return Value { t, v };
+}
+
+Maybe<Value> AstTupleExpr::codegen(Codegen& gen) noexcept {
+	auto& llvm = gen.llvm;
+	auto addr = address(gen);
+	if (!addr) {
+		return None{};
+	}
+	auto load = llvm.BuildLoad2(gen.builder, addr->type.type, addr->value, "");
+	return Value { addr->type, load };
+}
+
+Maybe<Const> AstTupleExpr::eval() noexcept {
+	Array<Const> tuple{exprs.allocator()};
+	for (Ulen l = exprs.length(), i = 0; i < l; i++) {
+		auto eval = exprs[i]->eval();
+		if (!eval || !tuple.push_back(move(*eval))) {
+			return None{};
+		}
+	}
+	return Const { move(tuple) };
+}
+
+Maybe<Value> AstCallExpr::address(Codegen& gen) noexcept {
+	return codegen(gen);
 }
 
 Maybe<Value> AstCallExpr::codegen(Codegen& gen) noexcept {
@@ -513,6 +611,7 @@ Maybe<Value> AstCallExpr::codegen(Codegen& gen) noexcept {
 	if (!callee_value) {
 		return None{};
 	}
+
 	// We don't actually generate a tuple expression when making a function call,
 	// we explode the tuple into the function call instead.
 	if (args) {
@@ -520,6 +619,8 @@ Maybe<Value> AstCallExpr::codegen(Codegen& gen) noexcept {
 		if (!args_value) {
 			return None{};
 		}
+
+		// One of these args
 
 		Array<LLVM::ValueRef> values{gen.allocator};
 		if (!values.resize(args_value->length())) {
@@ -565,6 +666,7 @@ Maybe<Value> AstCallExpr::codegen(Codegen& gen) noexcept {
 }
 
 Maybe<Value> AstVarExpr::address(Codegen& gen) noexcept {
+	auto& llvm = gen.llvm;
 	for (Ulen l = gen.vars.length(), i = 0; i < l; i++) {
 		const auto& var = gen.vars[i];
 		if (var.name == name) {
@@ -657,21 +759,22 @@ Maybe<Value> AstStrExpr::codegen(Codegen& gen) noexcept {
 	return Value { type, value };
 }
 
-Maybe<Value> AstBinExpr::codegen(Codegen& gen) noexcept {
+Maybe<Value> AstBinExpr::address(Codegen& gen) noexcept {
 	auto& llvm = gen.llvm;
 
 	// When working with binary expressions we want to explode single-element
 	// tuple expressions into their inner expressions. This is because the use of
 	// parentheses in a binary expression is used to control the evaluation order
 	// and we treat any parenthesized expression as a tuple.
-	if (lhs->is_expr<AstTupleExpr>()) {
+	if (lhs->is_expr<AstTupleExpr>() && static_cast<AstTupleExpr*>(lhs)->length() == 1) {
 		lhs = static_cast<AstTupleExpr*>(lhs)->exprs[0];
 	}
-	if (rhs->is_expr<AstTupleExpr>()) {
+	if (rhs->is_expr<AstTupleExpr>() && static_cast<AstTupleExpr*>(rhs)->length() == 1) {
 		rhs = static_cast<AstTupleExpr*>(rhs)->exprs[0];
 	}
 
-	// Special case for 'as' since we do not want to emit the RHS as an expression.
+	// Handle cast operator 'as'. We do not emit the RHS as an expression here.
+	// The RHS should be an AstTypeExpr which we will use to generate a cast.
 	if (op == Operator::AS) {
 		if (!rhs->is_expr<AstTypeExpr>()) {
 			return None{};
@@ -680,8 +783,7 @@ Maybe<Value> AstBinExpr::codegen(Codegen& gen) noexcept {
 		if (!lhs_v) {
 			return None{};
 		}
-		auto type = static_cast<AstTypeExpr&>(*rhs);
-		auto cast_t = type.type->codegen(gen);
+		auto cast_t = static_cast<AstTypeExpr*>(rhs)->type->codegen(gen);
 		if (!cast_t) {
 			return None{};
 		}
@@ -691,6 +793,103 @@ Maybe<Value> AstBinExpr::codegen(Codegen& gen) noexcept {
 		return Value { *cast_t, cast_v };
 	}
 
+	// Handle select operator 'of'. We do not emit the LHS as an expression here.
+	// The LHS should be a TupleExpr<IntExpr> or an IntExpr
+	if (op == Operator::OF) {
+		// TupleExpr of TupleExpr
+		Array<Uint32> picks{gen.allocator};
+		auto value = lhs->eval();
+		if (!value) {
+			// The LHS must be a compile-time constant expression
+			return None{};
+		}
+		// The constant can be a U32 or TUPLE
+		if (value->kind() == Const::Kind::U32) {
+			if (!picks.push_back(value->as_u32())) {
+				return None{};
+			}
+		} else if (value->kind() == Const::Kind::TUPLE) {
+			// The tuple elements must be all U32
+			auto& tuple = value->as_tuple();
+			for (Ulen l = tuple.length(), i = 0; i < l; i++) {
+				auto& elem = tuple[i];
+				if (elem.kind() != Const::Kind::U32) {
+					fprintf(stderr, "Tuple index must be compile time integer constant\n");
+					return None{};
+				}
+				if (!picks.push_back(elem.as_u32())) {
+					return None{};
+				}
+			}
+		} else {
+			// Incompatible type on left hand size of 'of' expression.
+			fprintf(stderr, "The left-hand-side of an 'of' expression requires Uint32 or Tuple type\n");
+			return None{};
+		}
+
+		auto rhs_v = rhs->address(gen);
+		if (!rhs_v) {
+			return None{};
+		}
+
+		// We now have our picks to take from the RHS.
+		if (picks.length() == 1) {
+			LLVM::ValueRef indices[] = {
+				llvm.ConstInt(gen.t_u32.type, 0, false),
+				llvm.ConstInt(gen.t_u32.type, picks[0], false)
+			};
+			auto addr = llvm.BuildGEP2(gen.builder, rhs_v->type.type, rhs_v->value, indices, 2, "");
+			auto type = llvm.StructGetTypeAtIndex(rhs_v->type.type, picks[0]);
+			// auto load = llvm.BuildLoad2(gen.builder, type, addr, "");
+			return Value { Type { type, 0 }, addr };
+		} else {
+			// Generate all the GEPs to select elements from the TupleExpr in pick order.
+			Array<LLVM::ValueRef> geps{gen.allocator};
+			for (Ulen l = picks.length(), i = 0; i < l; i++) {
+				LLVM::ValueRef indices[] = {
+					llvm.ConstInt(gen.t_u32.type, 0, false),
+					llvm.ConstInt(gen.t_u32.type, picks[i], false)
+				};
+				auto addr = llvm.BuildGEP2(gen.builder, rhs_v->type.type, rhs_v->value, indices, 2, "");
+				if (!geps.push_back(addr)) {
+					return None{};
+				}
+			}
+			// Generate all the LOADs to read the picks in pick order.
+			Array<LLVM::TypeRef> pick_ts{gen.allocator};
+			Array<LLVM::ValueRef> pick_vs{gen.allocator};
+			for (Ulen l = picks.length(), i = 0; i < l; i++) {
+				auto type = llvm.StructGetTypeAtIndex(rhs_v->type.type, picks[i]);
+				auto load = llvm.BuildLoad2(gen.builder, type, geps[i], "");
+				if (!pick_ts.push_back(type) || !pick_vs.push_back(load)) {
+					return None{};
+				}
+			}
+			// Construct a new tuple with the selected elements.
+			auto type = llvm.StructTypeInContext(gen.context, pick_ts.data(), pick_ts.length(), false);
+			auto value = llvm.BuildAlloca(gen.builder, type, "");
+			geps.clear();
+			for (Ulen l = pick_vs.length(), i = 0; i < l; i++) {
+				// Generate all the GEPs into the new tuple in iota order.
+				LLVM::ValueRef indices[] = {
+					llvm.ConstInt(gen.t_u32.type, 0, false),
+					llvm.ConstInt(gen.t_u32.type, i, false),
+				};
+				auto addr = llvm.BuildGEP2(gen.builder, type, value, indices, 2, "");
+				if (!geps.push_back(addr)) {
+					return None{};
+				}
+			}
+			// Generate all the STOREs into the new tuple in iota order.
+			for (Ulen l = pick_vs.length(), i = 0; i < l; i++) {
+				llvm.BuildStore(gen.builder, pick_vs[i], geps[i]);
+			}
+			// auto load = llvm.BuildLoad2(gen.builder, type, value, "");
+			return Value { Type { type, Type::TUPLE }, value };
+		}
+	}
+
+	// Otherwise it's a regular binary operator where both sides are evaluated.
 	auto lhs_v = lhs->codegen(gen);
 	if (!lhs_v) {
 		return None{};
@@ -755,11 +954,23 @@ Maybe<Value> AstBinExpr::codegen(Codegen& gen) noexcept {
 			return Value { lhs_v->type, llvm.BuildAShr(gen.builder, lhs_v->value, rhs_v->value, "") };
 		}
 		break;
+	case Operator::DOT:
+		// When the 
 	default:
 		break;
 	}
 	fprintf(stderr, "Unimplemented binary operator: %d for given types\n", (int)op);
 	return None{};
+}
+
+Maybe<Value> AstBinExpr::codegen(Codegen& gen) noexcept {
+	auto& llvm = gen.llvm;
+	auto addr = address(gen);
+	if (!addr) {
+		return None{};
+	}
+	auto load = llvm.BuildLoad2(gen.builder, addr->type.type, addr->value, "");
+	return Value { addr->type, load };
 }
 
 Maybe<Value> AstUnaryExpr::codegen(Codegen& gen) noexcept {
@@ -830,6 +1041,25 @@ Maybe<Value> AstIndexExpr::address(Codegen& gen) noexcept {
 	return Value { lhs->type, llvm.BuildGEP2(gen.builder, lhs->type.type, lhs->value, &rhs->value, 1, "") };
 }
 
+void AstExplodeExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append("...");
+	operand->dump(builder);
+}
+
+Maybe<Value> AstExplodeExpr::address(Codegen& gen) noexcept {
+	return operand->address(gen);
+}
+
+Maybe<Value> AstExplodeExpr::codegen(Codegen& gen) noexcept {
+	auto& llvm = gen.llvm;
+	auto addr = address(gen);
+	if (!addr) {
+		return None{};
+	}
+	auto load = llvm.BuildLoad2(gen.builder, addr->type.type, addr->value, "");
+	return Value { addr->type, load };
+}
+
 Bool AstFn::codegen(Codegen& gen) noexcept {
 	auto& llvm = gen.llvm;
 
@@ -872,7 +1102,7 @@ Bool AstFn::codegen(Codegen& gen) noexcept {
 
 	// Make stack allocated copy of our arguments
 	if (type) {
-		gen.vars.clear();
+		// gen.vars.clear();
 		for (Ulen i = 0; i < type->elems.length(); i++) {
 			const auto &t = (*arg_types)[i];
 			auto src = llvm.GetParam(fn_v, i);
@@ -897,6 +1127,15 @@ Bool AstFn::codegen(Codegen& gen) noexcept {
 			llvm.BuildRetVoid(gen.builder);
 		} else {
 			llvm.BuildRet(gen.builder, llvm.ConstInt(t_ret->type, 0, false));
+		}
+	}
+
+	// Set attributes on the function
+	if (attrs) for (Ulen l = attrs->length(), i = 0; i < l; i++) {
+		auto& attr = (*attrs)[i];
+		if (attr->is_attr<AstSectionAttr>()) {
+			auto section = static_cast<AstSectionAttr&>(*attr);
+			llvm.SetSection(fn_v, section.name.terminated(gen.allocator));
 		}
 	}
 

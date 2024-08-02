@@ -41,6 +41,7 @@ Token Lexer::read() noexcept {
 	while (peek() != -1 && is_space(peek())) fwd(); // Skip whitespace
 	switch (peek()) {
 	case -1:  return {Kind::END,      {fwd(), 0}};
+	case '@': return {Kind::AT,       {fwd(), 1}};
 	case ',': return {Kind::COMMA,    {fwd(), 1}};
 	case ';': return {Kind::SEMI,     {fwd(), 1}};
 	case ':': return {Kind::COLON,    {fwd(), 1}};
@@ -185,6 +186,7 @@ Token Lexer::read() noexcept {
 				/**/ if (ident == "fn")     return {Kind::KW_FN,     {n, 2}};
 				else if (ident == "if")     return {Kind::KW_IF,     {n, 2}};
 				else if (ident == "as")     return {Kind::KW_AS,     {n, 2}};
+				else if (ident == "of")     return {Kind::KW_OF,     {n, 2}};
 				break;
 			case 3:
 				/**/ if (ident == "let")    return {Kind::KW_LET,    {n, 3}};

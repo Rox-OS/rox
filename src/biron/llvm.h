@@ -114,12 +114,19 @@ struct LLVM {
 	ValueRef (*GetBasicBlockTerminator)(BasicBlockRef);
 	// Type
 	ValueRef (*ConstInt)(TypeRef, unsigned long long, Bool);
+	unsigned (*CountStructElementTypes)(TypeRef);
+	TypeRef (*StructGetTypeAtIndex)(TypeRef, unsigned);
 
 	// Value
 	void (*AppendExistingBasicBlock)(ValueRef, BasicBlockRef);
 	ValueRef (*GetParam)(ValueRef, unsigned);
-	TypeRef (*StructGetTypeAtIndex)(TypeRef, unsigned);
+	// TypeRef (*StructGetTypeAtIndex)(TypeRef, unsigned);
 	ValueRef (*GetInlineAsm)(TypeRef, char*, Ulen, char*, Ulen, Bool, Bool, int, Bool);
+	void (*SetGlobalConstant)(ValueRef, Bool);
+	ValueRef (*AddGlobal)(ModuleRef, TypeRef, const char*);
+	void (*SetInitializer)(ValueRef, ValueRef);
+	void (*SetSection)(ValueRef, const char *);
+	void (*SetAlignment)(ValueRef, unsigned);
 
 	// Module
 	ModuleRef (*ModuleCreateWithNameInContext)(const char *, ContextRef);
@@ -152,6 +159,7 @@ struct LLVM {
 	ValueRef (*BuildSelect)(BuilderRef, ValueRef, ValueRef, ValueRef, const char *);
 	ValueRef (*BuildCondBr)(BuilderRef, ValueRef, BasicBlockRef, BasicBlockRef);
 	ValueRef (*BuildLoad2)(BuilderRef, TypeRef, ValueRef, const char *);
+	void (*DumpType)(TypeRef);
 	ValueRef (*BuildStore)(BuilderRef, ValueRef, ValueRef);
 	ValueRef (*BuildGEP2)(BuilderRef, TypeRef, ValueRef, ValueRef *, unsigned, const char *);
 	ValueRef (*BuildGlobalString)(BuilderRef B, const char *, const char *);

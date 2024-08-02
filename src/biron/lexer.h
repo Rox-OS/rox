@@ -9,6 +9,7 @@ namespace Biron {
 struct Token {
 	enum class Kind {
 		END,
+		AT,        // '@'
 		COMMA,     // ','
 		COLON,     // ':'
 		SEMI,      // ';'
@@ -46,6 +47,7 @@ struct Token {
 		KW_FN,     // 'fn'
 		KW_IF,     // 'if'
 		KW_AS,     // 'as'
+		KW_OF,     // 'of'
 		KW_LET,    // 'let'
 		KW_FOR,    // 'for'
 		KW_ASM,    // 'asm'
@@ -72,6 +74,7 @@ struct Token {
 	const char *name() const noexcept {
 		switch (kind) {
 		case Kind::END:       return "EOF";
+		case Kind::AT:        return "AT";
 		case Kind::COMMA:     return "COMMA";
 		case Kind::COLON:     return "COLON";
 		case Kind::SEMI:      return "SEMI";
@@ -81,6 +84,7 @@ struct Token {
 		case Kind::RBRACKET:  return "RBRACKET";
 		case Kind::LBRACE:    return "LBRACE";
 		case Kind::RBRACE:    return "RBRACE";
+		case Kind::KW_OF:     return "OF";
 		case Kind::DOT:       return "DOT";      // '.'
 		case Kind::SEQUENCE:  return "SEQUENCE"; // '..'
 		case Kind::ELLIPSIS:  return "ELLIPSIS"; // '...'
@@ -130,6 +134,7 @@ struct Token {
 		case Kind::LPAREN:   return 16 - 1;
 		// case Kind::LBRACKET: return 16 - 1;
 		case Kind::DOT:      return 16 - 1;
+		case Kind::KW_OF:    return 16 - 1;
 		case Kind::KW_AS:    return 16 - 1;
 		// case Kind::LNOT:     return 16 - 2;
 		// case Kind::BNOT:     return 16 - 2;

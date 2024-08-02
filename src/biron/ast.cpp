@@ -80,6 +80,8 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Operator::BAND:   builder.append(" && ");
 	break; case Operator::LSHIFT: builder.append(" << ");
 	break; case Operator::RSHIFT: builder.append(" >> ");
+	break; case Operator::DOT:    builder.append('.');
+	break; case Operator::OF:     builder.append(" of ");
 	break;
 	}
 	rhs->dump(builder);

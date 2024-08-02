@@ -18,6 +18,7 @@ static bool link(void *lib, T*& p, const char *name) {
 #define LINK(name) \
 	do { \
 		if (!link(lib, llvm.name, "LLVM" #name)) { \
+			fprintf(stderr, "Could not load 'LLVM" #name "'\n"); \
 			return None{}; \
 		} \
 	} while (0)
@@ -57,8 +58,15 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(GetBasicBlockParent);
 	LINK(GetBasicBlockTerminator);
 	LINK(ConstInt);
+	LINK(StructGetTypeAtIndex);
+	LINK(CountStructElementTypes);
 	LINK(AppendExistingBasicBlock);
 	LINK(GetInlineAsm);
+	LINK(AddGlobal);
+	LINK(SetGlobalConstant);
+	LINK(SetInitializer);
+	LINK(SetSection);
+	LINK(SetAlignment);
 	LINK(ModuleCreateWithNameInContext);
 	LINK(AddFunction);
 	LINK(GetNamedFunction);
@@ -87,6 +95,7 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(BuildSelect);
 	LINK(BuildCondBr);
 	LINK(BuildLoad2);
+	LINK(DumpType);
 	LINK(BuildStore);
 	LINK(BuildGEP2);
 	LINK(BuildGlobalString);

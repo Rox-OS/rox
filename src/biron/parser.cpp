@@ -16,12 +16,19 @@ Bool Scope::find(StringView name) const noexcept {
 	if (name == "printf") {
 		return true;
 	}
+	// Search let declarations
 	for (Ulen l = lets.length(), i = 0; i < l; i++) {
 		if (lets[i]->name == name) {
 			return true;
 		}
 	}
-	// Check optional function arguments.
+	// Search fn declarations
+	for (Ulen l = fns.length(), i = 0; i < l; i++) {
+		if (fns[i]->name == name) {
+			return true;
+		}
+	}
+	// Search optional function arguments when this is a function-level scope.
 	if (args) {
 		for (Ulen l = args->elems.length(), i = 0; i < l; i++) {
 			auto& elem = args->elems[i];
@@ -45,16 +52,16 @@ Bool Parser::has_symbol(StringView name) const noexcept {
 Parser::~Parser() noexcept {
 	for (Ulen l = m_nodes.length(), i = 0; i < l; i++) {
 		m_nodes[i]->~AstNode();
-		m_allocator.deallocate(m_nodes[i], 0);
 	}
 }
 
 void Parser::diagnostic(Token where, const char *message) {
-	// Do not report the same error more than once
-	static Range last_range{0, 0};
-	Range range = where.range;
-	if (range == last_range) return;
-	last_range = range;
+	// Do not report the same error more than once.
+	auto range = where.range;
+	if (range == m_last_range) {
+		return;
+	}
+	m_last_range = range;
 
 	// Work out the column and line from the token offset.
 	Ulen line_number = 1;
@@ -145,6 +152,8 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		break; case Token::Kind::BAND:   lhs = new_node<AstBinExpr>(token.range, Operator::BAND,   lhs, rhs);
 		break; case Token::Kind::LSHIFT: lhs = new_node<AstBinExpr>(token.range, Operator::LSHIFT, lhs, rhs);
 		break; case Token::Kind::RSHIFT: lhs = new_node<AstBinExpr>(token.range, Operator::RSHIFT, lhs, rhs);
+		break; case Token::Kind::DOT:    lhs = new_node<AstBinExpr>(token.range, Operator::DOT,    lhs, rhs);
+		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(token.range, Operator::OF,     lhs, rhs);
 		break;
 		default:
 			ERROR(token, "Unexpected token '%s' in binary expression", token.name());
@@ -160,6 +169,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 //	::= '+' UnaryExpr
 //	::= '*' UnaryExpr
 //	::= '&' UnaryExpr
+//	::= '...' UnaryExpr
 AstExpr* Parser::parse_unary_expr() noexcept {
 	using Operator = AstUnaryExpr::Operator;
 	AstExpr* operand = nullptr;
@@ -192,6 +202,12 @@ AstExpr* Parser::parse_unary_expr() noexcept {
 			return nullptr;
 		}
 		return new_node<AstUnaryExpr>(token.range.include(operand->range), Operator::ADDROF, operand);
+	case Token::Kind::ELLIPSIS:
+		next();
+		if (!(operand = parse_expr())) {
+			return nullptr;
+		}
+		return new_node<AstExplodeExpr>(token.range.include(operand->range), operand);
 	default:
 		return parse_primary_expr();
 	}
@@ -228,6 +244,7 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 	case Token::Kind::LPAREN:
 		return parse_tuple_expr();
 	case Token::Kind::STAR:
+	case Token::Kind::LBRACKET:
 		return parse_type_expr();
 	default:
 		ERROR("Unknown token '%s' in primary expression", peek().name());
@@ -714,9 +731,20 @@ AstStmt* Parser::parse_stmt() noexcept {
 	case Token::Kind::KW_IF:
 		return parse_if_stmt();
 	case Token::Kind::KW_LET:
-		return parse_let_stmt();
+		return parse_let_stmt(None{});
 	case Token::Kind::KW_FOR:
 		return parse_for_stmt();
+	case Token::Kind::AT: {
+		auto attrs = parse_attrs();
+		if (!attrs) {
+			return nullptr;
+		}
+		if (peek().kind != Token::Kind::KW_LET) {
+			ERROR("Expected 'let' statement");
+			return nullptr;
+		}
+		return parse_let_stmt(move(attrs));
+	}
 	default:
 		return parse_expr_stmt(true);
 	}
@@ -825,7 +853,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 	Scope scope{m_allocator, m_scope};
 	if (peek().kind == Token::Kind::KW_LET) {
 		m_scope = &scope;
-		if (!(init = parse_let_stmt())) {
+		if (!(init = parse_let_stmt(None{}))) {
 			return nullptr;
 		}
 	}
@@ -859,7 +887,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 
 // LetStmt
 //	::= 'let' Ident ('=' Expr)? ';'
-AstLetStmt* Parser::parse_let_stmt() noexcept {
+AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_LET) {
 		ERROR("Expected 'let'");
 		return nullptr;
@@ -890,7 +918,7 @@ AstLetStmt* Parser::parse_let_stmt() noexcept {
 		return nullptr;
 	}
 	next(); // Consume ';'
-	auto node = new_node<AstLetStmt>(name, init);
+	auto node = new_node<AstLetStmt>(name, init, move(attrs));
 	if (!node) {
 		return nullptr;
 	}
@@ -915,7 +943,7 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 	Scope scope{m_allocator, m_scope};
 	if (peek().kind == Token::Kind::KW_LET) {
 		m_scope = &scope;
-		if (!(let = parse_let_stmt())) {
+		if (!(let = parse_let_stmt(None{}))) {
 			return nullptr;
 		}
 	}
@@ -1017,7 +1045,7 @@ AstAsmStmt* Parser::parse_asm_stmt() noexcept {
 
 // Fn
 //	::= 'fn' TupleType? Ident TupleType ('->' Type)? BlockStmt
-AstFn* Parser::parse_fn() noexcept {
+AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	Scope scope{m_allocator, m_scope};
 	m_scope = &scope;
 	if (peek().kind != Token::Kind::KW_FN) {
@@ -1053,11 +1081,14 @@ AstFn* Parser::parse_fn() noexcept {
 	if (!body) {
 		return nullptr;
 	}
-	auto node = new_node<AstFn>(generic, name, type, rtype, body);
+	auto node = new_node<AstFn>(generic, name, type, rtype, body, move(attrs));
 	if (!node) {
 		return nullptr;
 	}
 	m_scope = m_scope->prev;
+	if (!m_scope->fns.push_back(node)) {
+		return nullptr;
+	}
 	return node;
 }
 
@@ -1111,11 +1142,87 @@ AstAsm* Parser::parse_asm() noexcept {
 	return new_node<AstAsm>(name, type, clobbers, move(stmts));
 }
 
+Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
+	if (peek().kind != Token::Kind::AT) {
+		ERROR("Expected @");
+		return None{};
+	}
+	next(); // Consume '@'
+
+	if (peek().kind != Token::Kind::LPAREN) {
+		ERROR("Expected '('");
+		return None{};
+	}
+	next(); // Consume '('
+
+	Array<AstAttr*> attrs{m_allocator};
+	while (peek().kind != Token::Kind::RPAREN) {
+		if (peek().kind != Token::Kind::IDENT) {
+			ERROR("Expected identifier");
+			return None{};
+		}
+		auto token = next(); // Consume IDENT
+		auto name = m_lexer.string(token.range);
+		if (name == "section") {
+		} else if (name == "align") {
+		} else {
+			ERROR("Unknown attribute: '%.*s'", (int)name.length(), name.data());
+			return None{};
+		}
+		auto args = parse_tuple_expr();
+		if (!args || args->length() != 1) {
+			return None{};
+		}
+		if (name == "section") {
+			if (!args->exprs[0]->is_expr<AstStrExpr>()) {
+				ERROR("Expected String for 'section' attribute");
+				return None{};
+			}
+			auto expr = static_cast<AstStrExpr&>(*args->exprs[0]);
+			auto node = new_node<AstSectionAttr>(expr.literal);
+			if (!node || !attrs.push_back(node)) {
+				return None{};
+			}
+		} else if (name == "align") {
+			if (!args->exprs[0]->is_expr<AstIntExpr>()) {
+				ERROR("Expected Uint32 for 'align' attribute");
+				return None{};
+			}
+			auto expr = static_cast<AstIntExpr&>(*args->exprs[0]);
+			auto node = new_node<AstAlignAttr>(expr.value);
+			if (!node || !attrs.push_back(node)) {
+				return None{};
+			}
+		}
+		if (peek().kind != Token::Kind::COMMA) {
+			break;
+		}
+		next(); // Consume ','
+	}
+
+	if (peek().kind != Token::Kind::RPAREN) {
+		ERROR("Expected ')'");
+		return None{};
+	}
+	next(); // Consume ')'
+
+	return attrs;
+}
+
 Maybe<Unit> Parser::parse() noexcept {
 	Unit unit{m_allocator};
+	Scope scope{m_allocator, nullptr};
+	m_scope = &scope;
+	Maybe<Array<AstAttr*>> attrs{m_allocator};
 	for (;;) switch (peek().kind) {
+	case Token::Kind::AT:
+		attrs = parse_attrs();
+		if (!attrs) {
+			return None{};
+		}
+		break;
 	case Token::Kind::KW_FN:
-		if (auto fn = parse_fn()) {
+		if (auto fn = parse_fn(move(attrs))) {
 			if (!unit.fns.push_back(fn)) {
 				ERROR("Out of memory");
 				return None{};
@@ -1126,6 +1233,14 @@ Maybe<Unit> Parser::parse() noexcept {
 		if (auto a = parse_asm()) {
 			if (!unit.asms.push_back(a)) {
 				ERROR("Out of memory");
+				return None{};
+			}
+		}
+		break;
+	case Token::Kind::KW_LET:
+		if (auto let = parse_let_stmt(move(attrs))) {
+			if (!unit.lets.push_back(let)) {
+				ERROR("out of memory");
 				return None{};
 			}
 		}

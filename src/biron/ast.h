@@ -16,11 +16,75 @@ struct AstType;
 
 // Compile time constants
 struct Const {
-	Uint32 as_u32;
+	enum class Kind {
+		NONE, TUPLE, U32
+	};
+	constexpr Const() noexcept
+		: m_kind{Kind::NONE}
+		, m_as_nat{}
+	{
+	}
+	constexpr Const(Uint32 value) noexcept
+		: m_kind{Kind::U32}
+		, m_as_u32{value}
+	{
+	}
+	constexpr Const(Array<Const>&& tuple) noexcept
+		: m_kind{Kind::TUPLE}
+		, m_as_tuple{move(tuple)}
+	{
+	}
+	Const(Const&& other) noexcept
+		: m_kind{exchange(other.m_kind, Kind::NONE)}
+	{
+		switch (m_kind) {
+		case Kind::NONE:
+		break;
+		case Kind::TUPLE:
+			new (&m_as_tuple, Nat{}) Array<Const>{move(other.m_as_tuple)};
+			other.m_as_tuple.~Array<Const>();
+			break;
+		case Kind::U32:
+			m_as_u32 = exchange(other.m_as_u32, 0);
+			break;
+		}
+	}
+	~Const() noexcept { drop(); }
+	[[nodiscard]]Uint32 as_u32() const noexcept {
+		BIRON_ASSERT(kind() == Kind::U32);
+		return m_as_u32;
+	}
+	[[nodiscard]] const Array<Const>& as_tuple() const noexcept {
+		BIRON_ASSERT(kind() == Kind::TUPLE);
+		return m_as_tuple;
+	}
+	[[nodiscard]] constexpr Kind kind() const noexcept {
+		return m_kind;
+	}
+private:
+	Kind m_kind;
+	union {
+		Nat          m_as_nat;
+		Array<Const> m_as_tuple;
+		Uint32       m_as_u32;
+	};
+	void drop() {
+		switch (m_kind) {
+		case Kind::NONE:
+			break;
+		case Kind::TUPLE:
+			m_as_tuple.~Array<Const>();
+			break;
+		case Kind::U32:
+			break;
+		}
+	}
 };
 
 struct AstNode {
-	enum class Kind : Uint8 { TYPE, EXPR, STMT, FN, ASM };
+	enum class Kind : Uint8 {
+		TYPE, EXPR, STMT, FN, ASM, ATTR
+	};
 	constexpr AstNode(Kind kind) noexcept
 		: kind{kind}
 	{
@@ -33,10 +97,46 @@ struct AstNode {
 	Kind kind;
 };
 
+struct AstAttr : AstNode {
+	static inline constexpr auto KIND = Kind::ATTR;
+	enum class Kind { SECTION, ALIGN };
+	constexpr AstAttr(Kind kind) noexcept
+		: AstNode{KIND}
+		, kind{kind}
+	{
+	}
+	virtual ~AstAttr() noexcept = default;
+	template<DerivedFrom<AstAttr> T>
+	constexpr Bool is_attr() const noexcept {
+		return kind == T::KIND;
+	}
+	Kind kind;
+};
+
+struct AstSectionAttr : AstAttr {
+	static inline constexpr auto KIND = Kind::SECTION;
+	constexpr AstSectionAttr(StringView name) noexcept
+		: AstAttr{KIND}
+		, name{name}
+	{
+	}
+	StringView name;
+};
+
+struct AstAlignAttr : AstAttr {
+	static inline constexpr auto KIND = Kind::ALIGN;
+	constexpr AstAlignAttr(Uint32 align) noexcept
+		: AstAttr{KIND}
+		, align{align}
+	{
+	}
+	Uint32 align;
+};
+
 struct AstExpr : AstNode {
 	static inline constexpr auto KIND = Kind::EXPR;
 	enum class Kind : Uint8 {
-		TUPLE, CALL, TYPE, VAR, INT, STR, BIN, UNARY, INDEX, ASM
+		TUPLE, CALL, TYPE, VAR, INT, STR, BIN, UNARY, INDEX, EXPLODE, ASM
 	};
 	constexpr AstExpr(Range range, Kind kind) noexcept
 		: AstNode{KIND}
@@ -66,7 +166,10 @@ struct AstTupleExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] virtual Maybe<Value> codegen(Codegen& gen) noexcept override;
+	[[nodiscard]] virtual Maybe<Value> address(Codegen& gen) noexcept override;
+	[[nodiscard]] virtual Maybe<Const> eval() noexcept override;
 	[[nodiscard]] Maybe<Array<Value>> explode(Codegen& gen) noexcept;
+	[[nodiscard]] Ulen length() const noexcept { return exprs.length(); }
 	Array<AstExpr*> exprs;
 };
 
@@ -81,6 +184,7 @@ struct AstCallExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] virtual Maybe<Value> codegen(Codegen& gen) noexcept override;
+	[[nodiscard]] virtual Maybe<Value> address(Codegen& gen) noexcept override;
 	AstExpr*      callee;
 	AstTupleExpr* args;
 	Bool          c; // C ABI
@@ -114,7 +218,7 @@ struct AstVarExpr : AstExpr {
 struct AstIntExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::INT;
 	constexpr AstIntExpr(Range range, Uint32 value) noexcept
-		: AstExpr{range, Kind::INT}
+		: AstExpr{range, KIND}
 		, value{value}
 	{
 	}
@@ -127,7 +231,7 @@ struct AstIntExpr : AstExpr {
 struct AstStrExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::STR;
 	constexpr AstStrExpr(Range range, StringView literal) noexcept
-		: AstExpr{range, Kind::STR}
+		: AstExpr{range, KIND}
 		, literal{literal}
 	{
 	}
@@ -139,7 +243,7 @@ struct AstStrExpr : AstExpr {
 struct AstBinExpr : AstExpr {
 	static inline constexpr auto KIND = Kind::BIN;
 	enum class Operator {
-		ADD, SUB, MUL, EQEQ, NEQ, GT, GTE, LT, LTE, AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT
+		ADD, SUB, MUL, EQEQ, NEQ, GT, GTE, LT, LTE, AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT, OF
 	};
 	constexpr AstBinExpr(Range range, Operator op, AstExpr* lhs, AstExpr* rhs) noexcept
 		: AstExpr{range, Kind::BIN}
@@ -150,6 +254,7 @@ struct AstBinExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] virtual Maybe<Value> codegen(Codegen& gen) noexcept override;
+	[[nodiscard]] virtual Maybe<Value> address(Codegen& gen) noexcept override;
 	Operator op;
 	AstExpr* lhs;
 	AstExpr* rhs;
@@ -185,6 +290,19 @@ struct AstIndexExpr : AstExpr {
 	[[nodiscard]] virtual Maybe<Value> address(Codegen& gen) noexcept override;
 	AstExpr* operand;
 	AstExpr* index;
+};
+
+struct AstExplodeExpr : AstExpr {
+	static inline constexpr auto KIND = Kind::EXPLODE;
+	constexpr AstExplodeExpr(Range range, AstExpr* operand) noexcept
+		: AstExpr{range, KIND}
+		, operand{operand}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<Value> codegen(Codegen& gen) noexcept override;
+	[[nodiscard]] virtual Maybe<Value> address(Codegen& gen) noexcept override;
+	AstExpr* operand;
 };
 
 struct AstAsmExpr : AstExpr {
@@ -318,7 +436,7 @@ struct AstIdentType : AstType {
 	static inline constexpr auto KIND = Kind::IDENT;
 	StringView ident;
 	constexpr AstIdentType(StringView ident) noexcept
-		: AstType{Kind::IDENT}
+		: AstType{KIND}
 		, ident{ident}
 	{
 	}
@@ -329,7 +447,7 @@ struct AstIdentType : AstType {
 struct AstVarArgsType : AstType {
 	static inline constexpr auto KIND = Kind::VARARGS;
 	constexpr AstVarArgsType() noexcept
-		: AstType{Kind::VARARGS}
+		: AstType{KIND}
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
@@ -337,9 +455,9 @@ struct AstVarArgsType : AstType {
 };
 
 struct AstPtrType : AstType {
-	static inline constexpr auto Kind = Kind::PTR;
+	static inline constexpr auto KIND = Kind::PTR;
 	constexpr AstPtrType(AstType* type) noexcept
-		: AstType{Kind::PTR}
+		: AstType{KIND}
 		, type{type}
 	{
 	}
@@ -349,9 +467,9 @@ struct AstPtrType : AstType {
 };
 
 struct AstArrayType : AstType {
-	static inline constexpr auto Kind = Kind::ARRAY;
+	static inline constexpr auto KIND = Kind::ARRAY;
 	constexpr AstArrayType(AstType* type, AstExpr* extent) noexcept
-		: AstType{Kind::ARRAY}
+		: AstType{KIND}
 		, type{type}
 		, extent{extent}
 	{
@@ -363,9 +481,9 @@ struct AstArrayType : AstType {
 };
 
 struct AstSliceType : AstType {
-	static inline constexpr auto Kind = Kind::SLICE;
+	static inline constexpr auto KIND = Kind::SLICE;
 	constexpr AstSliceType(AstType* type) noexcept
-		: AstType{Kind::SLICE}
+		: AstType{KIND}
 		, type{type}
 	{
 	}
@@ -380,7 +498,7 @@ struct AstStmt : AstNode {
 		BLOCK, RETURN, DEFER, IF, LET, FOR, EXPR, ASSIGN, ASM
 	};
 	constexpr AstStmt(Kind kind) noexcept
-		: AstNode{AstNode::Kind::STMT}
+		: AstNode{KIND}
 		, kind{kind}
 	{
 	}
@@ -398,7 +516,7 @@ struct AstBlockStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::BLOCK;
 	Array<AstStmt*> stmts;
 	constexpr AstBlockStmt(Array<AstStmt*>&& stmts) noexcept
-		: AstStmt{Kind::BLOCK}
+		: AstStmt{KIND}
 		, stmts{move(stmts)}
 	{
 	}
@@ -409,7 +527,7 @@ struct AstBlockStmt : AstStmt {
 struct AstReturnStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::RETURN;
 	constexpr AstReturnStmt(AstExpr* expr) noexcept
-		: AstStmt{Kind::RETURN}
+		: AstStmt{KIND}
 		, expr{expr}
 	{
 	}
@@ -421,7 +539,7 @@ struct AstReturnStmt : AstStmt {
 struct AstDeferStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::DEFER;
 	constexpr AstDeferStmt(AstStmt* stmt) noexcept
-		: AstStmt{Kind::DEFER}
+		: AstStmt{KIND}
 		, stmt{stmt} 
 	{
 	}
@@ -435,7 +553,7 @@ struct AstLetStmt;
 struct AstIfStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::IF;
 	constexpr AstIfStmt(AstLetStmt* init, AstExpr* expr, AstBlockStmt* then, AstStmt* elif) noexcept 
-		: AstStmt{Kind::IF}
+		: AstStmt{KIND}
 		, init{init}
 		, expr{expr}
 		, then{then}
@@ -452,22 +570,25 @@ struct AstIfStmt : AstStmt {
 
 struct AstLetStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::LET;
-	constexpr AstLetStmt(StringView name, AstExpr* init) noexcept
-		: AstStmt{Kind::LET}
+	constexpr AstLetStmt(StringView name, AstExpr* init, Maybe<Array<AstAttr*>>&& attrs) noexcept
+		: AstStmt{KIND}
 		, name{name}
 		, init{init}
+		, attrs{move(attrs)}
 	{
 	}
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 	[[nodiscard]] virtual Bool codegen(Codegen& gen) noexcept override;
-	StringView name;
-	AstExpr*   init;
+	Bool codegen_global(Codegen& gen) noexcept;
+	StringView             name;
+	AstExpr*               init;
+	Maybe<Array<AstAttr*>> attrs;
 };
 
 struct AstForStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::FOR;
 	constexpr AstForStmt(AstLetStmt* init, AstExpr* expr, AstStmt* post, AstBlockStmt* body) noexcept
-		: AstStmt{Kind::FOR}
+		: AstStmt{KIND}
 		, init{init}
 		, expr{expr}
 		, post{post}
@@ -485,7 +606,7 @@ struct AstForStmt : AstStmt {
 struct AstExprStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::EXPR;
 	constexpr AstExprStmt(AstExpr* expr) noexcept
-		: AstStmt{Kind::EXPR}
+		: AstStmt{KIND}
 		, expr{expr}
 	{
 	}
@@ -498,7 +619,7 @@ struct AstAssignStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::ASSIGN;
 	enum class StoreOp { WR, };
 	constexpr AstAssignStmt(AstExpr* dst, AstExpr* src, StoreOp op) noexcept
-		: AstStmt{Kind::ASSIGN}
+		: AstStmt{KIND}
 		, dst{dst}
 		, src{src}
 		, op{op}
@@ -527,22 +648,24 @@ struct AstAsmStmt : AstStmt {
 
 struct AstFn : AstNode {
 	static inline constexpr auto KIND = Kind::FN;
-	constexpr AstFn(AstTupleType* generic, StringView name, AstTupleType* type, AstType* rtype, AstBlockStmt* body) noexcept
+	constexpr AstFn(AstTupleType* generic, StringView name, AstTupleType* type, AstType* rtype, AstBlockStmt* body, Maybe<Array<AstAttr*>>&& attrs) noexcept
 		: AstNode{KIND}
 		, generic{generic}
 		, name{name}
 		, type{type}
 		, rtype{rtype}
 		, body{body}
+		, attrs{move(attrs)}
 	{
 	}
 	[[nodiscard]] Bool codegen(Codegen& gen) noexcept;
 	void dump(StringBuilder& builder, int depth) const noexcept;
-	AstTupleType* generic;
-	StringView    name;
-	AstTupleType* type;
-	AstType*      rtype;
-	AstBlockStmt* body;
+	AstTupleType*          generic;
+	StringView             name;
+	AstTupleType*          type;
+	AstType*               rtype;
+	AstBlockStmt*          body;
+	Maybe<Array<AstAttr*>> attrs;
 };
 
 struct AstAsm : AstNode {

@@ -67,6 +67,8 @@ struct Array {
 	[[nodiscard]] constexpr const T& operator[](Ulen i) const noexcept { return m_data[i]; }
 	[[nodiscard]] constexpr Ulen length() const noexcept { return m_length; }
 	[[nodiscard]] constexpr Ulen capacity() const noexcept { return m_capacity; }
+	[[nodiscard]] constexpr Bool empty() const noexcept { return m_length == 0; }
+	[[nodiscard]] constexpr Allocator& allocator() const noexcept { return m_allocator; }
 	[[nodiscard]] Bool resize(Ulen size) noexcept {
 		if (!reserve(size)) return false;
 		m_length = size;
