@@ -1,10 +1,8 @@
 #ifndef BIRON_PARSER_H
 #define BIRON_PARSER_H
 #include <biron/lexer.h>
-#include <biron/codegen.h>
-
-#include <biron/util/array.inl>
-#include <biron/util/string.inl>
+#include <biron/pool.h>
+#include <biron/ast_unit.h>
 #include <biron/util/format.inl>
 
 namespace Biron {
@@ -18,14 +16,10 @@ struct AstExpr;
 struct AstTupleExpr;
 struct AstIntExpr;
 struct AstStrExpr;
-
-struct AstAsmExpr;
-struct AstAsmRegExpr;
-struct AstAsmImmExpr;
-struct AstAsmMemExpr;
-struct AstAsmSubExpr; 
+struct AstBoolExpr;
 
 struct AstType;
+struct AstBoolType;
 struct AstTupleType;
 struct AstIdentType;
 struct AstVarArgsType;
@@ -47,22 +41,24 @@ struct AstAsm;
 
 struct Scope {
 	constexpr Scope(Allocator& allocator, Scope* prev = nullptr) noexcept
-		: lets{allocator}
-		, fns{allocator}
-		, args{nullptr}
-		, prev{prev}
+		: m_lets{allocator}
+		, m_fns{allocator}
+		, m_prev{prev}
 	{
 	}
-	Bool find(StringView name) const noexcept;
-	Array<AstLetStmt*> lets;
-	Array<AstFn*> fns;
-	AstTupleType* args;
-	Scope* prev;
+	[[nodiscard]] Bool find(StringView name) const noexcept;
+	[[nodiscard]] Bool add_fn(AstFn* fn) noexcept;
+	[[nodiscard]] Bool add_let(AstLetStmt* let) noexcept;
+	[[nodiscard]] Scope* prev() const noexcept { return m_prev; }
+private:
+	Array<AstLetStmt*> m_lets;
+	Array<AstFn*> m_fns;
+	Scope* m_prev;
 };
 
 struct Parser {
-	constexpr Parser(StringView name, StringView data, Allocator& allocator) noexcept
-		: m_lexer{name, data}
+	constexpr Parser(Lexer& lexer, Allocator& allocator) noexcept
+		: m_lexer{lexer}
 		, m_last_range{0, 0}
 		, m_scope{nullptr}
 		, m_caches{allocator}
@@ -78,13 +74,7 @@ struct Parser {
 	[[nodiscard]] AstTupleExpr*   parse_tuple_expr() noexcept;
 	[[nodiscard]] AstIntExpr*     parse_int_expr() noexcept;
 	[[nodiscard]] AstStrExpr*     parse_str_expr() noexcept;
-
-	// Asm Expression
-	[[nodiscard]] AstAsmExpr*     parse_asm_expr() noexcept;
-	[[nodiscard]] AstAsmRegExpr*  parse_asm_reg_expr() noexcept;
-	[[nodiscard]] AstAsmImmExpr*  parse_asm_imm_expr() noexcept;
-	[[nodiscard]] AstAsmMemExpr*  parse_asm_mem_expr() noexcept;
-	[[nodiscard]] AstAsmSubExpr*  parse_asm_sub_expr() noexcept;
+	[[nodiscard]] AstBoolExpr*    parse_bool_expr() noexcept;
 
 	// Types
 	[[nodiscard]] AstType*        parse_type() noexcept;
@@ -102,16 +92,14 @@ struct Parser {
 	[[nodiscard]] AstLetStmt*     parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept;
 	[[nodiscard]] AstForStmt*     parse_for_stmt() noexcept;
 	[[nodiscard]] AstStmt*        parse_expr_stmt(Bool semi) noexcept;
-	[[nodiscard]] AstAsmStmt*     parse_asm_stmt() noexcept;
 
 	// Attributes
 	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;
 
 	// Top-level elements
 	AstFn*  parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	AstAsm* parse_asm() noexcept;
 
-	Maybe<Unit> parse() noexcept;
+	Maybe<AstUnit> parse() noexcept;
 
 private:
 	Bool has_symbol(StringView name) const noexcept;
@@ -150,7 +138,7 @@ private:
 		return m_this_token;
 	}
 	Token peek() noexcept {
-		BIRON_ASSERT(!m_peek_token && "LR(1) violation");
+		// We can only peek LR(1)
 		m_peek_token = next();
 		return *m_peek_token;
 	}
@@ -159,6 +147,7 @@ private:
 	[[nodiscard]] T* new_node(Ts&&... args) noexcept {
 		for (Ulen l = m_caches.length(), i = 0; i < l; i++) {
 			auto& cache = m_caches[i];
+			// Search for maching cache size
 			if (cache.object_size() != sizeof(T)) {
 				continue;
 			}
@@ -176,7 +165,7 @@ private:
 		return new_node<T>(forward<Ts>(args)...);
 	}
 
-	Lexer m_lexer;
+	Lexer& m_lexer;
 	Token m_this_token;
 	Token m_last_token;
 	Range m_last_range;

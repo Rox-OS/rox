@@ -44,6 +44,9 @@ struct Token {
 		ARROW,     // '->'
 		IDENT,     // [a-z][A-Z]([a-z][A-Z][0-9]_)+
 
+		KW_TRUE,   // true
+		KW_FALSE,  // false
+
 		KW_FN,     // 'fn'
 		KW_IF,     // 'if'
 		KW_AS,     // 'as'
@@ -109,6 +112,8 @@ struct Token {
 		case Kind::RSHIFT:    return "RSHIFT";
 		case Kind::ARROW:     return "ARROW";
 		case Kind::IDENT:     return "IDENT";
+		case Kind::KW_TRUE:   return "TRUE";
+		case Kind::KW_FALSE:  return "FALSE";
 		case Kind::KW_FN:     return "FN";
 		case Kind::KW_IF:     return "IF";
 		case Kind::KW_AS:     return "AS";

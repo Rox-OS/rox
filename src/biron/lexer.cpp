@@ -195,10 +195,12 @@ Token Lexer::read() noexcept {
 				break;
 			case 4:
 				/**/ if (ident == "else")   return {Kind::KW_ELSE,   {n, 4}};
+				else if (ident == "true")   return {Kind::KW_TRUE,   {n, 4}};
 				break;
 			case 5:
 				/**/ if (ident == "union")  return {Kind::KW_UNION,  {n, 5}};
 				else if (ident == "defer")  return {Kind::KW_DEFER,  {n, 5}};
+				else if (ident == "false")  return {Kind::KW_FALSE,  {n, 5}};
 				break;
 			case 6:
 				/**/ if (ident == "struct") return {Kind::KW_STRUCT, {n, 6}};
@@ -207,22 +209,39 @@ Token Lexer::read() noexcept {
 			}
 			return {Kind::IDENT, {n, l}};
 		} else if (is_digit(peek())) {
+			// The use of ' is allowed in the digit as a separator but never two
+			// separators next to each other and never the first character in a digit.
 			auto z = peek() == '0';
 			Ulen n = fwd(); // Consume digit
+			Bool s = false; // Encountered a separator
 			if (z) {
 				// Consumed a '0'
 				switch (peek()) {
 				case 'x':
 					fwd(); // Consume 'x'
-					while (peek() != -1 && is_hex(peek())) fwd();
+					while (peek() != -1 && (is_hex(peek()) || s)) fwd(), s = peek() == '\'';
 					break;
 				case 'b':
 					fwd(); // Consume 'b'
-					while (peek() != -1 && is_bin(peek())) fwd();
+					while (peek() != -1 && (is_bin(peek()) || s)) fwd(), s = peek() == '\'';
 					break;
 				}
 			} else {
-				while (peek() != -1 && is_digit(peek())) fwd();
+				while (peek() != -1 && (is_digit(peek()) || s)) fwd(), s = peek() == '\'';
+			}
+			// The integer literal can be typed with one of the following suffix
+			//	_(u|s){8,16,32,64}
+			if (peek() == '_') {
+				fwd(); // Consume '_'
+				if (peek() == 'u' || peek() == 's') {
+					fwd(); // Consume 'u' or 's'
+					switch (peek()) {
+					/****/ case '8': fwd();                           // Consume '8'
+					break; case '1': fwd(); if (peek() == '6') fwd(); // Consume '16'
+					break; case '3': fwd(); if (peek() == '2') fwd(); // Consume '32'
+					break; case '6': fwd(); if (peek() == '4') fwd(); // Consume '64'
+					}
+				}
 			}
 			Ulen l = m_offset - n;
 			return {Kind::LIT_INT, {n, l}};

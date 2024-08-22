@@ -17,8 +17,8 @@ struct Either {
 	constexpr Either(Either&& other) noexcept
 		: m_kind{exchange(other.m_kind, KIND_NIL)}
 	{
-		/**/ if (is_lhs()) new (&m_as_lhs, Nat{}) LHS{move(other.lhs())};
-		else if (is_rhs()) new (&m_as_rhs, Nat{}) RHS{move(other.rhs())};
+		/**/ if (is_lhs()) new (&m_as_lhs, Nat{}) LHS{move(other.m_as_lhs)};
+		else if (is_rhs()) new (&m_as_rhs, Nat{}) RHS{move(other.m_as_rhs)};
 		other.reset();
 	}
 	constexpr Either(const Either& other) noexcept
@@ -66,6 +66,17 @@ struct Either {
 	}
 	template<typename... Ts> constexpr RHS& emplace_rhs(Ts&&... args) noexcept {
 		return (new(drop(), Nat{}) Either{RHS{forward<Ts>(args)...}})->rhs();
+	}
+	[[nodiscard]] constexpr Bool operator==(const Either& other) const noexcept {
+		if (other.m_kind != m_kind) {
+			return false;
+		}
+		if (is_lhs()) {
+			return other.lhs() == lhs();
+		} else if (is_rhs()) {
+			return other.rhs() == rhs();
+		}
+		return false;
 	}
 	void reset() noexcept { drop(); }
 private:

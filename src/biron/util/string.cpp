@@ -66,28 +66,28 @@ Bool StringBuilder::append(char ch) noexcept {
 	return m_valid;
 }
 
-Bool StringBuilder::append(Sint32 value) noexcept {
+Bool StringBuilder::append(Sint64 value) noexcept {
 	if (value < 0) {
 		if (!append('-')) {
 			return false;
 		}
 		value = -value;
 	}
-	if (append(static_cast<Uint32>(value))) {
+	if (append(static_cast<Uint64>(value))) {
 		return true;
 	}
 	pop(); // Remove '-'
 	return false;
 }
 
-Bool StringBuilder::append(Uint32 value) noexcept {
+Bool StringBuilder::append(Uint64 value) noexcept {
 	if (value == 0) {
 		return append('0');
 	}
 
 	// Measure how many characters we need to append.
-	Uint32 length = 0;
-	for (Uint32 v = value; v; v /= 10, length++);
+	Uint64 length = 0;
+	for (Uint64 v = value; v; v /= 10, length++);
 	Ulen offset = m_buffer.length();
 
 	// Resize to allow that many characters to be written.

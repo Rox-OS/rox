@@ -180,4 +180,4 @@ purge:
 .PHONY: $(DEPDIR) $(OBJDIR) clean purge
 
 $(DEPS):
-include $(wildcard $)
+include $(wildcard $(DEPS))

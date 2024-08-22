@@ -1,0 +1,145 @@
+#include <biron/ast_expr.h>
+#include <biron/ast_type.h>
+
+namespace Biron {
+
+void AstTupleExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('(');
+	for (Ulen l = m_exprs.length(), i = 0; i < l; i++) {
+		m_exprs[i]->dump(builder);
+		if (i + 1 != l) {
+			builder.append(", ");
+		}
+	}
+	builder.append(')');
+}
+
+void AstCallExpr::dump(StringBuilder& builder) const noexcept {
+	m_callee->dump(builder);
+	if (m_args) {
+		m_args->dump(builder);
+	} else {
+		builder.append("()");
+	}
+}
+
+void AstTypeExpr::dump(StringBuilder& builder) const noexcept {
+	m_type->dump(builder);
+}
+
+void AstVarExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append(m_name);
+}
+
+void AstIntExpr::dump(StringBuilder& builder) const noexcept {
+	switch (m_kind) {
+	case Kind::U8:
+		builder.append(m_as_u8);
+		builder.append("_u8");
+		break;
+	case Kind::U16:
+		builder.append(m_as_u16);
+		builder.append("_u16");
+		break;
+	case Kind::U32:
+		builder.append(m_as_u32);
+		builder.append("_u32");
+		break;
+	case Kind::U64:
+		builder.append(m_as_u64);
+		builder.append("_u64");
+		break;
+	case Kind::S8:
+		builder.append(m_as_s8);
+		builder.append("_s8");
+		break;
+	case Kind::S16:
+		builder.append(m_as_s16);
+		builder.append("_s16");
+		break;
+	case Kind::S32:
+		builder.append(m_as_s32);
+		builder.append("_s32");
+		break;
+	case Kind::S64:
+		builder.append(m_as_s64);
+		builder.append("_s64");
+		break;
+	}
+}
+
+void AstStrExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('"');
+	builder.append(m_literal);
+	builder.append('"');
+}
+
+void AstBoolExpr::dump(StringBuilder& builder) const noexcept {
+	if (m_value) {
+		builder.append("true");
+	} else {
+		builder.append("false");
+	}
+}
+
+void AstAggExpr::dump(StringBuilder& builder) const noexcept {
+	m_type->dump(builder);
+	builder.append('{');
+	Bool f = true;
+	for (const auto &expr : m_exprs) {
+		if (!f) builder.append(", ");
+		expr->dump(builder);
+		f = false;
+	}
+	builder.append('}');
+}
+
+void AstBinExpr::dump(StringBuilder& builder) const noexcept {
+	m_lhs->dump(builder);
+	switch (m_op) {
+	/****/ case Operator::ADD:    builder.append(" + ");
+	break; case Operator::SUB:    builder.append(" - ");
+	break; case Operator::MUL:    builder.append(" * ");
+	break; case Operator::EQ:     builder.append(" == ");
+	break; case Operator::NEQ:    builder.append(" != ");
+	break; case Operator::GT:     builder.append(" > ");
+	break; case Operator::GTE:    builder.append(" >= ");
+	break; case Operator::LT:     builder.append(" < ");
+	break; case Operator::LTE:    builder.append(" <= ");
+	break; case Operator::AS:     builder.append(" as ");
+	break; case Operator::LOR:    builder.append(" || ");
+	break; case Operator::LAND:   builder.append(" && ");
+	break; case Operator::BOR:    builder.append(" | ");
+	break; case Operator::BAND:   builder.append(" && ");
+	break; case Operator::LSHIFT: builder.append(" << ");
+	break; case Operator::RSHIFT: builder.append(" >> ");
+	break; case Operator::DOT:    builder.append('.');
+	break; case Operator::OF:     builder.append(" of ");
+	break;
+	}
+	m_rhs->dump(builder);
+}
+
+void AstUnaryExpr::dump(StringBuilder& builder) const noexcept {
+	switch (m_op) {
+	/****/ case Operator::NEG:    builder.append('-');
+	break; case Operator::NOT:    builder.append('!');
+	break; case Operator::DEREF:  builder.append('*');
+	break; case Operator::ADDROF: builder.append('&');
+	}
+	m_operand->dump(builder);
+}
+
+void AstIndexExpr::dump(StringBuilder& builder) const noexcept {
+	m_operand->dump(builder);
+	builder.append('[');
+	m_index->dump(builder);
+	builder.append(']');
+}
+
+void AstExplodeExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append("...");
+	m_operand->dump(builder);
+}
+
+} // namespace Biron

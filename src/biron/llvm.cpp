@@ -17,33 +17,42 @@ static bool link(void *lib, T*& p, const char *name) {
 
 #define LINK(name) \
 	do { \
-		if (!link(lib, llvm.name, "LLVM" #name)) { \
+		if (!link(llvm.lib, llvm.name, "LLVM" #name)) { \
 			fprintf(stderr, "Could not load 'LLVM" #name "'\n"); \
 			return None{}; \
 		} \
 	} while (0)
 
+LLVM::~LLVM() {
+	if (Shutdown) {
+		Shutdown();
+	}
+	if (lib) {
+		dlclose(lib);
+	}
+}
+
 Maybe<LLVM> LLVM::load() noexcept {
+	LLVM llvm;
+
 	// We only support LLVM-18 and LLVM-17
-	void *lib = dlopen("libLLVM-18.so", RTLD_NOW);
-	if (!lib) {
+	if (!(llvm.lib = dlopen("libLLVM-18.so", RTLD_NOW))) {
 		// Try libLLVM-17.so as well
-		lib = dlopen("libLLVM-17.so", RTLD_NOW);
-		if (!lib) {
+		if (!(llvm.lib = dlopen("libLLVM-17.so", RTLD_NOW))) {
 			return None{};
 		}
 	}
 
-	LLVM llvm;
 	LINK(InitializeX86TargetInfo);
 	LINK(InitializeX86Target);
 	LINK(InitializeX86TargetMC);
 	LINK(InitializeX86AsmPrinter);
 	LINK(InitializeX86AsmParser);
-	LINK(FunctionType);
 	LINK(DisposeMessage);
+	LINK(Shutdown);
 	LINK(ContextCreate);
 	LINK(ContextDispose);
+	LINK(GetTypeByName2);
 	LINK(Int1TypeInContext);
 	LINK(Int8TypeInContext);
 	LINK(Int16TypeInContext);
@@ -52,16 +61,22 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(VoidTypeInContext);
 	LINK(PointerTypeInContext);
 	LINK(StructTypeInContext);
+	LINK(StructCreateNamed);
+	LINK(StructSetBody);
 	LINK(ArrayType2);
+	LINK(FunctionType);
 	LINK(CreateBasicBlockInContext);
-	LINK(ConstStructInContext);
 	LINK(GetBasicBlockParent);
 	LINK(GetBasicBlockTerminator);
 	LINK(ConstInt);
+	LINK(ConstArray2);
+	LINK(ConstPointerNull);
+	LINK(ConstStructInContext);
+	LINK(ConstNamedStruct);
+	LINK(GetAggregateElement);
 	LINK(StructGetTypeAtIndex);
 	LINK(CountStructElementTypes);
 	LINK(AppendExistingBasicBlock);
-	LINK(GetInlineAsm);
 	LINK(AddGlobal);
 	LINK(SetGlobalConstant);
 	LINK(SetInitializer);
@@ -102,6 +117,7 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(BuildICmp);
 	LINK(BuildAlloca);
 	LINK(BuildCast);
+	LINK(BuildExtractValue);
 	LINK(GetCastOpcode);
 	LINK(GetParam);
 	LINK(StructGetTypeAtIndex);

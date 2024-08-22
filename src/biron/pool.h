@@ -1,81 +1,65 @@
 #ifndef BIRON_POOL_H
 #define BIRON_POOL_H
 #include <biron/util/maybe.inl>
-#include <biron/util/allocator.inl>
 #include <biron/util/array.inl>
+#include <biron/util/traits/is_same.inl>
+#include <biron/util/traits/conditional.inl>
 
-#include <string.h>
+#include <stdio.h>
 
 namespace Biron {
 
 struct Allocator;
 
 struct Pool {
-	Pool(Pool&& other) noexcept
-		: m_allocator{other.m_allocator}
-		, m_object_size{exchange(other.m_object_size, 0)}
-		, m_object_count{exchange(other.m_object_count, 0)}
-		, m_occupied{exchange(other.m_occupied, nullptr)}
-		, m_storage{exchange(other.m_storage, nullptr)}
-	{
-	}
-
-	~Pool() {
-		m_allocator.deallocate(m_storage, m_object_size * m_object_count);
-		m_allocator.deallocate(m_occupied, m_object_count * 4);
-	}
-
-	static Maybe<Pool> create(Allocator& allocator, Ulen object_size, Ulen object_count) noexcept {
-		object_count = (object_count + 32 - 1) & -32;
-
-		const auto objs_bytes = object_count * object_size;
-		const auto objs_data = allocator.allocate(objs_bytes);
-		if (!objs_data) {
-			return None{};
-		}
-
-		const auto bits = object_count / 32;
-		const auto bits_bytes = bits * 4;
-		const auto bits_data = allocator.allocate(bits_bytes);
-		if (!bits_data) {
-			allocator.deallocate(objs_data, objs_bytes);
-			return None{};
-		}
-
-		memset(bits_data, 0, bits_bytes);
-
-		return Pool {
-			allocator,
-			object_size,
-			object_count,
-			static_cast<Uint32*>(bits_data),
-			static_cast<Uint8*>(objs_data),
-		};
-	}
-
-	[[nodiscard]] void* allocate() noexcept {
-		for (Ulen i = 0; i < m_object_count; i++) {
-			if (test(i)) {
-				continue;
-			}
-			mark(i);
-			return m_storage + m_object_size * i;
-		}
-		return nullptr;
-	}
-
-	[[nodiscard]] Bool deallocate(Uint8* addr) noexcept {
-		if (addr < m_storage ||
-		    addr > m_storage + m_object_count * m_object_size)
+	template<Bool Const>
+	struct SelectIterator {
+		using Type = Conditional<const Pool, Pool, Const>;
+		constexpr SelectIterator() noexcept
+			: m_pool{nullptr}, m_index{0}
 		{
-			return false;
 		}
-		clear((addr - m_storage) / m_object_size);
-		return true;
-	}
+		constexpr SelectIterator(Type& pool, Ulen index) noexcept
+			: m_pool{&pool}, m_index{index}
+		{
+		}
+		constexpr SelectIterator(const SelectIterator& other) noexcept = default;
+		constexpr SelectIterator& operator=(const SelectIterator& other) noexcept = default;
+		constexpr SelectIterator operator++() noexcept {
+			do ++m_index; while (m_index < m_pool->m_object_count && !m_pool->test(m_index));
+			return *this;
+		}
+		[[nodiscard]] constexpr Bool operator!=(const SelectIterator& other) const noexcept = default;
+		[[nodiscard]] constexpr Bool operator==(const SelectIterator& other) const noexcept = default;
+		[[nodiscard]] constexpr void* operator*() const noexcept {
+			return m_pool->address(m_index);
+		}
+		void clear() noexcept {
+			m_pool  = nullptr;
+			m_index = 0;
+		}
+	private:
+		Type* m_pool;
+		Ulen  m_index;
+	};
+	using Iterator = SelectIterator<false>;
+	using ConstIterator = SelectIterator<true>;
+
+	Pool(Pool&& other) noexcept;
+	~Pool() noexcept;
+
+	static Maybe<Pool> make(Allocator& allocator, Ulen object_size, Ulen object_count) noexcept;
+
+	[[nodiscard]] void* allocate() noexcept;
+	[[nodiscard]] Bool deallocate(Uint8* addr) noexcept;
+
+	[[nodiscard]] constexpr Iterator begin() noexcept { return { *this, 0 }; }
+	[[nodiscard]] constexpr Iterator end() noexcept { return { *this, m_object_count }; }
+	[[nodiscard]] constexpr ConstIterator begin() const noexcept { return { *this, 0 }; }
+	[[nodiscard]] constexpr ConstIterator end() const noexcept { return { *this, m_object_count }; }
 
 private:
-	Pool(Allocator& allocator, Ulen object_size, Ulen object_count, Uint32* occupied, Uint8* storage) noexcept
+	constexpr Pool(Allocator& allocator, Ulen object_size, Ulen object_count, Uint32* occupied, Uint8* storage) noexcept
 		: m_allocator{allocator}
 		, m_object_size{object_size}
 		, m_object_count{object_count}
@@ -92,8 +76,15 @@ private:
 		m_occupied[index / 32] &= ~(Ulen(1) << (index % 32));
 	}
 
-	[[nodiscard]] Bool test(Ulen index) const noexcept {
+	[[nodiscard]] constexpr Bool test(Ulen index) const noexcept {
 		return m_occupied[index / 32] & (Ulen(1) << (index % 32));
+	}
+
+	[[nodiscard]] constexpr void* address(Ulen i) noexcept {
+		return m_storage + m_object_size * i;
+	}
+	[[nodiscard]] constexpr const void* address(Ulen i) const noexcept {
+		return m_storage + m_object_size * i;
 	}
 
 	Allocator& m_allocator;
@@ -104,38 +95,60 @@ private:
 };
 
 struct Cache {
+	template<Bool Const>
+	struct SelectIterator {
+		using Type = Conditional<const Array<Pool>, Array<Pool>, Const>;
+		constexpr SelectIterator(Type& pools, Array<Pool>::SelectIterator<Const> pool) noexcept
+			: m_pools{&pools}
+			, m_pool{pool}
+			, m_item{}
+		{
+			if (pool != m_pools->end()) {
+				m_item = m_pool->begin();
+			}
+		}
+		constexpr SelectIterator operator++() noexcept {
+			if (++m_item == m_pool->end()) {
+				if (++m_pool == m_pools->end()) {
+					m_item.clear();
+				} else {
+					m_item = m_pool->begin();
+				}
+			}
+			return *this;
+		}
+		[[nodiscard]] constexpr Bool operator!=(const SelectIterator& other) const noexcept {
+			return other.m_pool != m_pool || other.m_item != m_item;
+		}
+		[[nodiscard]] constexpr void* operator*() const noexcept {
+			return *m_item;
+		}
+	private:
+		Type*                              m_pools;
+		Array<Pool>::SelectIterator<Const> m_pool;
+		Pool::SelectIterator<Const>        m_item;
+	};
+
+	using Iterator      = SelectIterator<false>;
+	using ConstIterator = SelectIterator<true>;
+
 	constexpr Cache(Allocator& allocator, Ulen object_size, Ulen object_count) noexcept
 		: m_pools{allocator}
 		, m_object_size{object_size}
 		, m_object_count{object_count}
 	{
 	}
+	[[nodiscard]] void* allocate() noexcept;
+	[[nodiscard]] Bool deallocate(void* addr) noexcept;
+	[[nodiscard]] constexpr Allocator& allocator() const noexcept { return m_pools.allocator(); }
 
-	[[nodiscard]] Ulen object_size() const noexcept { return m_object_size; }
-	[[nodiscard]] Ulen object_capacity() const noexcept { return m_object_count; }
+	[[nodiscard]] constexpr Ulen object_size() const noexcept { return m_object_size; }
+	[[nodiscard]] constexpr Ulen object_capacity() const noexcept { return m_object_count; }
 
-	void* allocate() noexcept {
-		for (Ulen l = m_pools.length(), i = 0; i < l; i++) {
-			if (auto addr = m_pools[i].allocate()) {
-				return addr;
-			}
-		}
-		auto pool = Pool::create(m_pools.allocator(),
-		                         m_object_size,
-		                         m_object_count);
-		if (!pool || !m_pools.push_back(move(*pool))) {
-			return nullptr;
-		}
-		return allocate();
-	}
-
-	void deallocate(void* addr) noexcept {
-		for (Ulen l = m_pools.length(), i = 0; i < l; i++) {
-			if (m_pools[i].deallocate(static_cast<Uint8*>(addr))) {
-				return;
-			}
-		}
-	}
+	[[nodiscard]] constexpr Iterator begin() noexcept { return { m_pools, m_pools.begin() }; }
+	[[nodiscard]] constexpr Iterator end() noexcept { return { m_pools, m_pools.end() }; }
+	[[nodiscard]] constexpr ConstIterator begin() const noexcept { return { m_pools, m_pools.begin() }; }
+	[[nodiscard]] constexpr ConstIterator end() const noexcept { return { m_pools, m_pools.end() }; }
 
 private:
 	Array<Pool> m_pools;

@@ -2,8 +2,10 @@
 
 #include <biron/parser.h>
 #include <biron/llvm.h>
-#include <biron/codegen.h>
 #include <biron/pool.h>
+#include <biron/ast.h>
+#include <biron/cg.h>
+#include <biron/cg_value.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -110,34 +112,35 @@ int main(int argc, char **argv) {
 	}
 
 	StringView code{src.data(), src.length()};
-	Parser parser{name, code, mallocator};
+	Lexer lexer{name, code};
+	Parser parser{lexer, mallocator};
 	auto unit = parser.parse();
 	if (!unit) {
 		return 1;
 	}
 
-	StringBuilder builder{mallocator};
-	if (false && unit->dump(builder)) {
-		auto view = builder.view();
-		printf("%.*s\n", (int)view.length(), view.data());
-	}
-
-	Codegen gen{*llvm, mallocator, "x86_64-linux-pc-unknown"};
-	if (!gen.run(*unit)) {
+	auto cg = Cg::make(mallocator, *llvm, "x86_64-linux-pc-unknown");
+	if (!cg) {
+		fprintf(stderr, "Could not initialize codegen\n");
 		return 1;
 	}
 
-	if (true || false) {
-		gen.dump();
-	}
-
-	if (!gen.optimize()) {
+	if (!unit->codegen(*cg)) {
+		fprintf(stderr, "Could not generate code\n");
 		return 1;
 	}
 
-	if (true || false) {
-		gen.dump();
+	cg->optimize();
+
+	cg->llvm.DumpModule(cg->module);
+	char* error = nullptr;
+	if (cg->llvm.VerifyModule(cg->module, LLVM::VerifierFailureAction::PrintMessage, &error) != 0) {
+		fprintf(stderr, "%s\n", error);
 	}
+	cg->llvm.DisposeMessage(error);
+	error = nullptr;
+
+	cg->emit("test.o");
 
 	// Strip everything up to including '.'
 	name = name.slice(0, *dot);
@@ -149,10 +152,6 @@ int main(int argc, char **argv) {
 	obj.append('o');
 	if (!obj.valid()) {
 		fprintf(stderr, "Out of memory\n");
-		return 1;
-	}
-
-	if (!gen.emit(obj.view())) {
 		return 1;
 	}
 

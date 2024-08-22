@@ -48,9 +48,17 @@ struct Maybe {
 	template<typename... Ts> constexpr T& emplace(Ts&&... args) noexcept {
 		return m_either.emplace_lhs(forward<Ts>(args)...);
 	}
+	[[nodiscard]] constexpr Bool operator==(const Maybe& other) const noexcept {
+		return other.m_either == m_either;
+	}
 private:
 	constexpr Maybe* drop() noexcept { m_either.reset(); return this; }
 	Either<T, Nat> m_either;
+};
+
+template<typename T>
+concept MaybeCopyable = requires(const T& object) {
+	{ object.copy() } -> Same<Maybe<T>>;
 };
 
 } // namespace Biron

@@ -6,6 +6,8 @@
 namespace Biron {
 
 struct LLVM {
+	~LLVM();
+
 	struct OpaqueContext;
 	struct OpaqueModule;
 	struct OpaqueType;
@@ -91,37 +93,45 @@ struct LLVM {
 	void (*InitializeX86TargetMC)(void);
 	void (*InitializeX86AsmPrinter)(void);
 	void (*InitializeX86AsmParser)(void);
-	TypeRef (*FunctionType)(TypeRef, TypeRef*, unsigned, Bool);
 	void (*DisposeMessage)(char *);
+
+	void (*Shutdown)(void);
 
 	// Context
 	ContextRef (*ContextCreate)(void);
 	void (*ContextDispose)(ContextRef);
-	TypeRef (*Int1TypeInContext)(ContextRef);
-	TypeRef (*Int8TypeInContext)(ContextRef);
-	TypeRef (*Int16TypeInContext)(ContextRef);
-	TypeRef (*Int32TypeInContext)(ContextRef);
-	TypeRef (*Int64TypeInContext)(ContextRef);
-	TypeRef (*VoidTypeInContext)(ContextRef);
-	TypeRef (*PointerTypeInContext)(ContextRef, unsigned);
-	TypeRef (*StructTypeInContext)(ContextRef, TypeRef*, unsigned, Bool);
-	TypeRef (*ArrayType2)(TypeRef, Uint64);
+	TypeRef (*GetTypeByName2)(ContextRef, const char*);
+
+	TypeRef (*Int1TypeInContext)(ContextRef); // Boolean
+	TypeRef (*Int8TypeInContext)(ContextRef); // Uint8, Sint8
+	TypeRef (*Int16TypeInContext)(ContextRef); // Uint16, Sint16
+	TypeRef (*Int32TypeInContext)(ContextRef); // Uint32, Sint32
+	TypeRef (*Int64TypeInContext)(ContextRef); // Uint64, Sint64
+	TypeRef (*VoidTypeInContext)(ContextRef); // ()
+	TypeRef (*PointerTypeInContext)(ContextRef, unsigned); // *T
+	TypeRef (*StructTypeInContext)(ContextRef, TypeRef*, unsigned, Bool); // struct{..}, (...)
+	TypeRef (*StructCreateNamed)(ContextRef, const char*);
+	void (*StructSetBody)(TypeRef, TypeRef*, unsigned, Bool);
+	TypeRef (*ArrayType2)(TypeRef, Uint64); // [N]T
+	TypeRef (*StructGetTypeAtIndex)(TypeRef, unsigned); // ...?
+	TypeRef (*FunctionType)(TypeRef, TypeRef*, unsigned, Bool);
+
 	BasicBlockRef (*CreateBasicBlockInContext)(ContextRef, const char *);
-	ValueRef (*ConstStructInContext)(ContextRef, ValueRef*, unsigned, Bool);
 
 	// BasicBlock
 	ValueRef (*GetBasicBlockParent)(BasicBlockRef);
 	ValueRef (*GetBasicBlockTerminator)(BasicBlockRef);
-	// Type
 	ValueRef (*ConstInt)(TypeRef, unsigned long long, Bool);
+	ValueRef (*ConstArray2)(TypeRef, ValueRef*, Uint64);
+	ValueRef (*ConstPointerNull)(TypeRef);
+	ValueRef (*ConstStructInContext)(ContextRef, ValueRef*, unsigned, Bool);
+	ValueRef (*ConstNamedStruct)(TypeRef, ValueRef*, unsigned);
+	ValueRef (*GetAggregateElement)(ValueRef, unsigned);
 	unsigned (*CountStructElementTypes)(TypeRef);
-	TypeRef (*StructGetTypeAtIndex)(TypeRef, unsigned);
 
 	// Value
 	void (*AppendExistingBasicBlock)(ValueRef, BasicBlockRef);
 	ValueRef (*GetParam)(ValueRef, unsigned);
-	// TypeRef (*StructGetTypeAtIndex)(TypeRef, unsigned);
-	ValueRef (*GetInlineAsm)(TypeRef, char*, Ulen, char*, Ulen, Bool, Bool, int, Bool);
 	void (*SetGlobalConstant)(ValueRef, Bool);
 	ValueRef (*AddGlobal)(ModuleRef, TypeRef, const char*);
 	void (*SetInitializer)(ValueRef, ValueRef);
@@ -166,6 +176,7 @@ struct LLVM {
 	ValueRef (*BuildICmp)(BuilderRef, IntPredicate, ValueRef, ValueRef, const char *);
 	ValueRef (*BuildAlloca)(BuilderRef, TypeRef, const char *);
 	ValueRef (*BuildCast)(BuilderRef, Opcode, ValueRef, TypeRef, const char *);
+	ValueRef (*BuildExtractValue)(BuilderRef, ValueRef, unsigned, const char *);
 	Opcode (*GetCastOpcode)(ValueRef, Bool, TypeRef, Bool);
 
 	// Target
@@ -180,6 +191,8 @@ struct LLVM {
 	PassBuilderOptionsRef (*CreatePassBuilderOptions)(void);
 	void (*DisposePassBuilderOptions)(PassBuilderOptionsRef);
 	ErrorRef (*RunPasses)(ModuleRef, const char *, TargetMachineRef, PassBuilderOptionsRef);
+
+	void* lib;
 
 	static Maybe<LLVM> load() noexcept;
 };

@@ -42,15 +42,17 @@ struct StringView {
 		m_length = name.m_length;
 		return *this;
 	}
-	auto data() const noexcept { return m_data; }
-	auto length() const noexcept { return m_length; }
-	char operator[](Ulen i) const noexcept { return m_data[i]; }
+	[[nodiscard]] const char* data() const noexcept { return m_data; }
+	[[nodiscard]] Ulen length() const noexcept { return m_length; }
+	[[nodiscard]] char operator[](Ulen i) const noexcept { return m_data[i]; }
 	friend Bool operator==(StringView lhs, StringView rhs) noexcept;
 	friend Bool operator!=(StringView lhs, StringView rhs) noexcept;
-	Bool starts_with(StringView other) const noexcept;
+	[[nodiscard]] Bool starts_with(StringView other) const noexcept;
 	Maybe<Ulen> find_first_of(int ch) const noexcept;
 	Maybe<Ulen> find_last_of(int ch) const noexcept;
 	char *terminated(Allocator& allocator) const noexcept;
+	[[nodiscard]] const char* begin() const noexcept { return m_data; }
+	[[nodiscard]] const char* end() const noexcept { return m_data + m_length; }
 private:
 	const char *m_data;
 	Ulen        m_length;
@@ -64,11 +66,11 @@ struct StringBuilder {
 	}
 	void pop() noexcept { m_buffer.pop_back(); }
 	Bool append(char ch) noexcept;
-	Bool append(Sint32 value) noexcept;
-	Bool append(Ulen value) noexcept {
-		return append(static_cast<Uint32>(value));
-	}
-	Bool append(Uint32 value) noexcept;
+	Bool append(Ulen value) noexcept { return append(static_cast<Uint64>(value)); }
+	Bool append(Sint32 value) noexcept { return append(static_cast<Sint64>(value)); }
+	Bool append(Uint32 value) noexcept { return append(static_cast<Uint64>(value)); }
+	Bool append(Sint64 value) noexcept;
+	Bool append(Uint64 value) noexcept;
 	Bool append(StringView view) noexcept;
 	Bool repeat(int ch, Ulen count) noexcept;
 	Bool repeat(StringView view, Ulen count) noexcept;
