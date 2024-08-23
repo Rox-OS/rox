@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
 
 	Bool bm = false;
 	Bool opt = false;
+	Bool dump = false;
 	int file = -1;
 	for (int i = 0; i < argc; i++) {
 		if (argv[i][0] != '-' && file == -1) {
@@ -70,6 +71,8 @@ int main(int argc, char **argv) {
 				bm = true;
 			} else if (argv[i][1] == 'O') {
 				opt = true;
+			} else if (argv[i][1] == 'd') {
+				dump = true;
 			}
 		}
 	}
@@ -135,6 +138,10 @@ int main(int argc, char **argv) {
 
 	if (opt && !cg->optimize()) {
 		return 1;
+	}
+
+	if (dump) {
+		cg->dump();
 	}
 
 	// Strip everything up to including '.'
