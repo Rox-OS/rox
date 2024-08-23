@@ -1,5 +1,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
+#include <string.h>
+
 #include "llvm.h"
 
 namespace Biron {
@@ -22,6 +24,15 @@ static bool link(void *lib, T*& p, const char *name) {
 			return None{}; \
 		} \
 	} while (0)
+
+
+LLVM::LLVM() {
+	// This structure only stores function pointers and a local library handle. We
+	// start off with everything zeroed so any load errors along the way will at
+	// least leave things null so that ~LLVM() can safely call Shutdown if opened
+	// and dlclose if loaded.
+	memset(this, 0, sizeof *this);
+}
 
 LLVM::~LLVM() {
 	if (Shutdown) {

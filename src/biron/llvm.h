@@ -6,6 +6,7 @@
 namespace Biron {
 
 struct LLVM {
+	LLVM();
 	~LLVM();
 
 	struct OpaqueContext;

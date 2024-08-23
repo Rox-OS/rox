@@ -1,13 +1,4 @@
-struct Foo {
-  x: Uint8;
-  y: Uint32;
-}
-
-struct Bar {
-  x: *Foo;
-}
-
-fn main() {
-  let x = Foo { 1_u8, 2_u32 };
-  let y = Bar { &x };
+fn main(argc: Sint32, argv: **Uint8) -> Sint32 {
+  let x = [2]Uint32{1, 2};
+  printf("Hello, World (%d, %d)!\n", x[0], x[1]);
 }

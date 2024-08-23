@@ -29,6 +29,8 @@ struct AstStmt;
 struct AstBlockStmt;
 struct AstReturnStmt;
 struct AstDeferStmt;
+struct AstBreakStmt;
+struct AstContinueStmt;
 struct AstIfStmt;
 struct AstLetStmt;
 struct AstForStmt;
@@ -70,28 +72,30 @@ struct Parser {
 	~Parser() noexcept;
 
 	// Biron Expression
-	[[nodiscard]] AstExpr*        parse_expr() noexcept;
-	[[nodiscard]] AstTupleExpr*   parse_tuple_expr() noexcept;
-	[[nodiscard]] AstIntExpr*     parse_int_expr() noexcept;
-	[[nodiscard]] AstStrExpr*     parse_str_expr() noexcept;
-	[[nodiscard]] AstBoolExpr*    parse_bool_expr() noexcept;
+	[[nodiscard]] AstExpr*         parse_expr() noexcept;
+	[[nodiscard]] AstTupleExpr*    parse_tuple_expr() noexcept;
+	[[nodiscard]] AstIntExpr*      parse_int_expr() noexcept;
+	[[nodiscard]] AstStrExpr*      parse_str_expr() noexcept;
+	[[nodiscard]] AstBoolExpr*     parse_bool_expr() noexcept;
 
 	// Types
-	[[nodiscard]] AstType*        parse_type() noexcept;
-	[[nodiscard]] AstTupleType*   parse_tuple_type() noexcept;
-	[[nodiscard]] AstIdentType*   parse_ident_type() noexcept;
-	[[nodiscard]] AstVarArgsType* parse_varargs_type() noexcept;
-	[[nodiscard]] AstPtrType*     parse_ptr_type() noexcept;
+	[[nodiscard]] AstType*         parse_type() noexcept;
+	[[nodiscard]] AstTupleType*    parse_tuple_type() noexcept;
+	[[nodiscard]] AstIdentType*    parse_ident_type() noexcept;
+	[[nodiscard]] AstVarArgsType*  parse_varargs_type() noexcept;
+	[[nodiscard]] AstPtrType*      parse_ptr_type() noexcept;
 
 	// Statements
-	[[nodiscard]] AstStmt*        parse_stmt() noexcept;
-	[[nodiscard]] AstBlockStmt*   parse_block_stmt() noexcept;
-	[[nodiscard]] AstReturnStmt*  parse_return_stmt() noexcept;
-	[[nodiscard]] AstDeferStmt*   parse_defer_stmt() noexcept;
-	[[nodiscard]] AstIfStmt*      parse_if_stmt() noexcept;
-	[[nodiscard]] AstLetStmt*     parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstForStmt*     parse_for_stmt() noexcept;
-	[[nodiscard]] AstStmt*        parse_expr_stmt(Bool semi) noexcept;
+	[[nodiscard]] AstStmt*         parse_stmt() noexcept;
+	[[nodiscard]] AstBlockStmt*    parse_block_stmt() noexcept;
+	[[nodiscard]] AstReturnStmt*   parse_return_stmt() noexcept;
+	[[nodiscard]] AstDeferStmt*    parse_defer_stmt() noexcept;
+	[[nodiscard]] AstBreakStmt*    parse_break_stmt() noexcept;
+	[[nodiscard]] AstContinueStmt* parse_continue_stmt() noexcept;
+	[[nodiscard]] AstIfStmt*       parse_if_stmt() noexcept;
+	[[nodiscard]] AstLetStmt*      parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstForStmt*      parse_for_stmt() noexcept;
+	[[nodiscard]] AstStmt*         parse_expr_stmt(Bool semi) noexcept;
 
 	// Attributes
 	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;

@@ -33,6 +33,26 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 	return true;
 }
 
+Bool AstBreakStmt::codegen(Cg& cg) const noexcept {
+	if (cg.loops.empty()) {
+		fprintf(stderr, "Cannot 'break' from outside a loop\n");
+		return false;
+	}
+	const auto& loop = cg.loops.last();
+	cg.llvm.BuildBr(cg.builder, loop.exit);
+	return true;
+}
+
+Bool AstContinueStmt::codegen(Cg& cg) const noexcept {
+	if (cg.loops.empty()) {
+		fprintf(stderr, "Cannot 'continue' from outside a loop\n");
+		return false;
+	}
+	const auto& loop = cg.loops.last();
+	cg.llvm.BuildBr(cg.builder, loop.post);
+	return true;
+}
+
 Bool AstIfStmt::codegen(Cg& cg) const noexcept {
 	if (m_init && !m_init->codegen(cg)) {
 		return false;
@@ -87,10 +107,10 @@ Bool AstIfStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstLetStmt::codegen(Cg& cg) const noexcept {
-	// When the initializer is an AstAggExpr we can generate the storage in-place
-	// and assign that as our CgVar skipping a pointless copy.
+	// When the initializer is an AstAggExpr or AstTupleExpr we can generate the
+	// storage in-place and assign that as our CgVar skipping a copy.
 	Maybe<CgAddr> addr;
-	if (m_init->is_expr<AstAggExpr>()) {
+	if (m_init->is_expr<AstAggExpr>() || m_init->is_expr<AstTupleExpr>()) {
 		addr = m_init->gen_addr(cg);
 		if (!addr) {
 			return false;
@@ -127,11 +147,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 Bool AstExprStmt::codegen(Cg& cg) const noexcept {
 	// TODO(dweiler): Optimization to omit the value
 	auto value = m_expr->gen_value(cg);
-	if (!value) {
-		fprintf(stderr, "Could not generate expression\n");
-		return false;
-	}
-	return true;
+	return value.is_some();
 }
 
 Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
@@ -193,7 +209,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	join_bb = cg.llvm.GetInsertBlock(cg.builder);
+	// join_bb = cg.llvm.GetInsertBlock(cg.builder);
 	cg.llvm.BuildBr(cg.builder, post_bb);
 
 	cg.llvm.PositionBuilderAtEnd(cg.builder, post_bb);
@@ -202,7 +218,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	post_bb = cg.llvm.GetInsertBlock(cg.builder);
+	// post_bb = cg.llvm.GetInsertBlock(cg.builder);
 	cg.llvm.BuildBr(cg.builder, loop_bb);
 
 	cg.llvm.PositionBuilderAtEnd(cg.builder, exit_bb);

@@ -25,7 +25,6 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple) n
 
 	auto types = CgTypeCache::make(allocator, 1024);
 	if (!types) {
-		fprintf(stderr, "Could not initialize type cache\n");
 		return None{};
 	}
 
@@ -67,25 +66,18 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple) n
 
 Bool Cg::optimize() noexcept {
 	char* error = nullptr;
-	if (llvm.VerifyModule(module,
-	                      LLVM::VerifierFailureAction::PrintMessage,
-	                      &error) != 0)
-	{
-		fprintf(stderr, "Could not verify module: %s\n", error);
-		llvm.DisposeMessage(error);
+	if (!verify()) {
 		return false;
 	}
-	llvm.DisposeMessage(error);
-	error = nullptr;
 	auto options = llvm.CreatePassBuilderOptions();
 	if (llvm.RunPasses(module, "default<O3>", machine, options)) {
 		return false;
 	}
 	llvm.DisposePassBuilderOptions(options);
-	return true;
+	return verify();
 }
 
-Bool Cg::emit(StringView name) noexcept {
+Bool Cg::verify() noexcept {
 	char* error = nullptr;
 	if (llvm.VerifyModule(module,
 	                      LLVM::VerifierFailureAction::PrintMessage,
@@ -96,21 +88,25 @@ Bool Cg::emit(StringView name) noexcept {
 		return false;
 	}
 	llvm.DisposeMessage(error);
-	error = nullptr;
+	return true;
+}
 
+Bool Cg::emit(StringView name) noexcept {
+	char* error = nullptr;
+	if (!verify()) {
+		return false;
+	}
 	if (llvm.TargetMachineEmitToFile(machine,
 	                                 module,
 	                                 name.terminated(allocator),
 	                                 LLVM::CodeGenFileType::Object,
 	                                 &error) != 0)
 	{
-		fprintf(stderr, "Could not compile: %s\n", error);
+		fprintf(stderr, "Could not compile module: %s\n", error);
 		llvm.DisposeMessage(error);
 		return false;
 	}
 	llvm.DisposeMessage(error);
-	error = nullptr;
-
 	return true;
 }
 

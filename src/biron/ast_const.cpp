@@ -34,4 +34,51 @@ AstConst::AstConst(AstConst&& other) noexcept
 	}
 }
 
+Maybe<AstConst> AstConst::copy() const noexcept {
+	// GCC incorrectly sees the following call stack as possible:
+	//
+	//	AstConst::~AstConst()
+	//		AstConst::drop()
+	//			Array<AstConst>::~Array()
+	//				Array<AstConst>::m_allocator <-- uninitialized
+	//
+	// Even though AstConst::drop() is only called when Kind::TUPLE which is also
+	// the only time the Array<AstConst> is initialized. Just disable the warning
+	// in here and restore it after.
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wpragmas"
+	#pragma GCC diagnostic ignored "-Wunknown-warning-option"
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+	switch (m_kind) {
+	case Kind::NONE:  return AstConst { range() };
+	case Kind::U8:    return AstConst { range(), as_u8() };
+	case Kind::U16:   return AstConst { range(), as_u16() };
+	case Kind::U32:   return AstConst { range(), as_u32() };
+	case Kind::U64:   return AstConst { range(), as_u64() };
+	case Kind::S8:    return AstConst { range(), as_s8() };
+	case Kind::S16:   return AstConst { range(), as_s16() };
+	case Kind::S32:   return AstConst { range(), as_s32() };
+	case Kind::S64:   return AstConst { range(), as_s64() };
+	case Kind::B8:    return AstConst { range(), as_b8() };
+	case Kind::B16:   return AstConst { range(), as_b16() };
+	case Kind::B32:   return AstConst { range(), as_b32() };
+	case Kind::B64:   return AstConst { range(), as_b64() };
+	case Kind::TUPLE:
+		{
+			Array<AstConst> values{m_as_tuple.allocator()};
+			for (const auto& it : m_as_tuple) {
+				auto value = it.copy();
+				if (!value || !values.push_back(move(*value))) {
+					return None{};
+				}
+			}
+			return AstConst { range(), move(values) };
+		}
+	case Kind::FIELD:  return AstConst { range(), as_field() };
+	case Kind::STRING: return AstConst { range(), as_string() };
+	}
+	return None{};
+	#pragma GCC diagnostic pop
+}
+
 } // namespace Biron

@@ -44,6 +44,7 @@ struct AstTupleExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] Ulen length() const noexcept { return m_exprs.length(); }
+	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
 	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 	AstExpr* at(Ulen i) const noexcept {
@@ -186,7 +187,7 @@ private:
 struct AstBinExpr : AstExpr {
 	static inline constexpr auto KIND = Kind::BIN;
 	enum class Op {
-		ADD, SUB, MUL, EQ, NE, GT, GE, LT, LE, AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT, OF
+		ADD, SUB, MUL, EQ, NE, GT, GE, LT, LE, AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT
 	};
 	constexpr AstBinExpr(Op op, AstExpr* lhs, AstExpr* rhs, Range range) noexcept
 		: AstExpr{Kind::BIN, range}

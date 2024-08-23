@@ -126,26 +126,16 @@ int main(int argc, char **argv) {
 
 	auto cg = Cg::make(mallocator, *llvm, "x86_64-linux-pc-unknown");
 	if (!cg) {
-		fprintf(stderr, "Could not initialize codegen\n");
 		return 1;
 	}
 
 	if (!unit->codegen(*cg)) {
-		fprintf(stderr, "Could not generate code\n");
 		return 1;
 	}
 
 	if (opt && !cg->optimize()) {
 		return 1;
 	}
-
-	cg->llvm.DumpModule(cg->module);
-	char* error = nullptr;
-	if (cg->llvm.VerifyModule(cg->module, LLVM::VerifierFailureAction::PrintMessage, &error) != 0) {
-		fprintf(stderr, "%s\n", error);
-	}
-	cg->llvm.DisposeMessage(error);
-	error = nullptr;
 
 	// Strip everything up to including '.'
 	name = name.slice(0, *dot);

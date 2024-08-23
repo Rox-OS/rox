@@ -41,14 +41,24 @@ struct CgType {
 		break; case Kind::B16:     fprintf(stderr, "Bool16");
 		break; case Kind::B32:     fprintf(stderr, "Bool32");
 		break; case Kind::B64:     fprintf(stderr, "Bool64");
-		break; case Kind::POINTER: fprintf(stderr, "*"); at(0)->dump(false);
+		break; case Kind::POINTER: fprintf(stderr, "*"); if (auto base = at(0)) base->dump(false);
 		break; case Kind::STRING:  fprintf(stderr, "String");
 		break; case Kind::SLICE:   fprintf(stderr, "[]"); at(0)->dump(false);
 		break; case Kind::ARRAY:   fprintf(stderr, "[%zu]", m_extent); at(0)->dump(false);
 		break; case Kind::PADDING: fprintf(stderr, ".Pad%zu", m_size);
-		break; case Kind::TUPLE:   fprintf(stderr, "(...)");
 		break; case Kind::STRUCT:  fprintf(stderr, "struct{...}");
 		break; case Kind::UNION:   fprintf(stderr, "union{...}");
+		break; case Kind::TUPLE:
+			{
+				fprintf(stderr, "(");
+				for (Ulen l = length(), i = 0; i < l; i++) {
+					at(i)->dump(false);
+					if (i != l - 1) {
+						fprintf(stderr, ", ");
+					}
+				}
+				fprintf(stderr, ")");
+			}
 		break; case Kind::FN:
 			{
 				const auto& args = at(0)->types();

@@ -24,6 +24,7 @@ struct Cg {
 	static Maybe<Cg> make(Allocator& allocator, LLVM& llvm, StringView triple) noexcept;
 
 	Bool optimize() noexcept;
+	Bool verify() noexcept;
 	Bool emit(StringView name) noexcept;
 
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
@@ -69,6 +70,8 @@ private:
 	friend struct AstForStmt;
 	friend struct AstFn;
 	friend struct AstVarExpr;
+	friend struct AstBreakStmt;
+	friend struct AstContinueStmt;
 
 	constexpr Cg(Allocator&       allocator,
 	             LLVM&            llvm,

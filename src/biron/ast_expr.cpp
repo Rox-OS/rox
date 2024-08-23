@@ -114,7 +114,6 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Op::LSHIFT: builder.append(" << ");
 	break; case Op::RSHIFT: builder.append(" >> ");
 	break; case Op::DOT:    builder.append('.');
-	break; case Op::OF:     builder.append(" of ");
 	break;
 	}
 	m_rhs->dump(builder);

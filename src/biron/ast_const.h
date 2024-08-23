@@ -77,6 +77,8 @@ struct AstConst {
 	[[nodiscard]] constexpr Bool is_boolean() const noexcept {
 		return m_kind >= Kind::B8 && m_kind <= Kind::B64;
 	}
+	[[nodiscard]] constexpr Bool is_field() const noexcept { return m_kind == Kind::FIELD; }
+	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
 
 	[[nodiscard]] constexpr Uint8 as_u8() const noexcept { return m_as_u8; }
 	[[nodiscard]] constexpr Uint16 as_u16() const noexcept { return m_as_u16; }
@@ -94,6 +96,8 @@ struct AstConst {
 	[[nodiscard]] constexpr const Array<AstConst>& as_tuple() const noexcept { return m_as_tuple; }
 	[[nodiscard]] constexpr const Field& as_field() const noexcept { return m_as_field; }
 	[[nodiscard]] constexpr StringView as_string() const noexcept { return m_as_string; }
+
+	Maybe<AstConst> copy() const noexcept;
 
 	template<typename T>
 	Maybe<AstConst> to() const noexcept;

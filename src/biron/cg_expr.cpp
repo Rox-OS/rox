@@ -43,6 +43,19 @@ const char* AstExpr::name() const noexcept {
 	BIRON_UNREACHABLE();
 }
 
+Maybe<AstConst> AstTupleExpr::eval() const noexcept {
+	Array<AstConst> values{m_exprs.allocator()};
+	Range range{0, 0};
+	for (const auto& expr : m_exprs) {
+		range.include(expr->range());
+		auto value = expr->eval();
+		if (!value || !values.push_back(move(*value))) {
+			return None{};
+		}
+	}
+	return AstConst { range, move(values) };
+}
+
 Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 	// When a tuple contains only a single element we detuple it and emit the
 	// inner expression directly.
@@ -345,25 +358,52 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		// '->' operator like C and C++ here
 		type = type->deref();
 	}
-	if (!type->is_struct()) {
-		fprintf(stderr, "Can only index structure types with '.' operator\n");
+	if (type->is_struct()) {
+		if (!m_rhs->is_expr<AstVarExpr>()) {
+			fprintf(stderr, "Expected structure field on right-hand-side of '.' operator\n");
+			return None{};
+		}
+	} else if (type->is_tuple()) {
+		auto rhs = m_rhs->eval();
+		if (!rhs) {
+			fprintf(stderr, "Expected constant expression");
+			return None{};
+		}
+		// We support an integer constant expression inside a tuple
+		Maybe<AstConst> index;
+		if (rhs->is_tuple() && rhs->as_tuple().length() == 1) {
+			index = rhs->as_tuple()[0].copy();
+		} else if (rhs->is_integral()) {
+			index = rhs->copy();
+		}
+		if (!index || !index->is_integral()) {
+			fprintf(stderr, "Expected constant integer expression for indexing tuple");
+			return None{};
+		}
+		auto n = index->to<Uint64>()->as_u64();
+		if (type->at(n)->is_padding()) {
+			fprintf(stderr, "Skipping padding at %zu\n", n);
+			n++;
+		}
+		fprintf(stderr, "Selecting index %zu has type => ", n);
+		type->at(n)->dump();
+		return lhs->at(cg, n);
+	} else {
+		fprintf(stderr, "Can only index structure and tuple types with '.' operator\n");
 		return None{};
 	}
 
-	if (!m_rhs->is_expr<AstVarExpr>()) {
-		fprintf(stderr, "Expected structure field on right-hand-side of '.' operator\n");
-		return None{};
-	}
-
-	// TODO(dweiler): Work out the field index
+	// TODO(dweiler): Work out the field index by the structure name
 
 	if (ptr) {
-		auto load = lhs->load(cg);
-		auto addr = CgAddr { load->type(), load->ref() };
-		return addr.at(cg, 0);
+		if (auto load = lhs->load(cg)) {
+			return load->to_addr().at(cg, 0);
+		}
 	} else {
 		return lhs->at(cg, 0);
 	}
+
+	return None{};
 }
 
 Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
@@ -466,7 +506,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			if (!rhs || !rhs->type()->is_bool()) {
 				return None{};
 			}
-			on_lhs_false = cg.llvm.GetInsertBlock(cg.builder);
+			// on_lhs_false = cg.llvm.GetInsertBlock(cg.builder);
 			cg.llvm.BuildCondBr(cg.builder, rhs->ref(), on_rhs_true, on_rhs_false);
 
 			// on_rhs_true
@@ -593,9 +633,6 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return CgValue { lhs->type(), cg.llvm.BuildLShr(cg.builder, lhs->ref(), rhs->ref(), "") };
 		}
 		break;
-	case Op::OF:
-		// This is the complex beast.
-		break;
 	case Op::DOT:
 		if (auto addr = gen_addr(cg)) {
 			return addr->load(cg);
@@ -623,7 +660,7 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 		// used in combination with an AssignStmt to allow storing results through
 		// the pointer.
 		if (auto operand = m_operand->gen_value(cg)) {
-			return CgAddr { operand->type(), operand->ref() };
+			return operand->to_addr();
 		}
 		break;
 	case Op::ADDROF:

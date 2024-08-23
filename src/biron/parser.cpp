@@ -158,7 +158,6 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		break; case Token::Kind::LSHIFT: lhs = new_node<AstBinExpr>(Op::LSHIFT, lhs, rhs, range);
 		break; case Token::Kind::RSHIFT: lhs = new_node<AstBinExpr>(Op::RSHIFT, lhs, rhs, range);
 		break; case Token::Kind::DOT:    lhs = new_node<AstBinExpr>(Op::DOT,    lhs, rhs, range);
-		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(Op::OF,     lhs, rhs, range);
 		break;
 		default:
 			ERROR(token.range, "Unexpected token '%s' in binary expression", token.name());
@@ -309,21 +308,6 @@ AstExpr* Parser::parse_agg_expr(AstExpr* type) noexcept {
 	return new_node<AstAggExpr>(static_cast<AstTypeExpr*>(type)->type(), move(exprs), range);
 }
 
-static Bool is_builtin_type(StringView ident) noexcept {
-	if (ident == "Sint8")   return true;
-	if (ident == "Uint8")   return true;
-	if (ident == "Sint16")  return true;
-	if (ident == "Uint16")  return true;
-	if (ident == "Sint32")  return true;
-	if (ident == "Uint32")  return true;
-	if (ident == "Sint64")  return true;
-	if (ident == "Uint64")  return true;
-	if (ident == "Unit")    return true;
-	if (ident == "Address") return true;
-	if (ident == "String")  return true;
-	return false;
-}
-
 // TypeExpr
 //	::= Type
 AstExpr* Parser::parse_type_expr() noexcept {
@@ -345,32 +329,40 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 		return nullptr;
 	}
 
-	auto ident = m_lexer.string(peek().range);
-
-	if (is_builtin_type(ident) || ident == "Foo" || ident == "Bar") {
-		return parse_type_expr();
-	}
-	auto token = next();
-	auto name = m_lexer.string(token.range);
-
-	auto expr = new_node<AstVarExpr>(name, token.range);
-	token = peek();
-	switch (token.kind) {
-	case Token::Kind::LPAREN:
+	auto token = next(); // Consume ident
+	switch (peek().kind) {
+	case Token::Kind::LPAREN: // ()
 		{
 			auto args = parse_tuple_expr();
 			if (!args) {
 				return nullptr;
 			}
+			auto name = m_lexer.string(token.range);
+			auto expr = new_node<AstVarExpr>(name, token.range);
 			return new_node<AstCallExpr>(expr, args, name == "printf", token.range.include(args->range()));
 		}
 		break;
-	case Token::Kind::LBRACKET:
-		return parse_index_expr(expr);
+	case Token::Kind::LBRACE: // {}
+		if (auto type = parse_type_expr()) {
+			return parse_agg_expr(type);
+		}
+		break;
+	case Token::Kind::LBRACKET: // []
+		{
+				auto name = m_lexer.string(token.range);
+			auto expr = new_node<AstVarExpr>(name, token.range);
+			if (!expr) {
+				return nullptr;
+			}
+			return parse_index_expr(expr);
+		}
 	default:
-		return expr;
+		{
+			auto name = m_lexer.string(token.range);
+			return new_node<AstVarExpr>(name, token.range);
+		}
 	}
-	BIRON_UNREACHABLE();
+	return nullptr;
 }
 
 // IntExpr
@@ -731,6 +723,10 @@ AstStmt* Parser::parse_stmt() noexcept {
 		return parse_return_stmt();
 	case Token::Kind::KW_DEFER:
 		return parse_defer_stmt();
+	case Token::Kind::KW_BREAK:
+		return parse_break_stmt();
+	case Token::Kind::KW_CONTINUE:
+		return parse_continue_stmt();
 	case Token::Kind::KW_IF:
 		return parse_if_stmt();
 	case Token::Kind::KW_LET:
@@ -830,6 +826,38 @@ AstDeferStmt* Parser::parse_defer_stmt() noexcept {
 	}
 	return new_node<AstDeferStmt>(stmt, beg_token.range.include(stmt->range()));
 };
+
+// BreakStmt
+//	::= 'break'
+AstBreakStmt* Parser::parse_break_stmt() noexcept {
+	if (peek().kind != Token::Kind::KW_BREAK) {
+		ERROR("Expected 'break'");
+		return nullptr;
+	}
+	auto token = next(); // Consume 'break'
+	if (peek().kind != Token::Kind::SEMI) {
+		ERROR("Expected ';' after break statement");
+		return nullptr;
+	}
+	next(); // Consume ';'
+	return new_node<AstBreakStmt>(token.range);
+}
+
+// ContinueStmt
+//	::= 'continue'
+AstContinueStmt* Parser::parse_continue_stmt() noexcept {
+	if (peek().kind != Token::Kind::KW_CONTINUE) {
+		ERROR("Expected 'continue'");
+		return nullptr;
+	}
+	auto token = next(); // Consume 'continue'
+	if (peek().kind != Token::Kind::SEMI) {
+		ERROR("Expected ';' after continue statement");
+		return nullptr;
+	}
+	next(); // Consyme ';'
+	return new_node<AstContinueStmt>(token.range);
+}
 
 // IfStmt
 //	::= 'if' (LetStmt ';')? Expr BlockStmt ('else' (IfStmt | BlockStmt))?
@@ -1096,7 +1124,7 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 
 // Struct
 //	::= 'struct' Ident '{' StructField '}'
-AstStruct* Parser::parse_struct() {
+AstStruct* Parser::parse_struct() noexcept {
 	if (peek().kind != Token::Kind::KW_STRUCT) {
 		ERROR("Expected 'struct'");
 		return nullptr;

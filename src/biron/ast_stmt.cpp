@@ -9,15 +9,17 @@ namespace Biron {
 
 const char* AstStmt::name() const noexcept {
 	switch (m_kind) {
-	case Kind::BLOCK:  return "BLOCK";
-	case Kind::RETURN: return "RETURN";
-	case Kind::DEFER:  return "DEFER";
-	case Kind::IF:     return "IF";
-	case Kind::LET:    return "LET";
-	case Kind::FOR:    return "FOR";
-	case Kind::EXPR:   return "EXPR";
-	case Kind::ASSIGN: return "ASSIGN";
-	case Kind::ASM:    return "ASM";
+	case Kind::BLOCK:    return "BLOCK";
+	case Kind::RETURN:   return "RETURN";
+	case Kind::DEFER:    return "DEFER";
+	case Kind::BREAK:    return "BREAK";
+	case Kind::CONTINUE: return "CONTINUE";
+	case Kind::IF:       return "IF";
+	case Kind::LET:      return "LET";
+	case Kind::FOR:      return "FOR";
+	case Kind::EXPR:     return "EXPR";
+	case Kind::ASSIGN:   return "ASSIGN";
+	case Kind::ASM:      return "ASM";
 	}
 	BIRON_UNREACHABLE();
 }
@@ -58,6 +60,18 @@ void AstDeferStmt::dump(StringBuilder& builder, int depth) const noexcept {
 	m_stmt->dump(builder, depth + 1);
 	builder.repeat('\t', depth);
 	builder.append("}\n");
+}
+
+void AstBreakStmt::dump(StringBuilder& builder, int depth) const noexcept {
+	builder.repeat('\t', depth);
+	builder.append("break");
+	builder.append(';');
+}
+
+void AstContinueStmt::dump(StringBuilder& builder, int depth) const noexcept {
+	builder.repeat('\t', depth);
+	builder.append("continue");
+	builder.append(';');
 }
 
 void AstIfStmt::dump(StringBuilder& builder, int depth) const noexcept {

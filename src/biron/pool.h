@@ -32,11 +32,11 @@ struct Pool {
 		[[nodiscard]] constexpr Bool operator!=(const SelectIterator& other) const noexcept = default;
 		[[nodiscard]] constexpr Bool operator==(const SelectIterator& other) const noexcept = default;
 		[[nodiscard]] constexpr void* operator*() const noexcept {
-			return m_pool->address(m_index);
-		}
-		void clear() noexcept {
-			m_pool  = nullptr;
-			m_index = 0;
+			// NOTE(dweiler): There should be a cleaner way to express this without
+			// checking each dereference since iterators are not dereferenced when the
+			// end is reached but the way Cache::SelectIterator operator++ works makes
+			// this really difficult to downright impossible to model. Revisit this.
+			return m_pool ? m_pool->address(m_index) : nullptr;
 		}
 	private:
 		Type* m_pool;
@@ -110,7 +110,7 @@ struct Cache {
 		constexpr SelectIterator operator++() noexcept {
 			if (++m_item == m_pool->end()) {
 				if (++m_pool == m_pools->end()) {
-					m_item.clear();
+					m_item = {};
 				} else {
 					m_item = m_pool->begin();
 				}

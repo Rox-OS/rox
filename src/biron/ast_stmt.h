@@ -14,7 +14,7 @@ struct Cg;
 struct AstStmt : AstNode {
 	static inline constexpr auto KIND = Kind::STMT;
 	enum class Kind {
-		BLOCK, RETURN, DEFER, IF, LET, FOR, EXPR, ASSIGN, ASM
+		BLOCK, RETURN, DEFER, BREAK, CONTINUE, IF, LET, FOR, EXPR, ASSIGN, ASM
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstStmt(Kind kind, Range range) noexcept
@@ -69,6 +69,26 @@ struct AstDeferStmt : AstStmt {
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 private:
 	AstStmt* m_stmt;
+};
+
+struct AstBreakStmt : AstStmt {
+	static inline constexpr auto KIND = Kind::BREAK;
+	constexpr AstBreakStmt(Range range) noexcept
+		: AstStmt{KIND, range}
+	{
+	}
+	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
+	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
+};
+
+struct AstContinueStmt : AstStmt {
+	static inline constexpr auto KIND = Kind::CONTINUE;
+	constexpr AstContinueStmt(Range range) noexcept
+		: AstStmt{KIND, range}
+	{
+	}
+	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
+	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
 };
 
 struct AstLetStmt;

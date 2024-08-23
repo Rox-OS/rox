@@ -51,6 +51,10 @@ struct CgValue {
 
 	[[nodiscard]] constexpr CgType* type() const noexcept { return m_type; }
 
+	[[nodiscard]] CgAddr to_addr() const noexcept {
+		return CgAddr { m_type, m_ref };
+	}
+
 private:
 	CgType* m_type;
 	LLVM::ValueRef m_ref;
@@ -58,7 +62,8 @@ private:
 
 struct CgVar {
 	CgVar(StringView name, CgAddr&& addr) noexcept
-		: m_name{name}, m_addr{move(addr)}
+		: m_name{name}
+		, m_addr{move(addr)}
 	{
 	}
 	[[nodiscard]] constexpr StringView name() const noexcept {
