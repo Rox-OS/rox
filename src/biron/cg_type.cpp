@@ -481,6 +481,12 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Bool32") return cg.types.b32();
 	if (m_ident == "Bool64") return cg.types.b64();
 	if (m_ident == "String") return cg.types.str();
+	// Search for the 'struct' definition for m_ident
+	for (const auto& record : cg.structs) {
+		if (record.name == m_ident) {
+			return record.type;
+		}
+	}
 	// TODO(dweiler): Symbol table for types
 	return nullptr;
 }

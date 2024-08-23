@@ -94,6 +94,7 @@ struct AstVarExpr : AstExpr {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
+	[[nodiscard]] StringView name() const noexcept { return m_name; }
 private:
 	StringView m_name;
 };
@@ -145,6 +146,7 @@ struct AstStrExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
 	StringView m_literal;
@@ -159,6 +161,7 @@ struct AstBoolExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
+	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
 	Bool m_value;

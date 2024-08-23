@@ -8,7 +8,9 @@ struct None {};
 
 template<typename T>
 struct Maybe {
-	static constexpr Maybe none() { return None {}; }
+	static constexpr Maybe none() noexcept {
+		return None {};
+	}
 	constexpr Maybe() noexcept = default;
 	constexpr Maybe(None) noexcept : Maybe{} {}
 	constexpr Maybe(T&& value) noexcept : m_either{move(value)} {}
@@ -35,6 +37,11 @@ struct Maybe {
 	{
 		return *new(drop(), Nat{}) Maybe{value};
 	}
+	constexpr Maybe& operator=(const Maybe& other) noexcept
+		requires CopyConstructible<T>
+	{
+		return *new(drop(), Nat{}) Maybe{other};
+	}
 	[[nodiscard]] constexpr T& some() noexcept { return m_either.lhs(); }
 	[[nodiscard]] constexpr const T& some() const noexcept { return m_either.lhs(); }
 	[[nodiscard]] constexpr T& operator*() noexcept { return some(); }
@@ -45,7 +52,14 @@ struct Maybe {
 	[[nodiscard]] constexpr auto is_none() const noexcept { return !is_some(); }
 	[[nodiscard]] constexpr operator bool() const noexcept { return is_some(); }
 	constexpr void reset() noexcept { drop(); }
-	template<typename... Ts> constexpr T& emplace(Ts&&... args) noexcept {
+	constexpr void reset(T&& value) noexcept { new (drop(), Nat{}) Maybe{move(value)}; }
+	constexpr void reset(Maybe&& other) noexcept { new (drop(), Nat{}) Maybe{move(other)}; }
+	constexpr void reset(const T& value) noexcept
+		requires CopyConstructible<T> { new (drop(), Nat{}) Maybe{value}; }
+	constexpr void reset(const Maybe& other) noexcept
+		requires CopyConstructible<T> { new (drop(), Nat{}) Maybe{other}; }
+	template<typename... Ts>
+	[[nodiscard]] constexpr T& emplace(Ts&&... args) noexcept {
 		return m_either.emplace_lhs(forward<Ts>(args)...);
 	}
 	[[nodiscard]] constexpr Bool operator==(const Maybe& other) const noexcept {

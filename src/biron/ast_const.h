@@ -10,12 +10,16 @@
 
 namespace Biron {
 
+struct Cg;
+struct CgAddr;
+
 // Compile time typed constants
 struct AstConst {
 	enum class Kind {
 		NONE,
 		U8, U16, U32, U64, // digit+
 		S8, S16, S32, S64, // digit+
+		B8, B16, B32, B64,
 		TUPLE,             // (...)
 		FIELD,             // N, &N, *N
 		STRING,            // ".*"
@@ -46,6 +50,14 @@ struct AstConst {
 		: m_range{range}, m_kind{Kind::S32}, m_as_s32{value} {}
 	constexpr AstConst(Range range, Sint64 value) noexcept
 		: m_range{range}, m_kind{Kind::S64}, m_as_s64{value} {}
+	constexpr AstConst(Range range, Bool8 value) noexcept
+		: m_range{range}, m_kind{Kind::B8}, m_as_b8{value} {}
+	constexpr AstConst(Range range, Bool16 value) noexcept
+		: m_range{range}, m_kind{Kind::B16}, m_as_b16{value} {}
+	constexpr AstConst(Range range, Bool32 value) noexcept
+		: m_range{range}, m_kind{Kind::B32}, m_as_b32{value} {}
+	constexpr AstConst(Range range, Bool64 value) noexcept
+		: m_range{range}, m_kind{Kind::B8}, m_as_b64{value} {}
 	constexpr AstConst(Range range, Field field) noexcept
 		: m_range{range}, m_kind{Kind::FIELD}, m_as_field{field} {}
 	constexpr AstConst(Range range, Array<AstConst>&& tuple) noexcept
@@ -60,14 +72,10 @@ struct AstConst {
 	[[nodiscard]] constexpr Range range() const noexcept { return m_range; }
 
 	[[nodiscard]] constexpr Bool is_integral() const noexcept {
-		switch (m_kind) {
-		case Kind::U8: case Kind::U16: case Kind::U32: case Kind::U64:
-		case Kind::S8: case Kind::S16: case Kind::S32: case Kind::S64:
-			return true;
-		default:
-			return false;
-		}
-		BIRON_UNREACHABLE();
+		return m_kind >= Kind::U8 && m_kind <= Kind::S64;
+	}
+	[[nodiscard]] constexpr Bool is_boolean() const noexcept {
+		return m_kind >= Kind::B8 && m_kind <= Kind::B64;
 	}
 
 	[[nodiscard]] constexpr Uint8 as_u8() const noexcept { return m_as_u8; }
@@ -78,6 +86,11 @@ struct AstConst {
 	[[nodiscard]] constexpr Sint16 as_s16() const noexcept { return m_as_s16; }
 	[[nodiscard]] constexpr Sint32 as_s32() const noexcept { return m_as_s32; }
 	[[nodiscard]] constexpr Sint64 as_s64() const noexcept { return m_as_s64; }
+	[[nodiscard]] constexpr Bool8 as_b8() const noexcept { return m_as_b8; }
+	[[nodiscard]] constexpr Bool16 as_b16() const noexcept { return m_as_b16; }
+	[[nodiscard]] constexpr Bool32 as_b32() const noexcept { return m_as_b32; }
+	[[nodiscard]] constexpr Bool64 as_b64() const noexcept { return m_as_b64; }
+
 	[[nodiscard]] constexpr const Array<AstConst>& as_tuple() const noexcept { return m_as_tuple; }
 	[[nodiscard]] constexpr const Field& as_field() const noexcept { return m_as_field; }
 	[[nodiscard]] constexpr StringView as_string() const noexcept { return m_as_string; }
@@ -99,6 +112,10 @@ private:
 		Sint16          m_as_s16;
 		Sint32          m_as_s32;
 		Sint64          m_as_s64;
+		Bool8           m_as_b8;
+		Bool16          m_as_b16;
+		Bool32          m_as_b32;
+		Bool64          m_as_b64;
 		Array<AstConst> m_as_tuple;
 		Field           m_as_field;
 		StringView      m_as_string;
@@ -128,6 +145,10 @@ Maybe<AstConst> AstConst::to() const noexcept {
 	case Kind::S16:  return cast(as_s16());
 	case Kind::S32:  return cast(as_s32());
 	case Kind::S64:  return cast(as_s64());
+	case Kind::B8:   return cast(as_b8());
+	case Kind::B16:  return cast(as_b16());
+	case Kind::B32:  return cast(as_b32());
+	case Kind::B64:  return cast(as_b64());
 	default:
 		// Cannot perform compile time constant cast
 		return None{};

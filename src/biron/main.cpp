@@ -60,12 +60,17 @@ int main(int argc, char **argv) {
 	}
 
 	Bool bm = false;
+	Bool opt = false;
 	int file = -1;
 	for (int i = 0; i < argc; i++) {
 		if (argv[i][0] != '-' && file == -1) {
 			file = i;
-		} else if (argv[i][0] == '-' && argv[i][1] == 'b' && argv[i][2] == 'm') {
-			bm = true;
+		} else if (argv[i][0] == '-') {
+			if (argv[i][1] == 'b' && argv[i][2] == 'm') {
+				bm = true;
+			} else if (argv[i][1] == 'O') {
+				opt = true;
+			}
 		}
 	}
 
@@ -130,7 +135,9 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	cg->optimize();
+	if (opt && !cg->optimize()) {
+		return 1;
+	}
 
 	cg->llvm.DumpModule(cg->module);
 	char* error = nullptr;
@@ -139,8 +146,6 @@ int main(int argc, char **argv) {
 	}
 	cg->llvm.DisposeMessage(error);
 	error = nullptr;
-
-	cg->emit("test.o");
 
 	// Strip everything up to including '.'
 	name = name.slice(0, *dot);
@@ -154,6 +159,8 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Out of memory\n");
 		return 1;
 	}
+
+	cg->emit(obj.view());
 
 	if (!bm) {
 		// Build "gcc name.o -o name"

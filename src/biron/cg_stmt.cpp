@@ -1,5 +1,7 @@
 #include <biron/ast_stmt.h>
 #include <biron/ast_expr.h>
+#include <biron/ast_attr.h>
+#include <biron/ast_const.h>
 
 #include <biron/cg.h>
 #include <biron/cg_value.h>
@@ -85,18 +87,38 @@ Bool AstIfStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstLetStmt::codegen(Cg& cg) const noexcept {
-	auto value = m_init->gen_value(cg);
-	if (!value) {
-		return false;
+	// When the initializer is an AstAggExpr we can generate the storage in-place
+	// and assign that as our CgVar skipping a pointless copy.
+	Maybe<CgAddr> addr;
+	if (m_init->is_expr<AstAggExpr>()) {
+		addr = m_init->gen_addr(cg);
+		if (!addr) {
+			return false;
+		}
+	} else {
+		auto value = m_init->gen_value(cg);
+		if (!value) {
+			return false;
+		}
+		addr = cg.emit_alloca(value->type());
+		if (!addr) {
+			return false;
+		}
+		if (!addr->store(cg, *value)) {
+			return false;
+		}
 	}
-	auto store = cg.emit_alloca(value->type());
-	if (!store) {
-		return false;
+	if (m_attrs) {
+		for (const auto& it : *m_attrs) {
+			if (it->is_attr<AstAlignAttr>()) {
+				auto attr = static_cast<AstAlignAttr*>(it);
+				cg.llvm.SetAlignment(addr->ref(), attr->value());
+			} else {
+				fprintf(stderr, "Unknown attribute for local let\n");
+			}
+		}
 	}
-	if (!store->store(cg, *value)) {
-		return false;
-	}
-	if (!cg.vars.emplace_back(m_name, move(*store))) {
+	if (!cg.vars.emplace_back(m_name, move(*addr))) {
 		return false;
 	}
 	return true;

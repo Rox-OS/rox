@@ -44,6 +44,37 @@ constexpr Ulen countof(const T (&)[E]) noexcept {
 	return E;
 }
 
+// Biron has distinct typed and sized booleans which would be nice to have in
+// C++ so they can participate in the overload set within the compiler itself.
+// This means we cannot just make them a simple typedef of integer types since
+// those would conflict. Here we define a custom Boolean type to overcome this.
+template<typename T>
+struct Boolean {
+	constexpr Boolean(Bool value) noexcept
+		: m_bool{value ? T(1) : T(0)}
+	{
+	}
+	[[nodiscard]] constexpr operator Bool() const noexcept {
+		return m_bool != 0u;
+	}
+	[[nodiscard]] constexpr Boolean operator&&(Boolean other) const noexcept {
+		return m_bool && other.m_bool;
+	}
+	[[nodiscard]] constexpr Boolean operator||(Boolean other) const noexcept {
+		return m_bool || other.m_bool;
+	}
+	[[nodiscard]] constexpr Boolean operator!() const noexcept {
+		return m_bool ? false : true;
+	}
+private:
+	T m_bool;
+};
+
+using Bool8 = Boolean<Uint8>;
+using Bool16 = Boolean<Uint16>;
+using Bool32 = Boolean<Uint32>;
+using Bool64 = Boolean<Uint64>;
+
 } // namespace Biron;
 
 #endif // TYPES_H

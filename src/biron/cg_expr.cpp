@@ -176,7 +176,7 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 			return fn.addr();
 		}
 	}
-	// fprintf(stderr, "Could not find symbol '%.*s'\n", Sint32(m_name.length()), m_name.data());
+	fprintf(stderr, "Could not find symbol '%.*s'\n", Sint32(m_name.length()), m_name.data());
 	return None{};
 }
 
@@ -221,6 +221,10 @@ Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
+Maybe<AstConst> AstStrExpr::eval() const noexcept {
+	return AstConst { range(), m_literal };
+}
+
 Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	// When building a string we need to escape it and add a NUL terminator. Biron
 	// does not have NUL terminated strings but it always adds a NUL for literals
@@ -255,6 +259,10 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	return CgValue { t, v };
 }
 
+Maybe<AstConst> AstBoolExpr::eval() const noexcept {
+	return AstConst { range(), Bool32 { m_value } };
+}
+
 Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg) const noexcept {
 	// LLVM has an Int1 type which can store either a 0 or 1 value which is what
 	// the IR uses for "boolean" like things. We map our Bool32 to this type.
@@ -277,8 +285,10 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 		return None{};
 	}
 
+	auto count = type->is_array() ? type->extent() : type->length();
+
 	// We now actually go over every index in the type.
-	for (Ulen l = type->extent(), i = 0, j = 0; i < l; i++) {
+	for (Ulen l = count, i = 0, j = 0; i < l; i++) {
 		auto dst = addr->at(cg, i);
 		if (!dst) {
 			return None{};
@@ -291,18 +301,23 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 			if (!zero || !dst->store(cg, *zero)) {
 				return None{};
 			}
-		} else {
+		} else if (auto expr = m_exprs.at(j++)) {
 			// Otherwise take the next expression and store it at i'th.
-			auto value = m_exprs[j++]->gen_value(cg);
+			auto value = (*expr)->gen_value(cg);
 			if (!value) {
 				return None{};
 			}
 			if (!dst->store(cg, *value)) {
 				return None{};
 			}
+		} else {
+			// No expression for that initializer so generate a zeroinitializer
+			auto zero = CgValue::zero(type, cg);
+			if (!zero || !dst->store(cg, *zero)) {
+				return None{};
+			}
 		}
 	}
-
 	return addr;
 }
 
@@ -314,12 +329,17 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg) const noexcept {
 }
 
 Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
-	auto lhs = m_lhs->gen_value(cg);
-	auto rhs = m_rhs->gen_value(cg);
-	if (!lhs || !rhs) {
-		return None{};
-	}
 	using IntPredicate = LLVM::IntPredicate;
+
+	Maybe<CgValue> lhs;
+	Maybe<CgValue> rhs;
+	if (m_op != Operator::DOT) {
+ 		lhs = m_lhs->gen_value(cg);
+ 		rhs = m_rhs->gen_value(cg);
+		if (!lhs || !rhs) {
+			return None{};
+		}
+	}
 	switch (m_op) {
 	case Operator::ADD:
 		return CgValue { lhs->type(), cg.llvm.BuildAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
@@ -335,6 +355,40 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	case Operator::GTE:
 	case Operator::LT:
 	case Operator::LTE:
+		return None{};
+		break;
+	case Operator::DOT:
+		{
+			if (!m_lhs->is_expr<AstVarExpr>()) {
+				fprintf(stderr, "Expected variable for '.'\n");
+				return None{};
+			}
+			auto lhs_expr = static_cast<AstVarExpr*>(m_lhs);
+			auto var = cg.find_var(lhs_expr->name());
+			if (!var) {
+				// Could not find variable
+				return None{};
+			}
+			auto type = var->addr().type()->deref();
+			if (!type->is_struct()) {
+				fprintf(stderr, "Can only index structure types with '.' operator\n");
+				return None{};
+			}
+
+			if (!m_rhs->is_expr<AstVarExpr>()) {
+				fprintf(stderr, "Expected structure field on right-hand-side of '.' operator\n");
+				return None{};
+			}
+
+			// TODO(dweiler): Work out the type index of this structure, for now assume 0
+
+			auto lhs = m_lhs->gen_addr(cg);
+			if (!lhs) {
+				return None{};
+			}
+
+			return lhs->at(cg, 0)->load(cg);
+		}
 	//  AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT, OF
 	default:
 		return None{};

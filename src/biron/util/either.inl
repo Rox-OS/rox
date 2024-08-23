@@ -61,10 +61,12 @@ struct Either {
 	[[nodiscard]] constexpr RHS& rhs() noexcept { BIRON_ASSERT(is_rhs()); return m_as_rhs; }
 	[[nodiscard]] constexpr const LHS& lhs() const noexcept { BIRON_ASSERT(is_lhs()); return m_as_lhs; }
 	[[nodiscard]] constexpr const RHS& rhs() const noexcept { BIRON_ASSERT(is_rhs()); return m_as_rhs; }
-	template<typename... Ts> constexpr LHS& emplace_lhs(Ts&&... args) noexcept {
+	template<typename... Ts>
+	[[nodiscard]] constexpr LHS& emplace_lhs(Ts&&... args) noexcept {
 		return (new(drop(), Nat{}) Either{LHS{forward<Ts>(args)...}})->lhs();
 	}
-	template<typename... Ts> constexpr RHS& emplace_rhs(Ts&&... args) noexcept {
+	template<typename... Ts>
+	[[nodiscard]] constexpr RHS& emplace_rhs(Ts&&... args) noexcept {
 		return (new(drop(), Nat{}) Either{RHS{forward<Ts>(args)...}})->rhs();
 	}
 	[[nodiscard]] constexpr Bool operator==(const Either& other) const noexcept {

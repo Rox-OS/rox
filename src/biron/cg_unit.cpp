@@ -111,6 +111,21 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	return true;
 }
 
+Bool AstStruct::codegen(Cg& cg) const noexcept {
+	Array<CgType*> types{cg.allocator};
+	for (const auto& elem : m_elems) {
+		auto type = elem.type->codegen(cg);
+		if (!type || !types.push_back(type)) {
+			return false;
+		}
+	}
+	auto type = cg.types.alloc(CgType::RecordInfo { false, move(types) });
+	if (!type) {
+		return false;
+	}
+	return cg.structs.emplace_back(m_name, type);
+}
+
 Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// Register a "printf" function for debugging purposes
 	{
@@ -138,6 +153,13 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
+	// We emit all the named structure types first
+	for (auto rec : m_structs) {
+		if (!rec->codegen(cg)) {
+			return false;
+		}
+	}
+
 	// Before we codegen we do a preprocessing step to make sure all functions
 	// have values generated for them so that we do not need function prototypes
 	// in our language.
@@ -146,12 +168,14 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 	}
+
 	// We can then codegen in any order we so desire.
 	for (auto fn : m_fns) {
 		if (!fn->codegen(cg)) {
 			return false;
 		}
 	}
+
 	return true;
 }
 

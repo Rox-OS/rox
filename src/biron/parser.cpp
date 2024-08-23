@@ -33,16 +33,6 @@ Bool Scope::find(StringView name) const noexcept {
 			return true;
 		}
 	}
-	/*
-	// Search optional function arguments when this is a function-level scope.
-	if (args) {
-		for (Ulen l = args->elems.length(), i = 0; i < l; i++) {
-			auto& elem = args->elems[i];
-			if (elem.name && *elem.name == name) {
-				return true;
-			}
-		}
-	}*/
 	return false;
 }
 
@@ -69,9 +59,8 @@ Parser::~Parser() noexcept {
 	}
 }
 
-void Parser::diagnostic(Token where, const char *message) {
+void Parser::diagnostic(Range range, const char *message) {
 	// Do not report the same error more than once.
-	auto range = where.range;
 	if (range == m_last_range) {
 		return;
 	}
@@ -172,7 +161,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(Operator::OF,     lhs, rhs, range);
 		break;
 		default:
-			ERROR(token, "Unexpected token '%s' in binary expression", token.name());
+			ERROR(token.range, "Unexpected token '%s' in binary expression", token.name());
 			return nullptr;
 		}
 	}
@@ -251,12 +240,19 @@ AstExpr* Parser::parse_expr() noexcept {
 //	  | StrExpr
 //	  | TupleExpr
 //	  | TypeExpr
-//	  | ArrayExpr
-//	  | StructExpr
+//	  | AggExpr
 AstExpr* Parser::parse_primary_expr() noexcept {
 	switch (peek().kind) {
 	case Token::Kind::IDENT:
-		return parse_ident_expr();
+		{
+			auto ident = parse_ident_expr();
+			if (ident->is_expr<AstTypeExpr>()) {
+				return parse_agg_expr(ident);
+			} else {
+				return ident;
+			}
+		}
+		break;
 	case Token::Kind::KW_TRUE:
 	case Token::Kind::KW_FALSE:
 		return parse_bool_expr();
@@ -272,36 +268,45 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 		// Can be either an AstTypeExpr as in [N]T
 		// Or can be an AstArrayExpr as in [N]T { ... }
 		if (auto type = parse_type_expr()) {
-			if (peek().kind != Token::Kind::LBRACE) {
-				return type;
-			}
-			Array<AstExpr*> exprs{m_allocator};
-			next(); // Skip '{'
-			while (peek().kind != Token::Kind::RBRACE) {
-				auto expr = parse_expr();
-				if (!expr || !exprs.push_back(expr)) {
-					return nullptr;
-				}
-				if (peek().kind == Token::Kind::COMMA) {
-					next(); // Consume ','
-				} else {
-					break;
-				}
-			}
-			if (peek().kind != Token::Kind::RBRACE) {
-				ERROR("Expected '}'");
-				return nullptr;
-			}
-			auto end_token = next(); // Skip '}'
-			auto range = type->range().include(end_token.range);
-			return new_node<AstAggExpr>(static_cast<AstTypeExpr*>(type)->type(), move(exprs), range);
+			return parse_agg_expr(type);
+		} else {
+			return nullptr;
 		}
-		return nullptr;
+		break;
 	default:
 		ERROR("Unknown token '%s' in primary expression", peek().name());
 		return nullptr;
 	}
 	BIRON_UNREACHABLE();
+}
+
+AstExpr* Parser::parse_agg_expr(AstExpr* type) noexcept {
+	if (!type->is_expr<AstTypeExpr>()) {
+		return nullptr;
+	}
+	if (peek().kind != Token::Kind::LBRACE) {
+		return type;
+	}
+	Array<AstExpr*> exprs{m_allocator};
+	next(); // Skip '{'
+	while (peek().kind != Token::Kind::RBRACE) {
+		auto expr = parse_expr();
+		if (!expr || !exprs.push_back(expr)) {
+			return nullptr;
+		}
+		if (peek().kind == Token::Kind::COMMA) {
+			next(); // Consume ','
+		} else {
+			break;
+		}
+	}
+	if (peek().kind != Token::Kind::RBRACE) {
+		ERROR("Expected '}'");
+		return nullptr;
+	}
+	auto end_token = next(); // Skip '}'
+	auto range = type->range().include(end_token.range);
+	return new_node<AstAggExpr>(static_cast<AstTypeExpr*>(type)->type(), move(exprs), range);
 }
 
 static Bool is_builtin_type(StringView ident) noexcept {
@@ -339,32 +344,33 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 		ERROR("Expected identifier");
 		return nullptr;
 	}
-	// TODO(dweiler): Support custom types
-	if (is_builtin_type(m_lexer.string(peek().range))) {
+
+	auto ident = m_lexer.string(peek().range);
+
+	if (is_builtin_type(ident) || ident == "Foo" || ident == "Bar") {
 		return parse_type_expr();
 	}
 	auto token = next();
 	auto name = m_lexer.string(token.range);
 
-	// This is C-like
-	/*
-	if (!has_symbol(name)) {
-		// ERROR("Undeclared symbol '%.*s'", (int)name.length(), name.data());
-		// return nullptr;
-	}
-	*/
-
 	auto expr = new_node<AstVarExpr>(name, token.range);
-	if (auto token = peek(); token.kind == Token::Kind::LPAREN) {
-		auto args = parse_tuple_expr();
-		if (!args) {
-			return nullptr;
+	token = peek();
+	switch (token.kind) {
+	case Token::Kind::LPAREN:
+		{
+			auto args = parse_tuple_expr();
+			if (!args) {
+				return nullptr;
+			}
+			return new_node<AstCallExpr>(expr, args, name == "printf", token.range.include(args->range()));
 		}
-		return new_node<AstCallExpr>(expr, args, name == "printf", token.range.include(args->range()));
-	} else if (token.kind == Token::Kind::LBRACKET) {
+		break;
+	case Token::Kind::LBRACKET:
 		return parse_index_expr(expr);
+	default:
+		return expr;
 	}
-	return expr;
+	BIRON_UNREACHABLE();
 }
 
 // IntExpr
@@ -389,9 +395,9 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 			builder.append(lit[i]);
 		} else if (i == l - 1 || lit[i + 1] == '_') {
 			// The integer literal should not end with trailing ' or '_T
-			auto skip = token;
-			skip.range.offset += i;
-			skip.range.length -= i;
+			auto skip = token.range;
+			skip.offset += i;
+			skip.length -= i;
 			ERROR(skip, "Unexpected trailing digits separator in integer literal");
 			return nullptr;
 		}
@@ -471,6 +477,9 @@ AstStrExpr* Parser::parse_str_expr() noexcept {
 	}
 	auto token = next();
 	auto literal = m_lexer.string(token.range);
+	// The lexer retains the quotes in the string so that token.range is accurate,
+	// here we just slice them off.
+	literal = literal.slice(1, literal.length() - 2);
 	return new_node<AstStrExpr>(literal, token.range);
 }
 
@@ -1006,7 +1015,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 	}
 	if (semi) {
 		if (peek().kind != Token::Kind::SEMI) {
-			ERROR("Expected ';' after statement");
+			ERROR("Expected ';' after expression");
 			return nullptr;
 		}
 		next(); // Consume ';'
@@ -1087,6 +1096,68 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	return node;
 }
 
+// Struct
+//	::= 'struct' Ident '{' StructField '}'
+AstStruct* Parser::parse_struct() {
+	if (peek().kind != Token::Kind::KW_STRUCT) {
+		ERROR("Expected 'struct'");
+		return nullptr;
+	}
+
+	auto beg_token = next(); // Consume 'struct'
+
+	if (peek().kind != Token::Kind::IDENT) {
+		ERROR("Expected identifier after 'struct'");
+		return nullptr;
+	}
+
+	auto ident = next(); // Consume ident
+	auto name = m_lexer.string(ident.range);
+
+	if (peek().kind != Token::Kind::LBRACE) {
+		ERROR("Expected '{'");
+		return nullptr;
+	}
+
+	next(); // Consume '{'
+
+	Array<AstStruct::Elem> elems{m_allocator};
+	while (peek().kind != Token::Kind::RBRACE) {
+		if (peek().kind != Token::Kind::IDENT) {
+			ERROR("Expected identifier for struct field");
+			return nullptr;
+		}
+		auto ident = next(); // Consume ident
+		auto name = m_lexer.string(ident.range);
+		if (peek().kind != Token::Kind::COLON) {
+			ERROR("Expected ':' after struct field");
+			return nullptr;
+		}
+		next(); // Consume ':'
+		auto type = parse_type();
+		if (!type) {
+			return nullptr;
+		}
+		if (!elems.emplace_back(name, type)) {
+			return nullptr;
+		}
+		if (peek().kind != Token::Kind::SEMI) {
+			ERROR("Expected ';' after struct field");
+			return nullptr;
+		}
+		next(); // Consume ';'
+	}
+
+	if (peek().kind != Token::Kind::RBRACE) {
+		ERROR("Expected '}'");
+		return nullptr;
+	}
+
+	auto end_token = next(); // Consume '}'
+	auto range = beg_token.range.include(end_token.range);
+	return new_node<AstStruct>(name, move(elems), range);
+}
+
 Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 	if (peek().kind != Token::Kind::AT) {
 		ERROR("Expected @");
@@ -1110,6 +1181,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		auto name = m_lexer.string(token.range);
 		if (name == "section") {
 		} else if (name == "align") {
+		} else if (name == "used") {
 		} else {
 			ERROR("Unknown attribute: '%.*s'", (int)name.length(), name.data());
 			return None{};
@@ -1119,7 +1191,44 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			return None{};
 		}
 		if (name == "section") {
+			auto expr = args->at(0);
+			auto value = expr->eval();
+			if (!value || value->kind() != AstConst::Kind::STRING) {
+				ERROR(expr->range(), "Expected constant string expression for section name");
+				return None{};
+			}
+			auto attr = new_node<AstSectionAttr>(value->as_string(), expr->range());
+			if (!attr || !attrs.push_back(attr)) {
+				return None{};
+			}
 		} else if (name == "align") {
+			auto expr = args->at(0);
+			auto value = expr->eval();
+			if (!value || !value->is_integral()) {
+				ERROR("Expected constant integer expression for alignment");
+				return None{};
+			}
+			auto align = value->to<Uint64>();
+			if (!align) {
+				ERROR("Expected positive constant integer expression for alignment");
+				return None{};
+			}
+			if (!is_pot(align->as_u64())) {
+				ERROR("Alignment must be a power-of-two");
+				return None{};
+			}
+			auto attr = new_node<AstAlignAttr>(align->as_u64(), expr->range());
+			if (!attr || !attrs.push_back(attr)) {
+				return None{};
+			}
+		} else if (name == "used") {
+			auto expr = args->at(0);
+			auto value = expr->eval();
+			if (!value || !value->is_boolean()) {
+				ERROR("Expected constant boolean expression for used attribute");
+				return None{};
+			}
+			auto used = value->to<Bool32>();
 		}
 		if (peek().kind != Token::Kind::COMMA) {
 			break;
@@ -1161,6 +1270,14 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		if (auto let = parse_let_stmt(move(attrs))) {
 			if (!unit.add_let(let)) {
 				ERROR("out of memory");
+				return None{};
+			}
+		}
+		break;
+	case Token::Kind::KW_STRUCT:
+		if (auto record = parse_struct()) {
+			if (!unit.add_struct(record)) {
+				ERROR("Out of memory");
 				return None{};
 			}
 		}

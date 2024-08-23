@@ -37,7 +37,7 @@ struct AstAssignStmt;
 struct AstAsmStmt;
 
 struct AstFn;
-struct AstAsm;
+struct AstStruct;
 
 struct Scope {
 	constexpr Scope(Allocator& allocator, Scope* prev = nullptr) noexcept
@@ -97,7 +97,8 @@ struct Parser {
 	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;
 
 	// Top-level elements
-	AstFn*  parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	AstFn* parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	AstStruct* parse_struct() noexcept;
 
 	Maybe<AstUnit> parse() noexcept;
 
@@ -105,21 +106,22 @@ private:
 	Bool has_symbol(StringView name) const noexcept;
 
 	template<typename... Ts>
-	void error(Token token, const char *message, Ts&&... args) {
+	void error(Range range, const char *message, Ts&&... args) {
 		if constexpr (sizeof...(Ts) == 0) {
-			diagnostic(token, message);
+			diagnostic(range, message);
 		} else if (auto fmt = format(m_allocator, message, forward<Ts>(args)...)) {
-			diagnostic(token, fmt->data());
+			diagnostic(range, fmt->data());
 		} else {
-			diagnostic(token, "Out of memory");
+			diagnostic(range, "Out of memory");
 		}
 	}
 	template<typename... Ts>
 	void error(const char *message, Ts&&... args) {
-		error(m_this_token, message, forward<Ts>(args)...);
+		error(m_this_token.range, message, forward<Ts>(args)...);
 	}
-	void diagnostic(Token where, const char *message);
+	void diagnostic(Range range, const char *message);
 	AstExpr* parse_primary_expr() noexcept;
+	AstExpr* parse_agg_expr(AstExpr* type) noexcept;
 	AstExpr* parse_unary_expr() noexcept;
 	AstExpr* parse_ident_expr() noexcept;
 	AstExpr* parse_type_expr() noexcept;

@@ -10,6 +10,11 @@ namespace Biron {
 struct Allocator;
 struct AstFn;
 
+struct CgStruct {
+	StringView name;
+	CgType*    type;
+};
+
 struct Cg {
 	using ContextRef       = LLVM::ContextRef;
 	using BuilderRef       = LLVM::BuilderRef;
@@ -32,6 +37,16 @@ struct Cg {
 	CgTypeCache            types;
 	Array<CgVar>           vars;
 	Array<CgVar>           fns;
+	Array<CgStruct>        structs;
+
+	Maybe<CgVar> find_var(StringView name) const noexcept {
+		for (auto var : vars) {
+			if (var.name() == name) {
+				return var;
+			}
+		}
+		return None{};
+	}
 
 	constexpr Cg(Cg&& other) noexcept
 		: allocator{other.allocator}
@@ -43,6 +58,7 @@ struct Cg {
 		, types{move(other.types)}
 		, vars{move(other.vars)}
 		, fns{move(other.fns)}
+		, structs{move(other.structs)}
 		, loops{move(other.loops)}
 	{
 	}
@@ -70,6 +86,7 @@ private:
 		, types{move(types)}
 		, vars{allocator}
 		, fns{allocator}
+		, structs{allocator}
 		, loops{allocator}
 	{
 	}

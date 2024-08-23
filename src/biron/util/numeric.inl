@@ -5,27 +5,31 @@
 
 namespace Biron {
 
-template<typename T> constexpr T
-min(T&& t) {
+template<typename T>
+[[nodiscard]] constexpr T min(T&& t) noexcept {
 	return forward<T>(t);
 }
-template<typename T> constexpr T
-max(T&& t) {
+template<typename T>
+[[nodiscard]] constexpr T max(T&& t) noexcept {
 	return forward<T>(t);
 }
 
 template<typename T0, typename T1, typename... Ts>
-constexpr auto
-min(T0&& v0, T1&& v1, Ts&&... vs) {
+[[nodiscard]] constexpr auto min(T0&& v0, T1&& v1, Ts&&... vs) noexcept {
 	return v0 < v1 ? min(v0, forward<Ts>(vs)...) : min(v1, forward<Ts>(vs)...);
 }
 
 template<typename T0, typename T1, typename... Ts>
-constexpr auto
-max(T0&& v0, T1&& v1, Ts&&... vs) {
+[[nodiscard]] constexpr auto max(T0&& v0, T1&& v1, Ts&&... vs) noexcept {
 	return v0 > v1 ? max(v0, forward<Ts>(vs)...) : max(v1, forward<Ts>(vs)...);
 }
 
+template<typename T>
+[[nodiscard]] constexpr Bool is_pot(T x) noexcept {
+	return x != 0 && (x & (x - 1)) == 0;
+}
+
+// Numeric range [0, length)
 struct Range {
 	constexpr Range(Ulen offset, Ulen length) noexcept
 		: offset{offset}
@@ -48,6 +52,7 @@ struct Range {
 
 template<typename T>
 struct limits {
+	// Specialized below for all integer types
 };
 
 template<> struct limits<Uint8> {

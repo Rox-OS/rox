@@ -6,8 +6,7 @@
 namespace Biron {
 
 template<typename T1, typename T2 = T1>
-BIRON_INLINE constexpr T1
-exchange(T1& obj, T2&& new_value) noexcept {
+[[nodiscard]] BIRON_INLINE constexpr T1 exchange(T1& obj, T2&& new_value) noexcept {
 	T1 old_value = move(obj);
 	obj = forward<T2>(new_value);
 	return old_value;

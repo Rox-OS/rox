@@ -139,9 +139,7 @@ Token Lexer::read() noexcept {
 			fwd(); // Consume '\'
 		}
 		fwd(); // Consume '"'
-		// NOTE(dweiler): The + 1 is to skip '"'
-		// NOTE(dweiler): The + 2 is since we want to subtract the quotes
-		return {Kind::LIT_STR, {n + 1, m_offset - (n + 2)}};
+		return {Kind::LIT_STR, {n, m_offset - n}};
 	case '/':
 		n = fwd(); // Consume '/'
 		switch (peek()) {
