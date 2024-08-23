@@ -328,6 +328,44 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
+Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
+	if (m_op != Op::DOT) {
+		return None{};
+	}
+
+	auto lhs = m_lhs->gen_addr(cg);
+	if (!lhs) {
+		return None{};
+	}
+	auto type = lhs->type()->deref();
+	Bool ptr = false;
+	if (type->is_pointer()) {
+		ptr = true;
+		// We do the implicit dereference behavior so that we do not need a
+		// '->' operator like C and C++ here
+		type = type->deref();
+	}
+	if (!type->is_struct()) {
+		fprintf(stderr, "Can only index structure types with '.' operator\n");
+		return None{};
+	}
+
+	if (!m_rhs->is_expr<AstVarExpr>()) {
+		fprintf(stderr, "Expected structure field on right-hand-side of '.' operator\n");
+		return None{};
+	}
+
+	// TODO(dweiler): Work out the field index
+
+	if (ptr) {
+		auto load = lhs->load(cg);
+		auto addr = CgAddr { load->type(), load->ref() };
+		return addr.at(cg, 0);
+	} else {
+		return lhs->at(cg, 0);
+	}
+}
+
 Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	using IntPredicate = LLVM::IntPredicate;
 
@@ -559,39 +597,10 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		// This is the complex beast.
 		break;
 	case Op::DOT:
-		{
-			auto lhs = m_lhs->gen_addr(cg);
-			if (!lhs) {
-				return None{};
-			}
-			auto type = lhs->type()->deref();
-			Bool ptr = false;
-			if (type->is_pointer()) {
-				ptr = true;
-				// We do the implicit dereference behavior so that we do not need a
-				// '->' operator like C and C++ here
-				type = type->deref();
-			}
-			if (!type->is_struct()) {
-				fprintf(stderr, "Can only index structure types with '.' operator\n");
-				return None{};
-			}
-
-			if (!m_rhs->is_expr<AstVarExpr>()) {
-				fprintf(stderr, "Expected structure field on right-hand-side of '.' operator\n");
-				return None{};
-			}
-
-			// TODO(dweiler): Work out the field index
-
-			if (ptr) {
-				auto load = lhs->load(cg);
-				auto addr = CgAddr { load->type(), load->ref() };
-				return addr.at(cg, 0)->load(cg);
-			} else {
-				return lhs->at(cg, 0)->load(cg);
-			}
+		if (auto addr = gen_addr(cg)) {
+			return addr->load(cg);
 		}
+		break;
 	default:
 		break;
 	}

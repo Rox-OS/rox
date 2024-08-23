@@ -196,6 +196,7 @@ struct AstBinExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
 	Op       m_op;
