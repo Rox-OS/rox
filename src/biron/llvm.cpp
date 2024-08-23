@@ -82,6 +82,7 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(SetInitializer);
 	LINK(SetSection);
 	LINK(SetAlignment);
+	LINK(SetValueName2);
 	LINK(ModuleCreateWithNameInContext);
 	LINK(AddFunction);
 	LINK(GetNamedFunction);
@@ -119,6 +120,8 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(BuildCast);
 	LINK(BuildExtractValue);
 	LINK(GetCastOpcode);
+	LINK(BuildPhi);
+	LINK(AddIncoming);
 	LINK(GetParam);
 	LINK(StructGetTypeAtIndex);
 	LINK(GetTargetFromTriple);

@@ -150,7 +150,7 @@ Maybe<AstConst> AstConst::to() const noexcept {
 	case Kind::B32:  return cast(as_b32());
 	case Kind::B64:  return cast(as_b64());
 	default:
-		// Cannot perform compile time constant cast
+		// Cannot perform constant compile time cast
 		return None{};
 	}
 }

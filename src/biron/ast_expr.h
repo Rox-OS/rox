@@ -185,10 +185,10 @@ private:
 
 struct AstBinExpr : AstExpr {
 	static inline constexpr auto KIND = Kind::BIN;
-	enum class Operator {
-		ADD, SUB, MUL, EQ, NEQ, GT, GTE, LT, LTE, AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT, OF
+	enum class Op {
+		ADD, SUB, MUL, EQ, NE, GT, GE, LT, LE, AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT, OF
 	};
-	constexpr AstBinExpr(Operator op, AstExpr* lhs, AstExpr* rhs, Range range) noexcept
+	constexpr AstBinExpr(Op op, AstExpr* lhs, AstExpr* rhs, Range range) noexcept
 		: AstExpr{Kind::BIN, range}
 		, m_op{op}
 		, m_lhs{lhs}
@@ -198,17 +198,17 @@ struct AstBinExpr : AstExpr {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
-	Operator m_op;
+	Op       m_op;
 	AstExpr* m_lhs;
 	AstExpr* m_rhs;
 };
 
 struct AstUnaryExpr : AstExpr {
 	static inline constexpr auto KIND = Kind::UNARY;
-	enum class Operator {
+	enum class Op {
 		NEG, NOT, DEREF, ADDROF
 	};
-	constexpr AstUnaryExpr(Operator op, AstExpr *operand, Range range) noexcept
+	constexpr AstUnaryExpr(Op op, AstExpr *operand, Range range) noexcept
 		: AstExpr{Kind::UNARY, range}
 		, m_op{op}
 		, m_operand{operand}
@@ -218,7 +218,7 @@ struct AstUnaryExpr : AstExpr {
 	[[nodiscard]] Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
-	Operator m_op;
+	Op       m_op;
 	AstExpr* m_operand;
 };
 

@@ -137,6 +137,7 @@ struct LLVM {
 	void (*SetInitializer)(ValueRef, ValueRef);
 	void (*SetSection)(ValueRef, const char *);
 	void (*SetAlignment)(ValueRef, unsigned);
+	void (*SetValueName2)(ValueRef, const char*, Ulen);
 
 	// Module
 	ModuleRef (*ModuleCreateWithNameInContext)(const char *, ContextRef);
@@ -178,6 +179,8 @@ struct LLVM {
 	ValueRef (*BuildCast)(BuilderRef, Opcode, ValueRef, TypeRef, const char *);
 	ValueRef (*BuildExtractValue)(BuilderRef, ValueRef, unsigned, const char *);
 	Opcode (*GetCastOpcode)(ValueRef, Bool, TypeRef, Bool);
+	ValueRef (*BuildPhi)(BuilderRef, TypeRef, const char*);
+	void (*AddIncoming)(ValueRef, ValueRef*, BasicBlockRef*, unsigned);
 
 	// Target
 	Bool (*GetTargetFromTriple)(const char*, TargetRef *, char **);

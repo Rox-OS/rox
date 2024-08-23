@@ -468,19 +468,20 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 }
 
 CgType* AstIdentType::codegen(Cg& cg) const noexcept {
-	if (m_ident == "Uint8")  return cg.types.u8();
-	if (m_ident == "Uint16") return cg.types.u16();
-	if (m_ident == "Uint32") return cg.types.u32();
-	if (m_ident == "Uint64") return cg.types.u64();
-	if (m_ident == "Sint8")  return cg.types.s8();
-	if (m_ident == "Sint16") return cg.types.s16();
-	if (m_ident == "Sint32") return cg.types.s32();
-	if (m_ident == "Sint64") return cg.types.s64();
-	if (m_ident == "Bool8")  return cg.types.b8();
-	if (m_ident == "Bool16") return cg.types.b16();
-	if (m_ident == "Bool32") return cg.types.b32();
-	if (m_ident == "Bool64") return cg.types.b64();
-	if (m_ident == "String") return cg.types.str();
+	if (m_ident == "Uint8")   return cg.types.u8();
+	if (m_ident == "Uint16")  return cg.types.u16();
+	if (m_ident == "Uint32")  return cg.types.u32();
+	if (m_ident == "Uint64")  return cg.types.u64();
+	if (m_ident == "Sint8")   return cg.types.s8();
+	if (m_ident == "Sint16")  return cg.types.s16();
+	if (m_ident == "Sint32")  return cg.types.s32();
+	if (m_ident == "Sint64")  return cg.types.s64();
+	if (m_ident == "Bool8")   return cg.types.b8();
+	if (m_ident == "Bool16")  return cg.types.b16();
+	if (m_ident == "Bool32")  return cg.types.b32();
+	if (m_ident == "Bool64")  return cg.types.b64();
+	if (m_ident == "String")  return cg.types.str();
+	if (m_ident == "Address") return cg.types.ptr();
 	// Search for the 'struct' definition for m_ident
 	for (const auto& record : cg.structs) {
 		if (record.name == m_ident) {
@@ -523,7 +524,6 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 }
 
 CgType* AstSliceType::codegen(Cg& cg) const noexcept {
-	// TODO(dweiler): Implement
 	auto base = m_type->codegen(cg);
 	if (!base) {
 		return nullptr;

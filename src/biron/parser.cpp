@@ -112,7 +112,7 @@ AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
 }
 
 AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
-	using Operator = AstBinExpr::Operator;
+	using Op = AstBinExpr::Op;
 	for (;;) {
 		auto peek_prec = peek().prec();
 		if (peek_prec < expr_prec) {
@@ -141,24 +141,24 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		auto range = token.range.include(lhs->range())
 		                        .include(rhs->range());
 		switch (kind) {
-		/****/ case Token::Kind::PLUS:   lhs = new_node<AstBinExpr>(Operator::ADD,    lhs, rhs, range);
-		break; case Token::Kind::MINUS:  lhs = new_node<AstBinExpr>(Operator::SUB,    lhs, rhs, range);
-		break; case Token::Kind::STAR:   lhs = new_node<AstBinExpr>(Operator::MUL,    lhs, rhs, range);
-		break; case Token::Kind::LT:     lhs = new_node<AstBinExpr>(Operator::LT,     lhs, rhs, range);
-		break; case Token::Kind::LTE:    lhs = new_node<AstBinExpr>(Operator::LTE,    lhs, rhs, range);
-		break; case Token::Kind::GT:     lhs = new_node<AstBinExpr>(Operator::GT,     lhs, rhs, range);
-		break; case Token::Kind::GTE:    lhs = new_node<AstBinExpr>(Operator::GTE,    lhs, rhs, range);
-		break; case Token::Kind::EQEQ:   lhs = new_node<AstBinExpr>(Operator::EQ,     lhs, rhs, range);
-		break; case Token::Kind::NEQ:    lhs = new_node<AstBinExpr>(Operator::NEQ,    lhs, rhs, range);
-		break; case Token::Kind::KW_AS:  lhs = new_node<AstBinExpr>(Operator::AS,     lhs, rhs, range);
-		break; case Token::Kind::LOR:    lhs = new_node<AstBinExpr>(Operator::LOR,    lhs, rhs, range);
-		break; case Token::Kind::LAND:   lhs = new_node<AstBinExpr>(Operator::LAND,   lhs, rhs, range);
-		break; case Token::Kind::BOR:    lhs = new_node<AstBinExpr>(Operator::BOR,    lhs, rhs, range);
-		break; case Token::Kind::BAND:   lhs = new_node<AstBinExpr>(Operator::BAND,   lhs, rhs, range);
-		break; case Token::Kind::LSHIFT: lhs = new_node<AstBinExpr>(Operator::LSHIFT, lhs, rhs, range);
-		break; case Token::Kind::RSHIFT: lhs = new_node<AstBinExpr>(Operator::RSHIFT, lhs, rhs, range);
-		break; case Token::Kind::DOT:    lhs = new_node<AstBinExpr>(Operator::DOT,    lhs, rhs, range);
-		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(Operator::OF,     lhs, rhs, range);
+		/****/ case Token::Kind::PLUS:   lhs = new_node<AstBinExpr>(Op::ADD,    lhs, rhs, range);
+		break; case Token::Kind::MINUS:  lhs = new_node<AstBinExpr>(Op::SUB,    lhs, rhs, range);
+		break; case Token::Kind::STAR:   lhs = new_node<AstBinExpr>(Op::MUL,    lhs, rhs, range);
+		break; case Token::Kind::LT:     lhs = new_node<AstBinExpr>(Op::LT,     lhs, rhs, range);
+		break; case Token::Kind::LTE:    lhs = new_node<AstBinExpr>(Op::LE,     lhs, rhs, range);
+		break; case Token::Kind::GT:     lhs = new_node<AstBinExpr>(Op::GT,     lhs, rhs, range);
+		break; case Token::Kind::GTE:    lhs = new_node<AstBinExpr>(Op::GE,     lhs, rhs, range);
+		break; case Token::Kind::EQEQ:   lhs = new_node<AstBinExpr>(Op::EQ,     lhs, rhs, range);
+		break; case Token::Kind::NEQ:    lhs = new_node<AstBinExpr>(Op::NE,     lhs, rhs, range);
+		break; case Token::Kind::KW_AS:  lhs = new_node<AstBinExpr>(Op::AS,     lhs, rhs, range);
+		break; case Token::Kind::LOR:    lhs = new_node<AstBinExpr>(Op::LOR,    lhs, rhs, range);
+		break; case Token::Kind::LAND:   lhs = new_node<AstBinExpr>(Op::LAND,   lhs, rhs, range);
+		break; case Token::Kind::BOR:    lhs = new_node<AstBinExpr>(Op::BOR,    lhs, rhs, range);
+		break; case Token::Kind::BAND:   lhs = new_node<AstBinExpr>(Op::BAND,   lhs, rhs, range);
+		break; case Token::Kind::LSHIFT: lhs = new_node<AstBinExpr>(Op::LSHIFT, lhs, rhs, range);
+		break; case Token::Kind::RSHIFT: lhs = new_node<AstBinExpr>(Op::RSHIFT, lhs, rhs, range);
+		break; case Token::Kind::DOT:    lhs = new_node<AstBinExpr>(Op::DOT,    lhs, rhs, range);
+		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(Op::OF,     lhs, rhs, range);
 		break;
 		default:
 			ERROR(token.range, "Unexpected token '%s' in binary expression", token.name());
@@ -176,7 +176,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 //	  | '&' UnaryExpr
 //	  | '...' UnaryExpr
 AstExpr* Parser::parse_unary_expr() noexcept {
-	using Operator = AstUnaryExpr::Operator;
+	using Op = AstUnaryExpr::Op;
 	AstExpr* operand = nullptr;
 	auto token = peek();
 	switch (token.kind) {
@@ -185,13 +185,13 @@ AstExpr* Parser::parse_unary_expr() noexcept {
 		if (!(operand = parse_expr())) {
 			return nullptr;
 		}
-		return new_node<AstUnaryExpr>(Operator::NOT, operand, token.range.include(operand->range()));
+		return new_node<AstUnaryExpr>(Op::NOT, operand, token.range.include(operand->range()));
 	case Token::Kind::MINUS:
 		next(); // Consume '-'
 		if (!(operand = parse_expr())) {
 			return nullptr;
 		}
-		return new_node<AstUnaryExpr>(Operator::NEG, operand, token.range.include(operand->range()));
+		return new_node<AstUnaryExpr>(Op::NEG, operand, token.range.include(operand->range()));
 	case Token::Kind::PLUS:
 		next(); // Consume '+'
 		return parse_expr();
@@ -200,13 +200,13 @@ AstExpr* Parser::parse_unary_expr() noexcept {
 		if (!(operand = parse_expr())) {
 			return nullptr;
 		}
-		return new_node<AstUnaryExpr>(Operator::DEREF, operand, token.range.include(operand->range()));
+		return new_node<AstUnaryExpr>(Op::DEREF, operand, token.range.include(operand->range()));
 	case Token::Kind::BAND:
 		next(); // Consume '&'
 		if (!(operand = parse_expr())) {
 			return nullptr;
 		}
-		return new_node<AstUnaryExpr>(Operator::ADDROF, operand, token.range.include(operand->range()));
+		return new_node<AstUnaryExpr>(Op::ADDROF, operand, token.range.include(operand->range()));
 	case Token::Kind::ELLIPSIS:
 		next();
 		if (!(operand = parse_expr())) {
@@ -1048,8 +1048,6 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		ERROR("Could not parse argument list");
 		return nullptr;
 	}
-
-	// m_scope->args = type;
 
 	AstType* rets = nullptr;
 	if (peek().kind == Token::Kind::ARROW) {

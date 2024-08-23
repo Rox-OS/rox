@@ -333,43 +333,245 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 
 	Maybe<CgValue> lhs;
 	Maybe<CgValue> rhs;
-	if (m_op != Operator::DOT) {
+	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND) {
  		lhs = m_lhs->gen_value(cg);
  		rhs = m_rhs->gen_value(cg);
 		if (!lhs || !rhs) {
 			return None{};
 		}
 	}
+
 	switch (m_op) {
-	case Operator::ADD:
+	case Op::ADD:
 		return CgValue { lhs->type(), cg.llvm.BuildAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
-	case Operator::SUB:
+	case Op::SUB:
 		return CgValue { lhs->type(), cg.llvm.BuildSub(cg.builder, lhs->ref(), rhs->ref(), "") };
-	case Operator::MUL:
+	case Op::MUL:
 		return CgValue { lhs->type(), cg.llvm.BuildMul(cg.builder, lhs->ref(), rhs->ref(), "") };
-	case Operator::EQ:
+	case Op::EQ:
 		return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::EQ, lhs->ref(), rhs->ref(), "") };
-	case Operator::NEQ:
+	case Op::NE:
 		return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::NE, lhs->ref(), rhs->ref(), "") };
-	case Operator::GT:
-	case Operator::GTE:
-	case Operator::LT:
-	case Operator::LTE:
-		return None{};
+	case Op::GT:
+		if (lhs->type()->is_sint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::SGT, lhs->ref(), rhs->ref(), "") };
+		} else if (lhs->type()->is_uint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::UGT, lhs->ref(), rhs->ref(), "") };
+		}
 		break;
-	case Operator::DOT:
+	case Op::GE:
+		if (lhs->type()->is_sint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::SGE, lhs->ref(), rhs->ref(), "") };
+		} else if (lhs->type()->is_uint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::UGE, lhs->ref(), rhs->ref(), "") };
+		}
+		break;
+	case Op::LT:
+		if (lhs->type()->is_sint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::SLT, lhs->ref(), rhs->ref(), "") };
+		} else if (lhs->type()->is_uint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::ULT, lhs->ref(), rhs->ref(), "") };
+		}
+		break;
+	case Op::LE:
+		if (lhs->type()->is_sint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::SLE, lhs->ref(), rhs->ref(), "") };
+		} else if (lhs->type()->is_uint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::ULE, lhs->ref(), rhs->ref(), "") };
+		}
+		break;
+	case Op::AS:
+		// TODO(dweiler): Implement
+		break;
+	case Op::LOR:
 		{
-			if (!m_lhs->is_expr<AstVarExpr>()) {
-				fprintf(stderr, "Expected variable for '.'\n");
+			// CBB
+			//   %0 = <lhs>
+			//   cond br %0, %on_lhs_true, %on_lhs_false
+			// on_lhs_true:
+			//   br on_exit -> phi true
+			// on_lhs_false:
+			//   %1 = <rhs>
+			//   cond br %1, %on_rhs_true, %on_rhs_false
+			// on_rhs_true:
+			//   br on_exit -> phi true
+			// on_rhs_false:
+			//   br on_exit -> phi false
+			// on_exit:
+			//   %2 = phi [ true %on_lhs_true ], [ true, %on_rhs_true ], [ false, %on_rhs_false ]
+		
+			auto this_bb = cg.llvm.GetInsertBlock(cg.builder);
+			auto this_fn = cg.llvm.GetBasicBlockParent(this_bb);
+
+			auto on_lhs_true  = cg.llvm.CreateBasicBlockInContext(cg.context, "on_lhs_true");
+			auto on_lhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_lhs_false");
+			auto on_rhs_true  = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_true");
+			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
+			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
+	
+			auto lhs = m_lhs->gen_value(cg);
+			if (!lhs || !lhs->type()->is_bool()) {
 				return None{};
 			}
-			auto lhs_expr = static_cast<AstVarExpr*>(m_lhs);
-			auto var = cg.find_var(lhs_expr->name());
-			if (!var) {
-				// Could not find variable
+
+			cg.llvm.BuildCondBr(cg.builder, lhs->ref(), on_lhs_true, on_lhs_false);
+
+			// on_lhs_true
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_true);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_true);
+			cg.llvm.BuildBr(cg.builder, on_exit);
+		
+			// on_lhs_false
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_false);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_false);
+			auto rhs = m_rhs->gen_value(cg);
+			if (!rhs || !rhs->type()->is_bool()) {
 				return None{};
 			}
-			auto type = var->addr().type()->deref();
+			on_lhs_false = cg.llvm.GetInsertBlock(cg.builder);
+			cg.llvm.BuildCondBr(cg.builder, rhs->ref(), on_rhs_true, on_rhs_false);
+
+			// on_rhs_true
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_rhs_true);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_rhs_true);
+			cg.llvm.BuildBr(cg.builder, on_exit);
+
+			// on_rhs_false
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_rhs_false);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_rhs_false);
+			cg.llvm.BuildBr(cg.builder, on_exit);
+
+			// on_exit
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_exit);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_exit);
+			
+			LLVM::BasicBlockRef blocks[] = {
+				on_lhs_true,
+				on_rhs_true,
+				on_rhs_false,
+			};
+
+			LLVM::ValueRef values[] = {
+				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 1, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 1, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 0, false),
+			};
+			
+			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(cg), "");
+			cg.llvm.AddIncoming(phi, values, blocks, 3);
+
+			return CgValue { cg.types.b32(), phi };
+		}
+		break;
+	case Op::LAND:
+		{
+			// CBB
+			//   %0 = <lhs>
+			//   cond br %0, %on_lhs_true, %on_lhs_false
+			// on_lhs_true:
+			//   %1 = <rhs>
+			//   cond br %1, %on_rhs_true, %on_rhs_false
+			// on_lhs_false:
+			//   br on_exit -> phi false
+			// on_rhs_true:
+			//   br on_exit -> phi true
+			// on_rhs_false:
+			//   br on_exit -> phi false
+			// on_exit:
+			//   %2 = phi [ false %on_lhs_false ], [ true, %on_rhs_true ], [ false, %on_rhs_false ]
+
+			auto this_bb = cg.llvm.GetInsertBlock(cg.builder);
+			auto this_fn = cg.llvm.GetBasicBlockParent(this_bb);
+
+			auto on_lhs_true  = cg.llvm.CreateBasicBlockInContext(cg.context, "on_lhs_true");
+			auto on_lhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_lhs_false");
+			auto on_rhs_true  = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_true");
+			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
+			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
+	
+			auto lhs = m_lhs->gen_value(cg);
+			if (!lhs || !lhs->type()->is_bool()) {
+				return None{};
+			}
+
+			cg.llvm.BuildCondBr(cg.builder, lhs->ref(), on_lhs_true, on_lhs_false);
+
+			// on_lhs_true
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_true);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_true);
+			auto rhs = m_rhs->gen_value(cg);
+			if (!rhs || !rhs->type()->is_bool()) {
+				return None{};
+			}
+			cg.llvm.BuildCondBr(cg.builder, rhs->ref(), on_rhs_true, on_rhs_false);
+
+			// on_lhs_false
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_false);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_false);
+			cg.llvm.BuildBr(cg.builder, on_exit);
+
+			// on_rhs_true
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_rhs_true);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_rhs_true);
+			cg.llvm.BuildBr(cg.builder, on_exit);
+
+			// on_rhs_false
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_rhs_false);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_rhs_false);
+			cg.llvm.BuildBr(cg.builder, on_exit);
+
+			// on_exit
+			cg.llvm.AppendExistingBasicBlock(this_fn, on_exit);
+			cg.llvm.PositionBuilderAtEnd(cg.builder, on_exit);
+
+			LLVM::BasicBlockRef blocks[] = {
+				on_lhs_false,
+				on_rhs_true,
+				on_rhs_false,
+			};
+
+			LLVM::ValueRef values[] = {
+				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 0, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 1, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 0, false),
+			};
+			
+			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(cg), "");
+			cg.llvm.AddIncoming(phi, values, blocks, 3);
+
+			return CgValue { cg.types.b32(), phi };
+		}
+		break;
+	case Op::BOR:
+		return CgValue { lhs->type(), cg.llvm.BuildOr(cg.builder, lhs->ref(), rhs->ref(), "") };
+	case Op::BAND:
+		return CgValue { lhs->type(), cg.llvm.BuildAnd(cg.builder, lhs->ref(), rhs->ref(), "") };
+	case Op::LSHIFT:
+		return CgValue { lhs->type(), cg.llvm.BuildShl(cg.builder, lhs->ref(), rhs->ref(), "") };
+	case Op::RSHIFT:
+		if (lhs->type()->is_sint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildAShr(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else if (lhs->type()->is_uint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildLShr(cg.builder, lhs->ref(), rhs->ref(), "") };
+		}
+		break;
+	case Op::OF:
+		// This is the complex beast.
+		break;
+	case Op::DOT:
+		{
+			auto lhs = m_lhs->gen_addr(cg);
+			if (!lhs) {
+				return None{};
+			}
+			auto type = lhs->type()->deref();
+			Bool ptr = false;
+			if (type->is_pointer()) {
+				ptr = true;
+				// We do the implicit dereference behavior so that we do not need a
+				// '->' operator like C and C++ here
+				type = type->deref();
+			}
 			if (!type->is_struct()) {
 				fprintf(stderr, "Can only index structure types with '.' operator\n");
 				return None{};
@@ -380,31 +582,31 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 				return None{};
 			}
 
-			// TODO(dweiler): Work out the type index of this structure, for now assume 0
+			// TODO(dweiler): Work out the field index
 
-			auto lhs = m_lhs->gen_addr(cg);
-			if (!lhs) {
-				return None{};
+			if (ptr) {
+				auto load = lhs->load(cg);
+				auto addr = CgAddr { load->type(), load->ref() };
+				return addr.at(cg, 0)->load(cg);
+			} else {
+				return lhs->at(cg, 0)->load(cg);
 			}
-
-			return lhs->at(cg, 0)->load(cg);
 		}
-	//  AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT, OF
 	default:
-		return None{};
+		break;
 	}
-	BIRON_UNREACHABLE();
+	return None{};
 }
 
 Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 	switch (m_op) {
-	case Operator::NEG:
+	case Op::NEG:
 		fprintf(stderr, "Cannot take the address of unary - expression");
 		return None{};
-	case Operator::NOT:
+	case Op::NOT:
 		fprintf(stderr, "Cannot take the address of unary ! expression");
 		return None{};
-	case Operator::DEREF:
+	case Op::DEREF:
 		// When dereferencing on the LHS we will have a R-value of the address 
 		// which we just turn back into an address.
 		//
@@ -415,7 +617,7 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 			return CgAddr { operand->type(), operand->ref() };
 		}
 		break;
-	case Operator::ADDROF:
+	case Op::ADDROF:
 		fprintf(stderr, "Cannot take the address of unary & expression");
 		break;
 	}
@@ -424,23 +626,23 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 
 Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg) const noexcept {
 	switch (m_op) {
-	case Operator::NEG:
+	case Op::NEG:
 		if (auto operand = m_operand->gen_value(cg)) {
 			return CgValue { operand->type(), cg.llvm.BuildNeg(cg.builder, operand->ref(), "") };
 		}
 		break;
-	case Operator::NOT:
+	case Op::NOT:
 		if (auto operand = m_operand->gen_value(cg)) {
 			return CgValue { operand->type(), cg.llvm.BuildNot(cg.builder, operand->ref(), "") };
 		}
 		break;
-	case Operator::DEREF:
+	case Op::DEREF:
 		// When dereferencing on the RHS we just gen_addr followed by a load.
 		if (auto addr = gen_addr(cg)) {
 			return addr->load(cg);
 		}
 		break;
-	case Operator::ADDROF:
+	case Op::ADDROF:
 		// When taking the address we just gen_addr and turn it into a CgValue which
 		// gives us an R-value of the address.
 		if (auto operand = m_operand->gen_addr(cg)) {

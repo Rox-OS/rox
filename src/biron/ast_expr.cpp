@@ -97,24 +97,24 @@ void AstAggExpr::dump(StringBuilder& builder) const noexcept {
 void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	m_lhs->dump(builder);
 	switch (m_op) {
-	/****/ case Operator::ADD:    builder.append(" + ");
-	break; case Operator::SUB:    builder.append(" - ");
-	break; case Operator::MUL:    builder.append(" * ");
-	break; case Operator::EQ:     builder.append(" == ");
-	break; case Operator::NEQ:    builder.append(" != ");
-	break; case Operator::GT:     builder.append(" > ");
-	break; case Operator::GTE:    builder.append(" >= ");
-	break; case Operator::LT:     builder.append(" < ");
-	break; case Operator::LTE:    builder.append(" <= ");
-	break; case Operator::AS:     builder.append(" as ");
-	break; case Operator::LOR:    builder.append(" || ");
-	break; case Operator::LAND:   builder.append(" && ");
-	break; case Operator::BOR:    builder.append(" | ");
-	break; case Operator::BAND:   builder.append(" && ");
-	break; case Operator::LSHIFT: builder.append(" << ");
-	break; case Operator::RSHIFT: builder.append(" >> ");
-	break; case Operator::DOT:    builder.append('.');
-	break; case Operator::OF:     builder.append(" of ");
+	/****/ case Op::ADD:    builder.append(" + ");
+	break; case Op::SUB:    builder.append(" - ");
+	break; case Op::MUL:    builder.append(" * ");
+	break; case Op::EQ:     builder.append(" == ");
+	break; case Op::NE:     builder.append(" != ");
+	break; case Op::GT:     builder.append(" > ");
+	break; case Op::GE:     builder.append(" >= ");
+	break; case Op::LT:     builder.append(" < ");
+	break; case Op::LE:     builder.append(" <= ");
+	break; case Op::AS:     builder.append(" as ");
+	break; case Op::LOR:    builder.append(" || ");
+	break; case Op::LAND:   builder.append(" && ");
+	break; case Op::BOR:    builder.append(" | ");
+	break; case Op::BAND:   builder.append(" && ");
+	break; case Op::LSHIFT: builder.append(" << ");
+	break; case Op::RSHIFT: builder.append(" >> ");
+	break; case Op::DOT:    builder.append('.');
+	break; case Op::OF:     builder.append(" of ");
 	break;
 	}
 	m_rhs->dump(builder);
@@ -122,10 +122,10 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 
 void AstUnaryExpr::dump(StringBuilder& builder) const noexcept {
 	switch (m_op) {
-	/****/ case Operator::NEG:    builder.append('-');
-	break; case Operator::NOT:    builder.append('!');
-	break; case Operator::DEREF:  builder.append('*');
-	break; case Operator::ADDROF: builder.append('&');
+	/****/ case Op::NEG:    builder.append('-');
+	break; case Op::NOT:    builder.append('!');
+	break; case Op::DEREF:  builder.append('*');
+	break; case Op::ADDROF: builder.append('&');
 	}
 	m_operand->dump(builder);
 }

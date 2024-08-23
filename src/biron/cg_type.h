@@ -93,6 +93,9 @@ struct CgType {
 	[[nodiscard]] constexpr Kind kind() const noexcept { return m_kind; }
 
 	[[nodiscard]] constexpr Bool is_bool() const noexcept { return m_kind >= Kind::B8 && m_kind <= Kind::B64; }
+	[[nodiscard]] constexpr Bool is_sint() const noexcept { return m_kind >= Kind::S8 && m_kind <= Kind::S64; }
+	[[nodiscard]] constexpr Bool is_uint() const noexcept { return m_kind >= Kind::U8 && m_kind <= Kind::U64; }
+
 	[[nodiscard]] constexpr Bool is_pointer() const noexcept { return m_kind == Kind::POINTER; }
 	[[nodiscard]] constexpr Bool is_string() const noexcept { return m_kind == Kind::STRING; }
 	[[nodiscard]] constexpr Bool is_slice() const noexcept { return m_kind == Kind::SLICE; }
