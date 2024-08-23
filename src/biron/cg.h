@@ -25,6 +25,7 @@ struct Cg {
 
 	Bool optimize() noexcept;
 	Bool verify() noexcept;
+	void dump() noexcept;
 	Bool emit(StringView name) noexcept;
 
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;

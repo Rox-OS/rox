@@ -380,12 +380,11 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 			fprintf(stderr, "Expected constant integer expression for indexing tuple");
 			return None{};
 		}
+		// TODO(dweiler): We need to map logical index to physical tuple index...
 		auto n = index->to<Uint64>()->as_u64();
 		if (type->at(n)->is_padding()) {
-			fprintf(stderr, "Skipping padding at %zu\n", n);
 			n++;
 		}
-		fprintf(stderr, "Selecting index %zu has type => ", n);
 		type->at(n)->dump();
 		return lhs->at(cg, n);
 	} else {

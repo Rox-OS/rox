@@ -88,7 +88,9 @@ struct CgType {
 	CgType* addrof(Cg& cg) noexcept;
 
 	[[nodiscard]] CgType* deref() const noexcept { return at(0); }
-	[[nodiscard]] CgType* at(Ulen i) const noexcept { return types()[i]; }
+	[[nodiscard]] CgType* at(Ulen i) const noexcept {
+		return m_types ? (*m_types)[i] : nullptr;
+	}
 
 	[[nodiscard]] constexpr const Array<CgType*>& types() const noexcept {
 		BIRON_ASSERT(m_types && "No nested types");

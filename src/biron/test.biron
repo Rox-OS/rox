@@ -1,4 +1,22 @@
+fn strlen(str: *Uint8) -> Uint64 {
+  let i = 0_u64;
+  for str[i] != 0_u8 {
+    i = i + 1_u64;
+  }
+  return i;
+}
+
+fn copy(dst: *Uint8, src: *Uint8, n: Uint64) {
+  for let o = 0_u64; o < n; o = o + 1_u64 {
+    dst[o] = src[o];
+  }
+}
+
 fn main(argc: Sint32, argv: **Uint8) -> Sint32 {
-  let x = [2]Uint32{1, 2};
-  printf("Hello, World (%d, %d)!\n", x[0], x[1]);
+  let x = [4]Uint8{0_u8, 1_u8, 2_u8, 3_u8};
+  let y = [4]Uint8{};
+  copy(&y[0], &x[0], 4_u64);
+  for let j = 0; j < 4; j = j + 1 {
+    printf("%d\n", y[j]);
+  }
 }

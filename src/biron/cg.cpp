@@ -65,7 +65,6 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple) n
 }
 
 Bool Cg::optimize() noexcept {
-	char* error = nullptr;
 	if (!verify()) {
 		return false;
 	}
@@ -89,6 +88,10 @@ Bool Cg::verify() noexcept {
 	}
 	llvm.DisposeMessage(error);
 	return true;
+}
+
+void Cg::dump() noexcept {
+	llvm.DumpModule(module);
 }
 
 Bool Cg::emit(StringView name) noexcept {

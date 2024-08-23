@@ -50,7 +50,7 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 
 	auto is_ptr = type->is_pointer();
 	auto gep = cg.llvm.BuildGEP2(cg.builder,
-	                             type->ref(cg),
+	                             is_ptr ? type->deref()->ref(cg) : type->ref(cg),
 	                             is_ptr ? load(cg)->ref() : ref(),
 	                             indices + is_ptr,
 	                             countof(indices) - is_ptr,
@@ -91,7 +91,10 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 		return None{};
 	}
 
-	return CgAddr { type->at(i)->addrof(cg), gep };
+	// When working with arrays the base type is in 0 and no other indices are
+	// actually valid.
+	auto k = type->is_array() ? 0 : i;
+	return CgAddr { type->at(k)->addrof(cg), gep };
 }
 
 Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
