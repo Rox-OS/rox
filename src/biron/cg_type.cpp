@@ -488,7 +488,6 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 			return record.type;
 		}
 	}
-	// TODO(dweiler): Symbol table for types
 	return nullptr;
 }
 

@@ -187,7 +187,12 @@ private:
 struct AstBinExpr : AstExpr {
 	static inline constexpr auto KIND = Kind::BIN;
 	enum class Op {
-		ADD, SUB, MUL, EQ, NE, GT, GE, LT, LE, AS, LOR, LAND, BOR, BAND, LSHIFT, RSHIFT, DOT
+		ADD, SUB, MUL,
+		EQ, NE, GT, GE, LT, LE,
+		LOR, LAND,
+		BOR, BAND,
+		LSHIFT, RSHIFT,
+		AS, DOT
 	};
 	constexpr AstBinExpr(Op op, AstExpr* lhs, AstExpr* rhs, Range range) noexcept
 		: AstExpr{Kind::BIN, range}
@@ -197,6 +202,7 @@ struct AstBinExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] Maybe<AstConst> eval() const noexcept override;
 	[[nodiscard]] Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:

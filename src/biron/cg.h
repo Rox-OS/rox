@@ -15,6 +15,10 @@ struct CgStruct {
 	CgType*    type;
 };
 
+struct CgScope {
+	Array<CgVar> vars;
+};
+
 struct Cg {
 	using ContextRef       = LLVM::ContextRef;
 	using BuilderRef       = LLVM::BuilderRef;
@@ -37,18 +41,9 @@ struct Cg {
 	ModuleRef              module;
 	TargetMachineRef       machine;
 	CgTypeCache            types;
-	Array<CgVar>           vars;
 	Array<CgVar>           fns;
+	Array<CgScope>         scopes;
 	Array<CgStruct>        structs;
-
-	Maybe<CgVar> find_var(StringView name) const noexcept {
-		for (auto var : vars) {
-			if (var.name() == name) {
-				return var;
-			}
-		}
-		return None{};
-	}
 
 	constexpr Cg(Cg&& other) noexcept
 		: allocator{other.allocator}
@@ -58,8 +53,8 @@ struct Cg {
 		, module{exchange(other.module, nullptr)}
 		, machine{exchange(other.machine, nullptr)}
 		, types{move(other.types)}
-		, vars{move(other.vars)}
 		, fns{move(other.fns)}
+		, scopes{move(other.scopes)}
 		, structs{move(other.structs)}
 		, loops{move(other.loops)}
 	{
@@ -88,8 +83,8 @@ private:
 		, module{module}
 		, machine{machine}
 		, types{move(types)}
-		, vars{allocator}
 		, fns{allocator}
+		, scopes{allocator}
 		, structs{allocator}
 		, loops{allocator}
 	{

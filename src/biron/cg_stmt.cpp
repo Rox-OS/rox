@@ -9,12 +9,16 @@
 namespace Biron {
 
 Bool AstBlockStmt::codegen(Cg& cg) const noexcept {
+	// We generate a scope for each new block we add
+	if (!cg.scopes.emplace_back(cg.allocator)) {
+		return false;
+	}
 	for (Ulen l = m_stmts.length(), i = 0; i < l; i++) {
 		if (!m_stmts[i]->codegen(cg)) {
 			return false;
 		}
 	}
-	return true;
+	return cg.scopes.pop_back();
 }
 
 Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
@@ -138,7 +142,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 			}
 		}
 	}
-	if (!cg.vars.emplace_back(m_name, move(*addr))) {
+	if (!cg.scopes.last().vars.emplace_back(m_name, move(*addr))) {
 		return false;
 	}
 	return true;
@@ -163,6 +167,11 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstForStmt::codegen(Cg& cg) const noexcept {
+	// We always generate a scope outside for this statement since it may have an
+	// optional init-stmt which should be scoped to the for block only
+	if (!cg.scopes.emplace_back(cg.allocator)) {
+		return false;
+	}
 	// <init-stmt>?
 	// loop:
 	//	cond ? br cond, join, exit : br join
@@ -225,6 +234,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	cg.llvm.AppendExistingBasicBlock(this_fn, exit_bb);
 
 	cg.loops.pop_back();
+	cg.scopes.pop_back();
 
 	return true;
 

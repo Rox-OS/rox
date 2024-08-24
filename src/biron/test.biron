@@ -1,22 +1,14 @@
-fn strlen(str: *Uint8) -> Uint64 {
-  let i = 0_u64;
-  for str[i] != 0_u8 {
-    i = i + 1_u64;
-  }
-  return i;
+fn foo(x: Uint32) -> Uint32 {
+  return x;
 }
 
-fn copy(dst: *Uint8, src: *Uint8, n: Uint64) {
-  for let o = 0_u64; o < n; o = o + 1_u64 {
-    dst[o] = src[o];
-  }
+fn bar(x: Uint32) -> Uint32 {
+  return x;
 }
 
-fn main(argc: Sint32, argv: **Uint8) -> Sint32 {
-  let x = [4]Uint8{0_u8, 1_u8, 2_u8, 3_u8};
-  let y = [4]Uint8{};
-  copy(&y[0], &x[0], 4_u64);
-  for let j = 0; j < 4; j = j + 1 {
-    printf("%d\n", y[j]);
+fn main() {
+  let x = [1 + 2]Uint32{1, 2};
+  for let i = 0; i < 10; i = i + 1 {
+    printf("%d = %d (%d, %d)\n", i, foo(i) + bar(i), x[0], x[1]);
   }
 }

@@ -37,6 +37,12 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 }
 
 Bool AstFn::codegen(Cg& cg) const noexcept {
+	// When starting a new function we expect cg.scopes is empty
+	BIRON_ASSERT(cg.scopes.empty());
+	if (!cg.scopes.emplace_back(cg.allocator)) {
+		return false;
+	}
+
 	// Search for the function by name
 	Maybe<CgAddr> addr;
 	for (const auto &var : cg.fns) {
@@ -67,11 +73,10 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	Ulen i = 0;
 	for (const auto& elem : m_args->elems()) {
 		if (auto name = elem.name()) {
-			// elem.type()->dump(b);
 			auto dst = cg.emit_alloca(elem.type()->codegen(cg));
 			auto src = cg.llvm.GetParam(addr->ref(), i);
 			dst->store(cg, CgValue { elem.type()->codegen(cg), src });
-			if (!cg.vars.emplace_back(*name, move(*dst))) {
+			if (!cg.scopes.last().vars.emplace_back(*name, move(*dst))) {
 				return false;
 			}
 		}
@@ -108,7 +113,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	return true;
+	return cg.scopes.pop_back();
 }
 
 Bool AstStruct::codegen(Cg& cg) const noexcept {
