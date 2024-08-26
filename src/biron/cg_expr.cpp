@@ -20,7 +20,7 @@ Maybe<CgAddr> AstExpr::gen_addr(Cg&) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstExpr::eval() const noexcept {
+Maybe<AstConst> AstExpr::eval(Cg&) const noexcept {
 	fprintf(stderr, "Unsupported eval for AstExpr %s\n", name());
 	return None{};
 }
@@ -43,12 +43,12 @@ const char* AstExpr::name() const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<AstConst> AstTupleExpr::eval() const noexcept {
+Maybe<AstConst> AstTupleExpr::eval(Cg& cg) const noexcept {
 	Array<AstConst> values{m_exprs.allocator()};
 	Range range{0, 0};
 	for (const auto& expr : m_exprs) {
 		range.include(expr->range());
-		auto value = expr->eval();
+		auto value = expr->eval(cg);
 		if (!value || !values.push_back(move(*value))) {
 			return None{};
 		}
@@ -87,7 +87,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 			return None{};
 		}
 	}
-	auto type = cg.types.alloc(CgType::RecordInfo { true, move(types) });
+	auto type = cg.types.alloc(CgType::TupleInfo { move(types) });
 	if (!type) {
 		return None{};
 	}
@@ -204,7 +204,7 @@ Maybe<CgValue> AstVarExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstIntExpr::eval() const noexcept {
+Maybe<AstConst> AstIntExpr::eval(Cg&) const noexcept {
 	switch (m_kind) {
 	case Kind::U8:  return AstConst { range(), m_as_u8 };
 	case Kind::U16: return AstConst { range(), m_as_u16 };
@@ -237,7 +237,7 @@ Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstStrExpr::eval() const noexcept {
+Maybe<AstConst> AstStrExpr::eval(Cg&) const noexcept {
 	return AstConst { range(), m_literal };
 }
 
@@ -275,7 +275,7 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	return CgValue { t, v };
 }
 
-Maybe<AstConst> AstBoolExpr::eval() const noexcept {
+Maybe<AstConst> AstBoolExpr::eval(Cg&) const noexcept {
 	return AstConst { range(), Bool32 { m_value } };
 }
 
@@ -286,6 +286,31 @@ Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg) const noexcept {
 	auto t = cg.types.b32();
 	auto v = cg.llvm.ConstInt(t->ref(cg), m_value ? 1 : 0, false);
 	return CgValue { t, v };
+}
+
+Maybe<AstConst> AstAggExpr::eval(Cg& cg) const noexcept {
+	// We only support AstArrayType for now.
+	// TODO(dweiler): Remove AstTupleExpr and make it an AstAggExpr
+	if (!m_type->is_type<AstArrayType>()) {
+		return None{};
+	}
+	Array<AstConst> values{m_exprs.allocator()};
+	if (!values.reserve(m_exprs.length())) {
+		return None{};
+	}
+	auto range = m_type->range();
+	for (auto expr : m_exprs) {
+		auto value = expr->eval(cg);
+		if (!value) {
+			return None{};
+		}
+		range = range.include(expr->range());
+		if (!values.push_back(move(*value))) {
+			return None{};
+		}
+	}
+	auto type = m_type->codegen(cg);
+	return AstConst { range, type, move(values) };
 }
 
 Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
@@ -344,19 +369,19 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstBinExpr::eval() const noexcept {
+Maybe<AstConst> AstBinExpr::eval(Cg& cg) const noexcept {
 	if (m_op == Op::DOT) {
-		// TODO(dweiler): See if we can work out constant tuple and struct indexing
+		// TODO(dweiler): See if we can work out constant tuple indexing
 		return None{};
 	}
 
-	auto lhs = m_lhs->eval();
+	auto lhs = m_lhs->eval(cg);
 	if (!lhs) {
 		// Not a valid compile time constant expression
 		return None{};
 	}
 
-	auto rhs = m_rhs->eval();
+	auto rhs = m_rhs->eval(cg);
 	if (!rhs) {
 		return None{};
 	}
@@ -446,13 +471,8 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		// '->' operator like C and C++ here
 		type = type->deref();
 	}
-	if (type->is_struct()) {
-		if (!m_rhs->is_expr<AstVarExpr>()) {
-			fprintf(stderr, "Expected structure field on right-hand-side of '.' operator\n");
-			return None{};
-		}
-	} else if (type->is_tuple()) {
-		auto rhs = m_rhs->eval();
+	if (type->is_tuple()) {
+		auto rhs = m_rhs->eval(cg);
 		if (!rhs) {
 			fprintf(stderr, "Expected constant expression");
 			return None{};
@@ -473,7 +493,6 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		if (type->at(n)->is_padding()) {
 			n++;
 		}
-		type->at(n)->dump();
 		return lhs->at(cg, n);
 	} else {
 		fprintf(stderr, "Can only index structure and tuple types with '.' operator\n");

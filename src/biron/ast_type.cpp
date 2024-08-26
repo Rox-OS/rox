@@ -5,19 +5,18 @@ namespace Biron {
 
 void AstTupleType::dump(StringBuilder& builder) const noexcept {
 	builder.append('(');
-	for (Ulen l = m_elems.length(), i = 0; i < l; i++) {
-		const auto &elem = m_elems[i];
+	Bool f = true;
+	for (const auto& elem : m_elems) {
+		if (!f) builder.append(", ");
 		if (elem.name()) {
 			builder.append(*elem.name());
 		} else {
-			builder.append(i);
+			builder.append("_");
 		}
 		builder.append(':');
 		builder.append(' ');
 		elem.type()->dump(builder);
-		if (i + 1 != l) {
-			builder.append(", ");
-		}
+		f = false;
 	}
 	builder.append(')');
 }
@@ -45,6 +44,13 @@ void AstArrayType::dump(StringBuilder& builder) const noexcept {
 void AstSliceType::dump(StringBuilder& builder) const noexcept {
 	builder.append("[]");
 	m_type->dump(builder);
+}
+
+void AstFnType::dump(StringBuilder& builder) const noexcept {
+	builder.append("fn");
+	m_args->dump(builder);
+	builder.append(" -> ");
+	m_rets->dump(builder);
 }
 
 } // namespace Biron

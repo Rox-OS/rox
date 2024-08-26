@@ -119,20 +119,23 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	StringView code{src.data(), src.length()};
-	Lexer lexer{name, code};
-	Parser parser{lexer, mallocator};
-	auto unit = parser.parse();
-	if (!unit) {
+	auto cg = Cg::make(mallocator, *llvm, "x86_64-linux-pc-unknown");
+	if (!cg) {
+		fprintf(stderr, "Could not initialize code generator\n");
 		return 1;
 	}
 
-	auto cg = Cg::make(mallocator, *llvm, "x86_64-linux-pc-unknown");
-	if (!cg) {
+	StringView code{src.data(), src.length()};
+	Lexer lexer{name, code};
+	Parser parser{lexer, *cg};
+	auto unit = parser.parse();
+	if (!unit) {
+		fprintf(stderr, "Could not parse unit\n");
 		return 1;
 	}
 
 	if (!unit->codegen(*cg)) {
+		fprintf(stderr, "Could not codegen unit\n");
 		return 1;
 	}
 

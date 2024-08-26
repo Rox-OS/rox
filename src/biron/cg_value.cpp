@@ -48,6 +48,10 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 		index.ref(),
 	};
 
+	// BuildGEP uses the struct type for how it will load but when indexing via
+	// a pointer we must first dereference it. Likewise, when indexing through a
+	// pointer we actually have to load the pointer.
+
 	auto is_ptr = type->is_pointer();
 	auto gep = cg.llvm.BuildGEP2(cg.builder,
 	                             is_ptr ? type->deref()->ref(cg) : type->ref(cg),
@@ -186,8 +190,6 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 			return CgValue { type, value };
 		}
 	case CgType::Kind::TUPLE:
-		[[fallthrough]];
-	case CgType::Kind::STRUCT:
 		{
 			Array<LLVM::ValueRef> zeros{cg.allocator};
 			if (!zeros.reserve(type->length())) {
@@ -203,12 +205,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 				                                     zeros.data(),
 				                                     zeros.length(),
 				                                     false);
-			StringView name;
-			if (type->kind() == CgType::Kind::TUPLE) {
-				name = ".ZeroTuple";
-			} else {
-				name = ".ZeroStruct";
-			}
+			StringView name = ".ZeroTuple";
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
 		}

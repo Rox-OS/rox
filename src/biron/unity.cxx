@@ -1,3 +1,4 @@
+#include <biron/util/string.cpp>
 #include <biron/ast_attr.cpp>
 #include <biron/ast_const.cpp>
 #include <biron/ast_expr.cpp>

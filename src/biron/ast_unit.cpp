@@ -4,7 +4,7 @@
 
 namespace Biron {
 
-void AstFn::dump(StringBuilder& builder, int depth) const noexcept {
+void AstTopFn::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.append("fn");
 	builder.append(' ');
 	builder.append(m_name);

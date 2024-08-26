@@ -124,6 +124,7 @@ struct AstLetStmt : AstStmt {
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
 	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
+	Bool codegen_global(Cg& cg) const noexcept;
 private:
 	StringView             m_name;
 	AstExpr*               m_init;

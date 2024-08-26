@@ -22,21 +22,21 @@ Bool Scope::find(StringView name) const noexcept {
 		return true;
 	}
 	// Search let declarations
-	for (Ulen l = m_lets.length(), i = 0; i < l; i++) {
-		if (m_lets[i]->name() == name) {
+	for (auto let : m_lets) {
+		if (let->name() == name) {
 			return true;
 		}
 	}
 	// Search fn declarations
-	for (Ulen l = m_fns.length(), i = 0; i < l; i++) {
-		if (m_fns[i]->name() == name) {
+	for (auto fn : m_fns) {
+		if (fn->name() == name) {
 			return true;
 		}
 	}
 	return false;
 }
 
-Bool Scope::add_fn(AstFn* fn) noexcept {
+Bool Scope::add_fn(AstTopFn* fn) noexcept {
 	return m_fns.push_back(fn);
 }
 
@@ -54,8 +54,8 @@ Bool Parser::has_symbol(StringView name) const noexcept {
 }
 
 Parser::~Parser() noexcept {
-	for (Ulen l = m_nodes.length(), i = 0; i < l; i++) {
-		m_nodes[i]->~AstNode();
+	for (auto node : m_nodes) {
+		node->~AstNode();
 	}
 }
 
@@ -157,7 +157,6 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		break; case Token::Kind::BAND:   lhs = new_node<AstBinExpr>(Op::BAND,   lhs, rhs, range);
 		break; case Token::Kind::LSHIFT: lhs = new_node<AstBinExpr>(Op::LSHIFT, lhs, rhs, range);
 		break; case Token::Kind::RSHIFT: lhs = new_node<AstBinExpr>(Op::RSHIFT, lhs, rhs, range);
-		break; case Token::Kind::DOT:    lhs = new_node<AstBinExpr>(Op::DOT,    lhs, rhs, range);
 		break;
 		default:
 			ERROR(token.range, "Unexpected token '%s' in binary expression", token.name());
@@ -166,8 +165,41 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 	}
 }
 
+// PostfixExpr
+//	::= IndexExpr
+//	  | DotExpr
+AstExpr* Parser::parse_postfix_expr() noexcept {
+	auto operand = parse_primary_expr();
+	if (!operand) {
+		return nullptr;
+	}
+	for (;;) {
+		switch (peek().kind) {
+		case Token::Kind::LBRACKET:
+			if (!(operand = parse_index_expr(operand))) {
+				return nullptr;
+			}
+			break;
+		case Token::Kind::DOT:
+			{
+				next(); // Consume '.'
+				auto expr = parse_expr();
+				if (!expr) {
+					return nullptr;
+				}
+				auto range = operand->range().include(expr->range());
+				operand = new_node<AstBinExpr>(AstBinExpr::Op::DOT, operand, expr, range);
+			}
+			break;
+		default:
+			return operand;
+		}
+	}
+	return nullptr;
+}
+
 // UnaryExpr
-//	::= PrimaryExpr
+//	::= PostfixExpr
 //	  | '!' UnaryExpr
 //	  | '-' UnaryExpr
 //	  | '+' UnaryExpr
@@ -213,7 +245,7 @@ AstExpr* Parser::parse_unary_expr() noexcept {
 		}
 		return new_node<AstExplodeExpr>(operand, token.range.include(operand->range()));
 	default:
-		return parse_primary_expr();
+		return parse_postfix_expr();
 	}
 	BIRON_UNREACHABLE();
 }
@@ -225,9 +257,6 @@ AstExpr* Parser::parse_expr() noexcept {
 	auto lhs = parse_unary_expr();
 	if (!lhs) {
 		return nullptr;
-	}
-	if (peek().kind == Token::Kind::LBRACKET) {
-		return parse_index_expr(lhs);
 	}
 	return parse_binop_rhs(0, lhs);
 }
@@ -349,7 +378,7 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 		break;
 	case Token::Kind::LBRACKET: // []
 		{
-				auto name = m_lexer.string(token.range);
+			auto name = m_lexer.string(token.range);
 			auto expr = new_node<AstVarExpr>(name, token.range);
 			if (!expr) {
 				return nullptr;
@@ -524,7 +553,7 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 	}
 	auto end_token = peek();
 	if (end_token.kind != Token::Kind::RPAREN) {
-		ERROR("Expected ')'");
+		ERROR("Expected ')' to terminate tuple expression");
 		return nullptr;
 	}
 	next(); // Consume ')'
@@ -537,7 +566,8 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 //	  | TupleType
 //	  | VarArgsType
 //	  | PtrType
-//	  | BracketType
+//	  | ArrayType
+//	  | SliceType
 //	  | FnType
 AstType* Parser::parse_type() noexcept {
 	switch (peek().kind) {
@@ -552,8 +582,7 @@ AstType* Parser::parse_type() noexcept {
 	case Token::Kind::LBRACKET:
 		return parse_bracket_type();
 	case Token::Kind::KW_FN:
-		// TODO(dweiler): Implement AstFnType
-		return nullptr;
+		return parse_fn_type();
 	default:
 		ERROR("Unexpected token '%s' in type", peek().name());
 		return nullptr;
@@ -601,25 +630,36 @@ AstTupleType* Parser::parse_tuple_type() noexcept {
 			}
 			continue;
 		}
-		if (peek().kind != Token::Kind::IDENT) {
-			ERROR("Expected identifier in tuple type");
-			return nullptr;
-		} 
-		auto token = next();
-		auto name = m_lexer.string(token.range); // Consume Ident
+		Maybe<Token> token;
+		if (peek().kind == Token::Kind::IDENT) {
+			token = next(); // Consume ident
+		}
 		if (peek().kind == Token::Kind::COLON) {
+			if (!token) {
+				ERROR("Expected identifier");
+				return nullptr;
+			}
 			next(); // Consume ':'
 			auto type = parse_type();
 			if (!type) {
 				return nullptr;
 			}
-			if (!elems.emplace_back(move(name), type)) {
+			auto name = m_lexer.string(token->range);
+			if (!elems.emplace_back(name, type)) {
 				ERROR("Out of memory");
 				return nullptr;
 			}
 		} else {
-			// Would be a regular ident type
-			auto type = new_node<AstIdentType>(name, token.range);
+			AstType* type = nullptr;
+			if (token) {
+				auto name = m_lexer.string(token->range);
+				type = new_node<AstIdentType>(name, token->range);
+			} else {
+				type = parse_type();
+				if (!type) {
+					return nullptr;
+				}
+			}
 			if (!elems.emplace_back(None{}, type)) {
 				ERROR("Out of memory");
 				return nullptr;
@@ -636,7 +676,7 @@ AstTupleType* Parser::parse_tuple_type() noexcept {
 		}
 	}
 	if (peek().kind != Token::Kind::RPAREN) {
-		ERROR("Expected ')'");
+		ERROR("Expected ')' to terminate tuple type");
 		return nullptr;
 	}
 	auto end_token = next(); // Consume ')'
@@ -705,6 +745,48 @@ AstType* Parser::parse_bracket_type() noexcept {
 		return new_node<AstSliceType>(type, range);
 	}
 	BIRON_UNREACHABLE();
+}
+
+// FnType
+//	::= 'fn' TupleType ('->' TupleType)?
+AstFnType* Parser::parse_fn_type() noexcept {
+	if (peek().kind != Token::Kind::KW_FN) {
+		ERROR("Expected 'fn'");
+		return nullptr;
+	}
+	auto beg_token = next(); // Consume 'fn'
+	auto args = parse_tuple_type();
+	if (!args) {
+		return nullptr;
+	}
+	AstType* rets = nullptr;
+	if (peek().kind == Token::Kind::ARROW) {
+		next(); // Consume '->'
+		rets = parse_type();
+		if (!rets) {
+			return nullptr;
+		}
+		if (!rets->is_type<AstTupleType>()) {
+			// Convert into a single element tuple
+			Array<AstTupleType::Elem> elems{m_allocator};
+			if (!elems.emplace_back(None{}, rets)) {
+				return nullptr;
+			}
+			rets = new_node<AstTupleType>(move(elems), Range{0, 0});
+			if (!rets) {
+				return nullptr;
+			}
+		}
+	} else {
+		// TODO(dweiler): AstTupleType elems Maybe
+		Array<AstTupleType::Elem> elems{m_allocator};
+		rets = new_node<AstTupleType>(move(elems), Range{0, 0});
+		if (!rets) {
+			return nullptr;
+		}
+	}
+	auto range = beg_token.range.include(rets->range());
+	return new_node<AstFnType>(args, static_cast<AstTupleType*>(rets), range);
 }
 
 // Stmt
@@ -939,7 +1021,7 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	}
 	auto beg_token = next(); // Consume 'let'
 	if (peek().kind != Token::Kind::IDENT) {
-		ERROR("Expected name for let");
+		ERROR("Expected identifier for 'let' declaration");
 		return nullptr;
 	}
 	auto token = next();
@@ -1031,7 +1113,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 		return nullptr;
 	}
 	// TODO(dweiler): compound operators
-	AstAssignStmt* assignment = nullptr;
+	AstAssignStmt* assignment = nullptr; 
 	if (peek().kind == Token::Kind::EQ) {
 		next(); // Consume '='
 		auto value = parse_expr();
@@ -1056,7 +1138,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 
 // Fn
 //	::= 'fn' Ident TupleType ('->' Type)? BlockStmt
-AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	Scope scope{m_allocator, m_scope};
 	m_scope = &scope;
 	if (peek().kind != Token::Kind::KW_FN) {
@@ -1107,7 +1189,7 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		return nullptr;
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstFn>(name, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
+	auto node = new_node<AstTopFn>(name, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
 	if (!node) {
 		ERROR("Out of memory");
 		return nullptr;
@@ -1122,66 +1204,36 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	return node;
 }
 
-// Struct
-//	::= 'struct' Ident '{' StructField '}'
-AstStruct* Parser::parse_struct() noexcept {
-	if (peek().kind != Token::Kind::KW_STRUCT) {
-		ERROR("Expected 'struct'");
+// TopType
+//	::= 'type' Ident '=' Type ';'
+AstTopType* Parser::parse_top_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+	if (peek().kind != Token::Kind::KW_TYPE) {
+		ERROR("Expected type");
 		return nullptr;
 	}
-
-	auto beg_token = next(); // Consume 'struct'
-
+	auto beg_token = next(); // Consume 'type'
 	if (peek().kind != Token::Kind::IDENT) {
-		ERROR("Expected identifier after 'struct'");
+		ERROR("Expected identifier");
 		return nullptr;
 	}
-
-	auto ident = next(); // Consume ident
+	auto ident = next();
 	auto name = m_lexer.string(ident.range);
-
-	if (peek().kind != Token::Kind::LBRACE) {
-		ERROR("Expected '{'");
+	if (peek().kind != Token::Kind::EQ) {
+		ERROR("Expected '='");
 		return nullptr;
 	}
-
-	next(); // Consume '{'
-
-	Array<AstStruct::Elem> elems{m_allocator};
-	while (peek().kind != Token::Kind::RBRACE) {
-		if (peek().kind != Token::Kind::IDENT) {
-			ERROR("Expected identifier for struct field");
-			return nullptr;
-		}
-		auto ident = next(); // Consume ident
-		auto name = m_lexer.string(ident.range);
-		if (peek().kind != Token::Kind::COLON) {
-			ERROR("Expected ':' after struct field");
-			return nullptr;
-		}
-		next(); // Consume ':'
-		auto type = parse_type();
-		if (!type) {
-			return nullptr;
-		}
-		if (!elems.emplace_back(name, type)) {
-			return nullptr;
-		}
-		if (peek().kind != Token::Kind::SEMI) {
-			ERROR("Expected ';' after struct field");
-			return nullptr;
-		}
-		next(); // Consume ';'
-	}
-
-	if (peek().kind != Token::Kind::RBRACE) {
-		ERROR("Expected '}'");
+	next(); // Consume '='
+	auto type = parse_type();
+	if (!type) {
 		return nullptr;
 	}
-
-	auto end_token = next(); // Consume '}'
+	if (peek().kind != Token::Kind::SEMI) {
+		ERROR("Expected ';'");
+		return nullptr;
+	}
+	auto end_token = next(); // Consume ';'
 	auto range = beg_token.range.include(end_token.range);
-	return new_node<AstStruct>(name, move(elems), range);
+	return new_node<AstTopType>(name, type, move(attrs), range);
 }
 
 Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
@@ -1218,7 +1270,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		}
 		if (name == "section") {
 			auto expr = args->at(0);
-			auto value = expr->eval();
+			auto value = expr->eval(m_cg);
 			if (!value || value->kind() != AstConst::Kind::STRING) {
 				ERROR(expr->range(), "Expected constant string expression for section name");
 				return None{};
@@ -1229,7 +1281,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			}
 		} else if (name == "align") {
 			auto expr = args->at(0);
-			auto value = expr->eval();
+			auto value = expr->eval(m_cg);
 			if (!value || !value->is_integral()) {
 				ERROR("Expected constant integer expression for alignment");
 				return None{};
@@ -1249,7 +1301,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			}
 		} else if (name == "used") {
 			auto expr = args->at(0);
-			auto value = expr->eval();
+			auto value = expr->eval(m_cg);
 			if (!value || !value->is_boolean()) {
 				ERROR("Expected constant boolean expression for used attribute");
 				return None{};
@@ -1284,8 +1336,16 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		}
 		break;
 	case Token::Kind::KW_FN:
-		if (auto fn = parse_fn(move(attrs))) {
+		if (auto fn = parse_top_fn(move(attrs))) {
 			if (!unit.add_fn(fn)) {
+				ERROR("Out of memory");
+				return None{};
+			}
+		}
+		break;
+	case Token::Kind::KW_TYPE:
+		if (auto type = parse_top_type(move(attrs))) {
+			if (!unit.add_type(type)) {
 				ERROR("Out of memory");
 				return None{};
 			}
@@ -1296,14 +1356,6 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		if (auto let = parse_let_stmt(move(attrs))) {
 			if (!unit.add_let(let)) {
 				ERROR("out of memory");
-				return None{};
-			}
-		}
-		break;
-	case Token::Kind::KW_STRUCT:
-		if (auto record = parse_struct()) {
-			if (!unit.add_struct(record)) {
-				ERROR("Out of memory");
 				return None{};
 			}
 		}

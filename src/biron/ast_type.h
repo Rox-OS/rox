@@ -15,7 +15,7 @@ struct AstExpr;
 struct AstType : AstNode {
 	static inline constexpr auto KIND = Kind::TYPE;
 	enum class Kind {
-		TUPLE, IDENT, BOOL, VARARGS, PTR, ARRAY, SLICE
+		TUPLE, IDENT, BOOL, VARARGS, PTR, ARRAY, SLICE, FN
 	};
 	constexpr AstType(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
@@ -53,7 +53,7 @@ struct AstBoolType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
 };
 
 struct AstTupleType : AstType {
@@ -82,7 +82,7 @@ struct AstTupleType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
 	[[nodiscard]] constexpr const Array<Elem>& elems() const noexcept {
 		return m_elems;
 	}
@@ -97,7 +97,7 @@ struct AstVarArgsType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
 };
 
 struct AstPtrType : AstType {
@@ -108,7 +108,7 @@ struct AstPtrType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
 	AstType* m_type;
 };
@@ -122,7 +122,7 @@ struct AstArrayType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
 	AstType* m_type;
 	AstExpr* m_extent;
@@ -136,9 +136,24 @@ struct AstSliceType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
 	AstType* m_type;
+};
+
+struct AstFnType : AstType {
+	static inline constexpr auto KIND = Kind::FN;
+	constexpr AstFnType(AstTupleType* args, AstTupleType* rets, Range range) noexcept
+		: AstType{KIND, range}
+		, m_args{args}
+		, m_rets{rets}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
+private:
+	AstTupleType* m_args;
+	AstTupleType* m_rets;
 };
 
 } // namespace Biron

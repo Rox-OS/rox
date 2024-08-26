@@ -5,11 +5,11 @@ namespace Biron {
 
 void AstTupleExpr::dump(StringBuilder& builder) const noexcept {
 	builder.append('(');
-	for (Ulen l = m_exprs.length(), i = 0; i < l; i++) {
-		m_exprs[i]->dump(builder);
-		if (i + 1 != l) {
-			builder.append(", ");
-		}
+	Bool f = true;
+	for (auto expr : m_exprs) {
+		if (!f) builder.append(", ");
+		expr->dump(builder);
+		f = false;
 	}
 	builder.append(')');
 }

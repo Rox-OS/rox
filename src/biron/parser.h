@@ -5,6 +5,8 @@
 #include <biron/ast_unit.h>
 #include <biron/util/format.inl>
 
+#include <biron/cg.h>
+
 namespace Biron {
 
 // Forward declarations
@@ -24,6 +26,7 @@ struct AstTupleType;
 struct AstIdentType;
 struct AstVarArgsType;
 struct AstPtrType;
+struct AstFnType;
 
 struct AstStmt;
 struct AstBlockStmt;
@@ -38,9 +41,6 @@ struct AstExprStmt;
 struct AstAssignStmt;
 struct AstAsmStmt;
 
-struct AstFn;
-struct AstStruct;
-
 struct Scope {
 	constexpr Scope(Allocator& allocator, Scope* prev = nullptr) noexcept
 		: m_lets{allocator}
@@ -49,23 +49,24 @@ struct Scope {
 	{
 	}
 	[[nodiscard]] Bool find(StringView name) const noexcept;
-	[[nodiscard]] Bool add_fn(AstFn* fn) noexcept;
+	[[nodiscard]] Bool add_fn(AstTopFn* fn) noexcept;
 	[[nodiscard]] Bool add_let(AstLetStmt* let) noexcept;
 	[[nodiscard]] Scope* prev() const noexcept { return m_prev; }
 private:
 	Array<AstLetStmt*> m_lets;
-	Array<AstFn*> m_fns;
+	Array<AstTopFn*> m_fns;
 	Scope* m_prev;
 };
 
 struct Parser {
-	constexpr Parser(Lexer& lexer, Allocator& allocator) noexcept
+	constexpr Parser(Lexer& lexer, Cg& cg) noexcept
 		: m_lexer{lexer}
 		, m_last_range{0, 0}
 		, m_scope{nullptr}
-		, m_caches{allocator}
-		, m_nodes{allocator}
-		, m_allocator{allocator}
+		, m_caches{cg.allocator}
+		, m_nodes{cg.allocator}
+		, m_allocator{cg.allocator}
+		, m_cg{cg}
 	{
 	}
 
@@ -84,6 +85,7 @@ struct Parser {
 	[[nodiscard]] AstIdentType*    parse_ident_type() noexcept;
 	[[nodiscard]] AstVarArgsType*  parse_varargs_type() noexcept;
 	[[nodiscard]] AstPtrType*      parse_ptr_type() noexcept;
+	[[nodiscard]] AstFnType*       parse_fn_type() noexcept;
 
 	// Statements
 	[[nodiscard]] AstStmt*         parse_stmt() noexcept;
@@ -101,8 +103,8 @@ struct Parser {
 	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;
 
 	// Top-level elements
-	AstFn* parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	AstStruct* parse_struct() noexcept;
+	AstTopFn* parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	AstTopType* parse_top_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
 
 	Maybe<AstUnit> parse() noexcept;
 
@@ -125,6 +127,7 @@ private:
 	}
 	void diagnostic(Range range, const char *message);
 	AstExpr* parse_primary_expr() noexcept;
+	AstExpr* parse_postfix_expr() noexcept;
 	AstExpr* parse_agg_expr(AstExpr* type) noexcept;
 	AstExpr* parse_unary_expr() noexcept;
 	AstExpr* parse_ident_expr() noexcept;
@@ -151,8 +154,7 @@ private:
 
 	template<typename T, typename... Ts>
 	[[nodiscard]] T* new_node(Ts&&... args) noexcept {
-		for (Ulen l = m_caches.length(), i = 0; i < l; i++) {
-			auto& cache = m_caches[i];
+		for (auto& cache : m_caches) {
 			// Search for maching cache size
 			if (cache.object_size() != sizeof(T)) {
 				continue;
@@ -180,6 +182,7 @@ private:
 	Array<Cache> m_caches;
 	Array<AstNode*> m_nodes;
 	Allocator& m_allocator;
+	Cg& m_cg;
 };
 
 } // namespace Biron

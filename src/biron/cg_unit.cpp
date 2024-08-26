@@ -9,7 +9,7 @@
 
 namespace Biron {
 
-Bool AstFn::prepass(Cg& cg) const noexcept {
+Bool AstTopFn::prepass(Cg& cg) const noexcept {
 	auto rets_t = m_rets->codegen(cg);
 	if (!rets_t) {
 		return false;
@@ -36,7 +36,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 	return true;
 }
 
-Bool AstFn::codegen(Cg& cg) const noexcept {
+Bool AstTopFn::codegen(Cg& cg) const noexcept {
 	// When starting a new function we expect cg.scopes is empty
 	BIRON_ASSERT(cg.scopes.empty());
 	if (!cg.scopes.emplace_back(cg.allocator)) {
@@ -116,21 +116,6 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	return cg.scopes.pop_back();
 }
 
-Bool AstStruct::codegen(Cg& cg) const noexcept {
-	Array<CgType*> types{cg.allocator};
-	for (const auto& elem : m_elems) {
-		auto type = elem.type->codegen(cg);
-		if (!type || !types.push_back(type)) {
-			return false;
-		}
-	}
-	auto type = cg.types.alloc(CgType::RecordInfo { false, move(types) });
-	if (!type) {
-		return false;
-	}
-	return cg.structs.emplace_back(m_name, type);
-}
-
 Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// Register a "printf" function for debugging purposes
 	{
@@ -142,8 +127,8 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!rets.push_back(cg.types.s32())) {
 			return false;
 		}
-		auto args_t = cg.types.alloc(CgType::RecordInfo { true, move(args) });
-		auto rets_t = cg.types.alloc(CgType::RecordInfo { true, move(rets) });
+		auto args_t = cg.types.alloc(CgType::TupleInfo { move(args) });
+		auto rets_t = cg.types.alloc(CgType::TupleInfo { move(rets) });
 		if (!args_t || !rets_t) {
 			return false;
 		}
@@ -158,9 +143,9 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	// We emit all the named structure types first
-	for (auto rec : m_structs) {
-		if (!rec->codegen(cg)) {
+	// Emit all the global constants
+	for (auto let : m_lets) {
+		if (!let->codegen_global(cg)) {
 			return false;
 		}
 	}

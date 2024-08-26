@@ -52,13 +52,12 @@ struct Token {
 		KW_AS,       // 'as'
 		KW_LET,      // 'let'
 		KW_FOR,      // 'for'
-		KW_ASM,      // 'asm'
 		KW_ELSE,     // 'else'
+		KW_TYPE,     // 'type'
 		KW_DEFER,    // 'defer'
 		KW_UNION,    // 'union'
 		KW_BREAK,    // 'break'
 		KW_RETURN,   // 'return'
-		KW_STRUCT,   // 'struct'
 		KW_CONTINUE, // 'continue'
 
 		LIT_INT,     // 0b[01]+(_(u|s){8,16,32,64})?
@@ -119,13 +118,12 @@ struct Token {
 		case Kind::KW_AS:       return "AS";
 		case Kind::KW_LET:      return "LET";
 		case Kind::KW_FOR:      return "FOR";
-		case Kind::KW_ASM:      return "ASM";
 		case Kind::KW_ELSE:     return "ELSE";
+		case Kind::KW_TYPE:     return "TYPE";
 		case Kind::KW_DEFER:    return "DEFER";
 		case Kind::KW_UNION:    return "UNION";
 		case Kind::KW_BREAK:    return "BREAK";
 		case Kind::KW_RETURN:   return "RETURN";
-		case Kind::KW_STRUCT:   return "STRUCT";
 		case Kind::KW_CONTINUE: return "CONTINUE";
 		case Kind::LIT_INT:     return "INT";
 		case Kind::LIT_STR:     return "STR";

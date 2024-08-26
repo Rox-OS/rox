@@ -28,7 +28,7 @@ struct AstExpr : AstNode {
 	[[nodiscard]] constexpr Bool is_expr() const noexcept {
 		return m_kind == T::KIND;
 	}
-	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept;
+	[[nodiscard]] virtual Maybe<AstConst> eval(Cg&) const noexcept;
 	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg) const noexcept;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept;
 private:
@@ -44,7 +44,7 @@ struct AstTupleExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] Ulen length() const noexcept { return m_exprs.length(); }
-	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval(Cg&) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 	AstExpr* at(Ulen i) const noexcept {
@@ -123,7 +123,7 @@ struct AstIntExpr : AstExpr {
 	constexpr AstIntExpr(Sint64 value, Range range) noexcept
 		: AstExpr{KIND, range}, m_kind{Kind::S64}, m_as_s64{value} {}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval(Cg&) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
 	Kind m_kind;
@@ -147,7 +147,7 @@ struct AstStrExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval(Cg&) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
 	StringView m_literal;
@@ -162,7 +162,7 @@ struct AstBoolExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
-	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval(Cg&) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
 	Bool m_value;
@@ -177,6 +177,7 @@ struct AstAggExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval(Cg&) const noexcept override;
 	[[nodiscard]] Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
@@ -202,7 +203,7 @@ struct AstBinExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] Maybe<AstConst> eval() const noexcept override;
+	[[nodiscard]] Maybe<AstConst> eval(Cg&) const noexcept override;
 	[[nodiscard]] Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:

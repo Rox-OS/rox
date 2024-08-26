@@ -19,9 +19,8 @@ struct CgType {
 		POINTER,           // *T
 		SLICE,             // []T
 		ARRAY,             // [N]T
-		PADDING,           // [N]u8 // Special meta-type for tuple and struct padding
+		PADDING,           // [N]u8 // Special meta-type for tuple padding
 		TUPLE,             // (T1, ..., Tn)
-		STRUCT,            // struct{_: T1; ...; _: Tn}
 		UNION,             // union{_: T1; ...; _: Tn}
 		FN,                // fn (T1, ..., Tn) -> (R1, ..., Rn)
 		VA,                // ...
@@ -46,7 +45,6 @@ struct CgType {
 		break; case Kind::SLICE:   fprintf(stderr, "[]"); at(0)->dump(false);
 		break; case Kind::ARRAY:   fprintf(stderr, "[%zu]", m_extent); at(0)->dump(false);
 		break; case Kind::PADDING: fprintf(stderr, ".Pad%zu", m_size);
-		break; case Kind::STRUCT:  fprintf(stderr, "struct{...}");
 		break; case Kind::UNION:   fprintf(stderr, "union{...}");
 		break; case Kind::TUPLE:
 			{
@@ -82,6 +80,8 @@ struct CgType {
 		break; case Kind::VA: fprintf(stderr, "...");
 		break;
 		}
+		fprintf(stderr, " (size = %zu, align = %zu, extent = %zu)",
+			m_size, m_align, m_extent);
 		if (nl) fprintf(stderr, "\n");
 	}
 
@@ -114,7 +114,6 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_array() const noexcept { return m_kind == Kind::ARRAY; }
 	[[nodiscard]] constexpr Bool is_padding() const noexcept { return m_kind == Kind::PADDING; }
 	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
-	[[nodiscard]] constexpr Bool is_struct() const noexcept { return m_kind == Kind::STRUCT; }
 	[[nodiscard]] constexpr Bool is_union() const noexcept { return m_kind == Kind::UNION; }
 	[[nodiscard]] constexpr Bool is_fn() const noexcept { return m_kind == Kind::FN; }
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
@@ -158,8 +157,7 @@ struct CgType {
 		Array<CgType*> types;
 	};
 
-	struct RecordInfo {
-		Bool tuple;
+	struct TupleInfo {
 		Array<CgType*> types;
 	};
 
@@ -191,7 +189,7 @@ private:
 	static Maybe<CgType> make(Cache& cache, BoolInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, StringInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, UnionInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, RecordInfo info) noexcept;
+	static Maybe<CgType> make(Cache& cache, TupleInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, ArrayInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, SliceInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, PaddingInfo info) noexcept;

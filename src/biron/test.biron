@@ -1,14 +1,9 @@
-fn foo(x: Uint32) -> Uint32 {
-  return x;
-}
+type Foo = (
+  a: Uint32,
+  b: (Uint32, Uint32)
+);
 
-fn bar(x: Uint32) -> Uint32 {
-  return x;
-}
+type Bar = fn(Uint32) -> Uint32;
 
 fn main() {
-  let x = [1 + 2]Uint32{1, 2};
-  for let i = 0; i < 10; i = i + 1 {
-    printf("%d = %d (%d, %d)\n", i, foo(i) + bar(i), x[0], x[1]);
-  }
 }

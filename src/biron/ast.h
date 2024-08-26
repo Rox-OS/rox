@@ -7,7 +7,7 @@ namespace Biron {
 
 struct AstNode {
 	enum class Kind : Uint8 {
-		TYPE, EXPR, STMT, FN, ASM, ATTR, STRUCT
+		TYPE, EXPR, STMT, FN, ASM, ATTR
 	};
 	constexpr AstNode(Kind kind, Range range) noexcept
 		: m_kind{kind}

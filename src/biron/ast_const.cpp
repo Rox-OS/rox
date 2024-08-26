@@ -21,15 +21,15 @@ AstConst::AstConst(AstConst&& other) noexcept
 	break; case Kind::B32:  m_as_b32 = exchange(other.m_as_b32, false);
 	break; case Kind::B64:  m_as_b64 = exchange(other.m_as_b64, false);
 	break;
-	case Kind::FIELD:
-		m_as_field = exchange(other.m_as_field, {});
-		break;
 	case Kind::TUPLE: 
 		new (&m_as_tuple, Nat{}) Array<AstConst>{move(other.m_as_tuple)};
 		other.drop();
 		break;
 	case Kind::STRING:
 		new (&m_as_string, Nat{}) StringView{move(other.m_as_string)};
+		break;
+	case Kind::ARRAY:
+		new (&m_as_array, Nat{}) ConstArray{move(other.m_as_array)};
 		break;
 	}
 }
@@ -66,6 +66,9 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 	case Kind::TUPLE:
 		{
 			Array<AstConst> values{m_as_tuple.allocator()};
+			if (!values.reserve(m_as_tuple.length())) {
+				return None{};
+			}
 			for (const auto& it : m_as_tuple) {
 				auto value = it.copy();
 				if (!value || !values.push_back(move(*value))) {
@@ -74,8 +77,22 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 			}
 			return AstConst { range(), move(values) };
 		}
-	case Kind::FIELD:  return AstConst { range(), as_field() };
 	case Kind::STRING: return AstConst { range(), as_string() };
+	case Kind::ARRAY:
+		{
+			const auto& array = m_as_array.elems;
+			Array<AstConst> values{array.allocator()};
+			if (!values.reserve(array.length())) {
+				return None{};
+			}
+			for (const auto& it : array) {
+				auto value = it.copy();
+				if (!value || !values.push_back(move(*value))) {
+					return None{};
+				}
+			}
+			return AstConst { range(), m_as_array.type, move(values) };
+		}
 	}
 	return None{};
 	#pragma GCC diagnostic pop

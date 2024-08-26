@@ -8,12 +8,7 @@
 namespace Biron {
 
 struct Allocator;
-struct AstFn;
-
-struct CgStruct {
-	StringView name;
-	CgType*    type;
-};
+struct AstTopFn;
 
 struct CgScope {
 	Array<CgVar> vars;
@@ -43,7 +38,6 @@ struct Cg {
 	CgTypeCache            types;
 	Array<CgVar>           fns;
 	Array<CgScope>         scopes;
-	Array<CgStruct>        structs;
 
 	constexpr Cg(Cg&& other) noexcept
 		: allocator{other.allocator}
@@ -55,7 +49,6 @@ struct Cg {
 		, types{move(other.types)}
 		, fns{move(other.fns)}
 		, scopes{move(other.scopes)}
-		, structs{move(other.structs)}
 		, loops{move(other.loops)}
 	{
 	}
@@ -64,7 +57,7 @@ struct Cg {
 
 private:
 	friend struct AstForStmt;
-	friend struct AstFn;
+	friend struct AstTopFn;
 	friend struct AstVarExpr;
 	friend struct AstBreakStmt;
 	friend struct AstContinueStmt;
@@ -85,7 +78,6 @@ private:
 		, types{move(types)}
 		, fns{allocator}
 		, scopes{allocator}
-		, structs{allocator}
 		, loops{allocator}
 	{
 	}

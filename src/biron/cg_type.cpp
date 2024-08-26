@@ -39,7 +39,7 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, Ulen capacity) {
 		return None{};
 	}
 	// The empty tuple is the Unit type (i.e "void")
-	CgType *const unit = alloc(cache, CgType::RecordInfo { true, {allocator} });
+	CgType *const unit = alloc(cache, CgType::TupleInfo { {allocator} });
 	if (!unit) {
 		return None{};
 	}
@@ -147,10 +147,10 @@ Maybe<CgType> CgType::make(Cache&, UnionInfo info) noexcept {
 	};
 }
 
-Maybe<CgType> CgType::make(Cache& cache, RecordInfo info) noexcept {
-	// The size of a tuple and struct is the sum of all types as well as
-	// padding needed between the fields for alignment. Likewise, the alignment
-	// of a tuple and struct is the largest field alignment.
+Maybe<CgType> CgType::make(Cache& cache, TupleInfo info) noexcept {
+	// The size of a tuple is the sum of all types as well as padding needed
+	// between the fields for alignment. Likewise, the alignment of a tuple is the
+	// largest field alignment.
 	//
 	// We do not rely on LLVM here to introduce padding since we want padding
 	// fields to be considered as accessible and addressible for the purposes
@@ -197,7 +197,7 @@ Maybe<CgType> CgType::make(Cache& cache, RecordInfo info) noexcept {
 		}
 	}
 	return CgType {
-		info.tuple ? Kind::TUPLE : Kind::STRUCT,
+		Kind::TUPLE,
 		offset,
 		alignment,
 		0,
@@ -346,14 +346,12 @@ LLVM::TypeRef CgType::ref(Cg& cg) noexcept {
 		}
 		break;
 	case Kind::TUPLE:
-		// An empty tuple is the void type.
-		if (m_types->length() == 0) {
-			m_ref = llvm.VoidTypeInContext(context);
-			break;
-		}
-		[[fallthrough]];
-	case Kind::STRUCT:
 		{
+			// An empty tuple is the void type.
+			if (m_types->length() == 0) {
+				m_ref = llvm.VoidTypeInContext(context);
+				break;
+			}
 			Array<LLVM::TypeRef> types{cg.allocator};
 			for (const auto type : *m_types) {
 				if (!types.push_back(type->ref(cg))) {
@@ -457,14 +455,16 @@ LLVM::TypeRef CgType::ref(Cg& cg) noexcept {
 
 CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 	Array<CgType*> types{cg.allocator};
-	for (Ulen l = m_elems.length(), i = 0; i < l; i++) {
-		const auto& elem = m_elems[i];
+	if (!types.reserve(m_elems.length())) {
+		return nullptr;
+	}
+	for (auto& elem : m_elems) {
 		auto type = elem.type()->codegen(cg);
 		if (!type || !types.push_back(type)) {
 			return nullptr;
 		}
 	}
-	return cg.types.alloc(CgType::RecordInfo { true, move(types) });
+	return cg.types.alloc(CgType::TupleInfo { move(types) });
 }
 
 CgType* AstIdentType::codegen(Cg& cg) const noexcept {
@@ -482,12 +482,6 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Bool64")  return cg.types.b64();
 	if (m_ident == "String")  return cg.types.str();
 	if (m_ident == "Address") return cg.types.ptr();
-	// Search for the 'struct' definition for m_ident
-	for (const auto& record : cg.structs) {
-		if (record.name == m_ident) {
-			return record.type;
-		}
-	}
 	return nullptr;
 }
 
@@ -509,7 +503,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	auto value = m_extent->eval();
+	auto value = m_extent->eval(cg);
 	if (!value || !value->is_integral()) {
 		// Not a compile time integer constant expression.
 		return nullptr;
@@ -528,6 +522,18 @@ CgType* AstSliceType::codegen(Cg& cg) const noexcept {
 		return nullptr;
 	}
 	return cg.types.alloc(CgType::SliceInfo { base });
+}
+
+CgType* AstFnType::codegen(Cg& cg) const noexcept {
+	auto args = m_args->codegen(cg);
+	if (!args) {
+		return nullptr;
+	}
+	auto rets = m_rets->codegen(cg);
+	if (!rets) {
+		return nullptr;
+	}
+	return cg.types.alloc(CgType::FnInfo { args, rets });
 }
 
 } // namespace Biron

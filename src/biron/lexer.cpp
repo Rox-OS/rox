@@ -174,7 +174,7 @@ Token Lexer::read() noexcept {
 		}
 		break;
 	default:
-		if (is_alpha(peek())) {
+		if (is_alpha(peek()) || peek() == '_') {
 			n = fwd();
 			while (peek() != -1 && (is_alnum(peek()) || peek() == '_')) fwd();
 			Ulen l = m_offset - n;
@@ -188,10 +188,10 @@ Token Lexer::read() noexcept {
 			case 3:
 				/**/ if (ident == "let")      return {Kind::KW_LET,    {n, 3}};
 				else if (ident == "for")      return {Kind::KW_FOR,    {n, 3}};
-				else if (ident == "asm")      return {Kind::KW_ASM,    {n, 3}};
 				break;
 			case 4:
 				/**/ if (ident == "else")     return {Kind::KW_ELSE,   {n, 4}};
+				else if (ident == "type")     return {Kind::KW_TYPE,   {n, 4}};
 				else if (ident == "true")     return {Kind::KW_TRUE,   {n, 4}};
 				break;
 			case 5:
@@ -201,8 +201,7 @@ Token Lexer::read() noexcept {
 				else if (ident == "break")    return {Kind::KW_BREAK,  {n, 5}};
 				break;
 			case 6:
-				/**/ if (ident == "struct")   return {Kind::KW_STRUCT, {n, 6}};
-				else if (ident == "return")   return {Kind::KW_RETURN, {n, 6}};
+				/**/ if (ident == "return")   return {Kind::KW_RETURN, {n, 6}};
 				break;
 			case 8:
 				/**/ if (ident == "continue") return {Kind::KW_CONTINUE, {n, 8}};

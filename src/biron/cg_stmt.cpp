@@ -13,8 +13,8 @@ Bool AstBlockStmt::codegen(Cg& cg) const noexcept {
 	if (!cg.scopes.emplace_back(cg.allocator)) {
 		return false;
 	}
-	for (Ulen l = m_stmts.length(), i = 0; i < l; i++) {
-		if (!m_stmts[i]->codegen(cg)) {
+	for (auto stmt : m_stmts) {
+		if (!stmt->codegen(cg)) {
 			return false;
 		}
 	}
@@ -145,6 +145,40 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 	if (!cg.scopes.last().vars.emplace_back(m_name, move(*addr))) {
 		return false;
 	}
+	return true;
+}
+
+Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
+	auto eval = m_init->eval(cg);
+	if (!eval) {
+		fprintf(stderr, "Expected constant expression");
+		return false;
+	}
+
+	auto src = eval->codegen(cg);
+	if (!src) {
+		return false;
+	}
+
+	auto dst = cg.llvm.AddGlobal(cg.module,
+	                             src->type()->ref(cg),
+	                             m_name.terminated(cg.allocator));
+
+	cg.llvm.SetInitializer(dst, src->ref());
+
+	cg.llvm.SetGlobalConstant(dst, true);
+	if (m_attrs) {
+		for (auto it : *m_attrs) {
+			if (it->is_attr<AstAlignAttr>()) {
+				auto attr = static_cast<const AstAlignAttr*>(it);
+				cg.llvm.SetAlignment(dst, attr->value());
+			} else if (it->is_attr<AstSectionAttr>()) {
+				auto attr = static_cast<const AstSectionAttr*>(it);
+				cg.llvm.SetSection(dst, attr->value().terminated(cg.allocator));
+			}
+		}
+	}
+
 	return true;
 }
 

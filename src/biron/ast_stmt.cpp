@@ -33,8 +33,8 @@ void AstBlockStmt::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.append('\n');
 	builder.repeat('\t', depth);
 	builder.append("{\n");
-	for (Ulen l = m_stmts.length(), i = 0; i < l; i++) {
-		m_stmts[i]->dump(builder, depth + 1);
+	for (auto stmt : m_stmts) {
+		stmt->dump(builder, depth + 1);
 	}
 	builder.repeat('\t', depth);
 	builder.append("}\n");
