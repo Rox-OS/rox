@@ -550,7 +550,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 		// Cannot cast integer constant expression to Uint64 extent
 		return nullptr;
 	}
-	return cg.types.alloc(CgType::ArrayInfo { base, extent->as_u64() });
+	return cg.types.alloc(CgType::ArrayInfo { base, *extent });
 }
 
 CgType* AstSliceType::codegen(Cg& cg) const noexcept {

@@ -420,29 +420,19 @@ Maybe<AstConst> AstBinExpr::eval(Cg& cg) const noexcept {
 	//
 	// This generates a total of 17 functions which process 120 possible combinations.
 	auto numeric = [&](auto f) noexcept -> Maybe<AstConst> {
-		switch (lhs->kind()) {
-		case AstConst::Kind::U8:  return AstConst { range(), f(lhs->as_u8(), rhs->as_u8()) };
-		case AstConst::Kind::U16: return AstConst { range(), f(lhs->as_u16(), rhs->as_u16()) };
-		case AstConst::Kind::U32: return AstConst { range(), f(lhs->as_u32(), rhs->as_u32()) };
-		case AstConst::Kind::U64: return AstConst { range(), f(lhs->as_u64(), rhs->as_u64()) };
-		case AstConst::Kind::S8:  return AstConst { range(), f(lhs->as_s8(), rhs->as_s8()) };
-		case AstConst::Kind::S16: return AstConst { range(), f(lhs->as_s16(), rhs->as_s16()) };
-		case AstConst::Kind::S32: return AstConst { range(), f(lhs->as_s32(), rhs->as_s32()) };
-		case AstConst::Kind::S64: return AstConst { range(), f(lhs->as_s64(), rhs->as_s64()) };
-		default:
-			return None{};
+		if (lhs->is_uint()) {
+			return AstConst { range(), lhs->kind(), f(lhs->as_uint(), rhs->as_uint()) };
+		} else if (lhs->is_sint()) {
+			return AstConst { range(), lhs->kind(), f(lhs->as_sint(), rhs->as_sint()) };
 		}
+		return None{};
 	};
 
 	auto boolean = [&](auto f) noexcept -> Maybe<AstConst> {
-		switch (lhs->kind()) {
-		case AstConst::Kind::B8:  return AstConst { range(), f(lhs->as_b8(), rhs->as_b8()) };
-		case AstConst::Kind::B16: return AstConst { range(), f(lhs->as_b8(), rhs->as_b8()) };
-		case AstConst::Kind::B32: return AstConst { range(), f(lhs->as_b8(), rhs->as_b8()) };
-		case AstConst::Kind::B64: return AstConst { range(), f(lhs->as_b8(), rhs->as_b8()) };
-		default:
-			return None{};
+		if (lhs->is_bool()) {
+			return AstConst { range(), lhs->kind(), f(lhs->as_bool(), rhs->as_bool()) };
 		}
+		return None{};
 	};
 
 	auto either = [&](auto f) noexcept -> Maybe<AstConst> {
@@ -519,11 +509,15 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 				return None{};
 			}
 			// TODO(dweiler): We need to map logical index to physical tuple index...
-			auto n = index->to<Uint64>()->as_u64();
-			if (type->at(n)->is_padding()) {
-				n++;
+			auto n = index->to<Uint64>();
+			if (!n) {
+				fprintf(stderr, "Expected integer constant expression for indexing tuple");
+				return None{};
 			}
-			return lhs->at(cg, n);
+			if (type->at(*n)->is_padding()) {
+				(*n)++;
+			}
+			return lhs->at(cg, *n);
 		}
 	} else {
 		fprintf(stderr, "Can only index structure and tuple types with '.' operator\n");

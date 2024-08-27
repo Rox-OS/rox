@@ -12,29 +12,29 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 	case Kind::NONE:
 		return None{};
 	case Kind::U8:
-		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(cg), as_u8(), false) };
+		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(cg), m_as_uint, false) };
 	case Kind::U16:
-		return CgValue { cg.types.u16(), cg.llvm.ConstInt(cg.types.u16()->ref(cg), as_u16(), false) };
+		return CgValue { cg.types.u16(), cg.llvm.ConstInt(cg.types.u16()->ref(cg), m_as_uint, false) };
 	case Kind::U32:
-		return CgValue { cg.types.u32(), cg.llvm.ConstInt(cg.types.u32()->ref(cg), as_u32(), false) };
+		return CgValue { cg.types.u32(), cg.llvm.ConstInt(cg.types.u32()->ref(cg), m_as_uint, false) };
 	case Kind::U64:
-		return CgValue { cg.types.u64(), cg.llvm.ConstInt(cg.types.u64()->ref(cg), as_u64(), false) };
+		return CgValue { cg.types.u64(), cg.llvm.ConstInt(cg.types.u64()->ref(cg), m_as_uint, false) };
 	case Kind::S8:
-		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(cg), as_u8(), false) };
+		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(cg), m_as_uint, false) };
 	case Kind::S16:
-		return CgValue { cg.types.s16(), cg.llvm.ConstInt(cg.types.s16()->ref(cg), as_s16(), true) };
+		return CgValue { cg.types.s16(), cg.llvm.ConstInt(cg.types.s16()->ref(cg), m_as_uint, true) };
 	case Kind::S32:
-		return CgValue { cg.types.s32(), cg.llvm.ConstInt(cg.types.s32()->ref(cg), as_s32(), true) };
+		return CgValue { cg.types.s32(), cg.llvm.ConstInt(cg.types.s32()->ref(cg), m_as_uint, true) };
 	case Kind::S64:
-		return CgValue { cg.types.s64(), cg.llvm.ConstInt(cg.types.s64()->ref(cg), as_s64(), true) };
+		return CgValue { cg.types.s64(), cg.llvm.ConstInt(cg.types.s64()->ref(cg), m_as_uint, true) };
 	case Kind::B8:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b8()->ref(cg), as_b8(), false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b8()->ref(cg), m_as_bool ? 1 : 0, false) };
 	case Kind::B16:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b16()->ref(cg), as_b16(), false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b16()->ref(cg), m_as_bool ? 1 : 0, false) };
 	case Kind::B32:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b32()->ref(cg), as_b32(), false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b32()->ref(cg), m_as_bool ? 1 : 0, false) };
 	case Kind::B64:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b64()->ref(cg), as_b64(), false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b64()->ref(cg), m_as_bool ? 1 : 0, false) };
 	case Kind::F32:
 		return CgValue { cg.types.f32(), cg.llvm.ConstReal(cg.types.f32()->ref(cg), as_f32()) };
 	case Kind::F64:

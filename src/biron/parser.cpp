@@ -1332,34 +1332,34 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 				ERROR("Expected positive constant integer expression for alignment");
 				return None{};
 			}
-			if (!is_pot(align->as_u64())) {
+			if (!is_pot(*align)) {
 				ERROR("Alignment must be a power-of-two");
 				return None{};
 			}
-			auto attr = new_node<AstAlignAttr>(align->as_u64(), expr->range());
+			auto attr = new_node<AstAlignAttr>(*align, expr->range());
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
 		} else if (name == "used") {
 			auto expr = args->at(0);
 			auto value = expr->eval(m_cg);
-			if (!value || !value->is_boolean()) {
+			if (!value || !value->is_bool()) {
 				ERROR("Expected constant boolean expression for used attribute");
 				return None{};
 			}
 			auto used = value->to<Bool32>();
-			auto attr = new_node<AstUsedAttr>(used->as_b32(), expr->range());
+			auto attr = new_node<AstUsedAttr>(*used, expr->range());
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
 		} else if (name == "inline") {
 			auto expr = args->at(0);
 			auto value = expr->eval(m_cg);
-			if (!value || !value->is_boolean()) {
+			if (!value || !value->is_bool()) {
 				ERROR("Expected constant boolean expression for inline attribute");
 				return None{};
 			}
-			auto attr = new_node<AstInlineAttr>(value->to<Bool32>(), expr->range());
+			auto attr = new_node<AstInlineAttr>(*value->to<Bool32>(), expr->range());
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
