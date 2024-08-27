@@ -78,6 +78,19 @@ private:
 	CgAddr     m_addr;
 };
 
+struct CgTypeDef {
+	constexpr CgTypeDef(StringView name, CgType* type) noexcept
+		: m_name{name}
+		, m_type{type}
+	{
+	}
+	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
+	[[nodiscard]] constexpr CgType* type() const noexcept { return m_type; }
+private:
+	StringView m_name;
+	CgType*    m_type;
+};
+
 } // namespace Biron
 
 #endif

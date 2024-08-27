@@ -71,6 +71,7 @@ struct Cg {
 	CgTypeCache            types;
 	Array<CgVar>           fns;
 	Array<CgScope>         scopes;
+	Array<CgTypeDef>       typedefs;
 	Diagnostic&            diagnostic;
 
 	constexpr Cg(Cg&& other) noexcept
@@ -83,6 +84,7 @@ struct Cg {
 		, types{move(other.types)}
 		, fns{move(other.fns)}
 		, scopes{move(other.scopes)}
+		, typedefs{move(other.typedefs)}
 		, diagnostic{other.diagnostic}
 	{
 	}
@@ -115,6 +117,7 @@ private:
 		, types{move(types)}
 		, fns{allocator}
 		, scopes{allocator}
+		, typedefs{allocator}
 		, diagnostic{diagnostic}
 	{
 	}

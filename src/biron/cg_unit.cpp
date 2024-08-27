@@ -27,7 +27,7 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
+	auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t, nullptr });
 	if (!fn_t) {
 		return false;
 	}
@@ -42,6 +42,14 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 	}
 
 	return true;
+}
+
+Bool AstTopType::codegen(Cg& cg) const noexcept {
+	auto type = m_type->codegen(cg);
+	if (!type) {
+		return false;
+	}
+	return cg.typedefs.emplace_back(m_name, type);
 }
 
 Bool AstTopFn::codegen(Cg& cg) const noexcept {
@@ -135,18 +143,25 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!rets.push_back(cg.types.s32())) {
 			return false;
 		}
-		auto args_t = cg.types.make(CgType::TupleInfo { move(args) });
-		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets) });
+		auto args_t = cg.types.make(CgType::TupleInfo { move(args), nullptr });
+		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), nullptr });
 		if (!args_t || !rets_t) {
 			return false;
 		}
 
-		auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t, nullptr });
 		if (!fn_t) {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "printf", fn_t->ref());
 		if (!cg.fns.emplace_back("printf", CgAddr{fn_t->addrof(cg), fn_v})) {
+			return false;
+		}
+	}
+
+	// Emit types
+	for (auto type : m_types) {
+		if (!type->codegen(cg)) {
 			return false;
 		}
 	}

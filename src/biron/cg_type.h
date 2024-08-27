@@ -2,6 +2,8 @@
 #define BIRON_CG_TYPE_H
 
 #include <biron/util/pool.h>
+#include <biron/util/string.inl>
+
 #include <biron/llvm.h>
 
 namespace Biron {
@@ -9,7 +11,7 @@ namespace Biron {
 struct Cg;
 struct CgTypeCache;
 
-struct StringBuilder;
+struct AstType;
 
 struct CgType {
 	enum class Kind {
@@ -23,7 +25,6 @@ struct CgType {
 		ARRAY,             // [N]T
 		PADDING,           // [N]u8 // Special meta-type for tuple padding
 		TUPLE,             // (T1, ..., Tn)
-		UNION,             // T1 | ... | Tn
 		FN,                // fn (T1, ..., Tn) -> (R1, ..., Rn)
 		VA,                // ...
 	};
@@ -58,11 +59,11 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_array() const noexcept { return m_kind == Kind::ARRAY; }
 	[[nodiscard]] constexpr Bool is_padding() const noexcept { return m_kind == Kind::PADDING; }
 	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
-	[[nodiscard]] constexpr Bool is_union() const noexcept { return m_kind == Kind::UNION; }
 	[[nodiscard]] constexpr Bool is_fn() const noexcept { return m_kind == Kind::FN; }
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
 
 	[[nodiscard]] constexpr LLVM::TypeRef ref() const noexcept { return m_ref; }
+	[[nodiscard]] constexpr const AstType* ast() const noexcept { return m_ast; }
 
 	Bool operator==(const CgType& other) const noexcept {
 		if (other.m_kind   != m_kind)   return false;
@@ -76,40 +77,47 @@ struct CgType {
 
 	// Custom make tags for the type cache
 	struct IntInfo {
-		Ulen size;
-		Ulen align;
-		Bool sign;
+		Ulen           size;
+		Ulen           align;
+		Bool           sign;
+		const AstType* ast;
 	};
 
 	struct FltInfo {
-		Ulen size;
-		Ulen align;
+		Ulen           size;
+		Ulen           align;
+		const AstType* ast;
 	};
 
 	struct PtrInfo {
-		CgType* base;
-		Ulen    size;
-		Ulen    align;
+		CgType*        base;
+		Ulen           size;
+		Ulen           align;
+		const AstType* ast;
 	};
 
 	struct BoolInfo {
-		Ulen size;
-		Ulen align;
+		Ulen           size;
+		Ulen           align;
+		const AstType* ast;
 	};
 
 	struct StringInfo {};
 
 	struct TupleInfo {
 		Array<CgType*> types;
+		const AstType* ast;
 	};
 
 	struct ArrayInfo {
-		CgType* base;
-		Uint64  extent;
+		CgType*        base;
+		Uint64         extent;
+		const AstType* ast;
 	};
 
 	struct SliceInfo {
-		CgType* base;
+		CgType*        base;
+		const AstType* ast;
 	};
 
 	struct PaddingInfo {
@@ -117,8 +125,9 @@ struct CgType {
 	};
 
 	struct FnInfo {
-		CgType* args;
-		CgType* rets;
+		CgType*        args;
+		CgType*        rets;
+		const AstType* ast;
 	};
 
 	struct VaInfo { };
@@ -126,12 +135,13 @@ struct CgType {
 private:
 	friend struct CgTypeCache;
 
-	constexpr CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types, LLVM::TypeRef ref = nullptr) noexcept
+	CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types, const AstType* ast, LLVM::TypeRef ref) noexcept
 		: m_kind{kind}
 		, m_size{size}
 		, m_align{align}
 		, m_extent{extent}
 		, m_types{move(types)}
+		, m_ast{ast}
 		, m_ref{ref}
 	{
 	}
@@ -141,6 +151,7 @@ private:
 	Ulen m_align;
 	Ulen m_extent;
 	Maybe<Array<CgType*>> m_types;
+	const AstType* m_ast;
 	LLVM::TypeRef m_ref;
 };
 

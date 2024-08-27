@@ -14,23 +14,23 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::Con
 	// construct some builtin types which are always expected to exist.
 	CgTypeCache bootstrap{move(cache), llvm, context};
 	CgType* (&builtin)[countof(bootstrap.m_builtin)] = bootstrap.m_builtin;
-	builtin[0]  = bootstrap.make(CgType::IntInfo    { 1, 1, false });
-	builtin[1]  = bootstrap.make(CgType::IntInfo    { 2, 2, false });
-	builtin[2]  = bootstrap.make(CgType::IntInfo    { 4, 4, false });
-	builtin[3]  = bootstrap.make(CgType::IntInfo    { 8, 8, false });
-	builtin[4]  = bootstrap.make(CgType::IntInfo    { 1, 1, true  });
-	builtin[5]  = bootstrap.make(CgType::IntInfo    { 2, 2, true  });
-	builtin[6]  = bootstrap.make(CgType::IntInfo    { 4, 4, true  });
-	builtin[7]  = bootstrap.make(CgType::IntInfo    { 8, 8, true  });
-	builtin[8]  = bootstrap.make(CgType::BoolInfo   { 1, 1 });
-	builtin[9]  = bootstrap.make(CgType::BoolInfo   { 2, 2 });
-	builtin[10] = bootstrap.make(CgType::BoolInfo   { 4, 4 });
-	builtin[11] = bootstrap.make(CgType::BoolInfo   { 8, 8 });
-	builtin[12] = bootstrap.make(CgType::FltInfo    { 4, 4 }),
-	builtin[13] = bootstrap.make(CgType::FltInfo    { 8, 8 }),
-	builtin[14] = bootstrap.make(CgType::PtrInfo    { nullptr, 8, 8 });
+	builtin[0]  = bootstrap.make(CgType::IntInfo    { 1, 1, false, nullptr });
+	builtin[1]  = bootstrap.make(CgType::IntInfo    { 2, 2, false, nullptr });
+	builtin[2]  = bootstrap.make(CgType::IntInfo    { 4, 4, false, nullptr });
+	builtin[3]  = bootstrap.make(CgType::IntInfo    { 8, 8, false, nullptr });
+	builtin[4]  = bootstrap.make(CgType::IntInfo    { 1, 1, true,  nullptr  });
+	builtin[5]  = bootstrap.make(CgType::IntInfo    { 2, 2, true,  nullptr  });
+	builtin[6]  = bootstrap.make(CgType::IntInfo    { 4, 4, true,  nullptr  });
+	builtin[7]  = bootstrap.make(CgType::IntInfo    { 8, 8, true,  nullptr  });
+	builtin[8]  = bootstrap.make(CgType::BoolInfo   { 1, 1, nullptr });
+	builtin[9]  = bootstrap.make(CgType::BoolInfo   { 2, 2, nullptr });
+	builtin[10] = bootstrap.make(CgType::BoolInfo   { 4, 4, nullptr });
+	builtin[11] = bootstrap.make(CgType::BoolInfo   { 8, 8, nullptr });
+	builtin[12] = bootstrap.make(CgType::FltInfo    { 4, 4, nullptr }),
+	builtin[13] = bootstrap.make(CgType::FltInfo    { 8, 8, nullptr }),
+	builtin[14] = bootstrap.make(CgType::PtrInfo    { nullptr, 8, 8, nullptr });
 	builtin[15] = bootstrap.make(CgType::StringInfo { });
-	builtin[16] = bootstrap.make(CgType::TupleInfo  { { allocator } });
+	builtin[16] = bootstrap.make(CgType::TupleInfo  { { allocator }, nullptr });
 	builtin[17] = bootstrap.make(CgType::VaInfo     { });
 	for (Ulen i = 0; i < countof(builtin); i++) {
 		if (!builtin[i]) {
@@ -107,9 +107,6 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		builder.append(".Pad");
 		builder.append(m_size);
 		break;
-	case Kind::UNION:
-		// TODO
-		break;
 	case Kind::TUPLE:
 		{
 			builder.append('(');
@@ -157,7 +154,7 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 }
 
 CgType* CgType::addrof(Cg& cg) noexcept {
-	return cg.types.make(CgType::PtrInfo { this, 8, 8 });
+	return cg.types.make(CgType::PtrInfo { this, 8, 8, nullptr });
 }
 
 CgType* AstTupleType::codegen(Cg& cg) const noexcept {
@@ -171,7 +168,7 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 			return nullptr;
 		}
 	}
-	return cg.types.make(CgType::TupleInfo { move(types) });
+	return cg.types.make(CgType::TupleInfo { move(types), this });
 }
 
 CgType* AstIdentType::codegen(Cg& cg) const noexcept {
@@ -191,6 +188,11 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Float64") return cg.types.f64();
 	if (m_ident == "String")  return cg.types.str();
 	if (m_ident == "Address") return cg.types.ptr();
+	for (auto type : cg.typedefs) {
+		if (type.name() == m_ident) {
+			return type.type();
+		}
+	}
 	return nullptr;
 }
 
@@ -204,7 +206,7 @@ CgType* AstPtrType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::PtrInfo { base, 8, 8 });
+	return cg.types.make(CgType::PtrInfo { base, 8, 8, this });
 }
 
 CgType* AstArrayType::codegen(Cg& cg) const noexcept {
@@ -222,7 +224,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 		// Cannot cast integer constant expression to Uint64 extent
 		return nullptr;
 	}
-	return cg.types.make(CgType::ArrayInfo { base, *extent });
+	return cg.types.make(CgType::ArrayInfo { base, *extent, this });
 }
 
 CgType* AstSliceType::codegen(Cg& cg) const noexcept {
@@ -230,7 +232,7 @@ CgType* AstSliceType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::SliceInfo { base });
+	return cg.types.make(CgType::SliceInfo { base, this });
 }
 
 CgType* AstFnType::codegen(Cg& cg) const noexcept {
@@ -242,7 +244,7 @@ CgType* AstFnType::codegen(Cg& cg) const noexcept {
 	if (!rets) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::FnInfo { args, rets });
+	return cg.types.make(CgType::FnInfo { args, rets, this });
 }
 
 CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
@@ -278,6 +280,7 @@ CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
 		info.align,
 		0,
 		None{},
+		info.ast,
 		ref
 	};
 }
@@ -308,6 +311,7 @@ CgType* CgTypeCache::make(CgType::FltInfo info) noexcept {
 		info.align,
 		0,
 		None{},
+		info.ast,
 		ref
 	};
 }
@@ -331,6 +335,7 @@ CgType* CgTypeCache::make(CgType::PtrInfo info) noexcept {
 		info.align,
 		0,
 		move(types),
+		info.ast,
 		ref,
 	};
 }
@@ -367,6 +372,7 @@ CgType* CgTypeCache::make(CgType::BoolInfo info) noexcept {
 		info.align,
 		0,
 		None{},
+		info.ast,
 		ref
 	};
 }
@@ -401,6 +407,7 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 		max(ptr()->align(), u64()->align()),
 		0,
 		move(types),
+		nullptr,
 		ref,
 	};
 }
@@ -482,6 +489,7 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 		alignment,
 		0,
 		move(padded),
+		info.ast,
 		ref
 	};
 }
@@ -505,6 +513,7 @@ CgType* CgTypeCache::make(CgType::ArrayInfo info) noexcept {
 		info.base->align(),
 		info.extent,
 		move(types),
+		info.ast,
 		ref
 	};
 }
@@ -539,6 +548,7 @@ CgType* CgTypeCache::make(CgType::SliceInfo info) noexcept {
 		max(ptr()->align(), u64()->align()),
 		0,
 		move(types),
+		info.ast,
 		ref,
 	};
 }
@@ -551,7 +561,7 @@ CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
 	if (!name.valid()) {
 		return nullptr;
 	}
-	auto array = make(CgType::ArrayInfo { u8(), info.padding });
+	auto array = make(CgType::ArrayInfo { u8(), info.padding, nullptr });
 	if (!array) {
 		return nullptr;
 	}
@@ -581,6 +591,7 @@ CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
 		1,
 		0,
 		move(types),
+		nullptr,
 		ref
 	};
 }
@@ -629,6 +640,7 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 		0,
 		0,
 		move(types),
+		nullptr,
 		ref
 	};
 }
@@ -644,6 +656,7 @@ CgType* CgTypeCache::make(CgType::VaInfo) noexcept {
 		0,
 		0,
 		None{},
+		nullptr,
 		nullptr
 	};
 }

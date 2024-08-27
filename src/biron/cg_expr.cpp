@@ -87,7 +87,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 			return None{};
 		}
 	}
-	auto type = cg.types.make(CgType::TupleInfo { move(types) });
+	auto type = cg.types.make(CgType::TupleInfo { move(types), nullptr });
 	if (!type) {
 		return None{};
 	}
@@ -312,6 +312,7 @@ Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg) const noexcept {
 }
 
 Maybe<AstConst> AstAggExpr::eval() const noexcept {
+	ScratchAllocator scratch{m_exprs.allocator()};
 	// We only support AstArrayType for now.
 	// TODO(dweiler): Remove AstTupleExpr and make it an AstAggExpr
 	if (!m_type->is_type<AstArrayType>()) {
@@ -336,6 +337,8 @@ Maybe<AstConst> AstAggExpr::eval() const noexcept {
 }
 
 Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
+	ScratchAllocator scratch{cg.allocator};
+
 	auto type = m_type->codegen(cg);
 	if (!type) {
 		return None{};
@@ -368,6 +371,17 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 			// Otherwise take the next expression and store it at i'th.
 			auto value = (*expr)->gen_value(cg);
 			if (!value) {
+				return None{};
+			}
+			if (*value->type() != *type) {
+				StringBuilder b0{scratch};
+				StringBuilder b1{scratch};
+				value->type()->dump(b0);
+				b0.append('\0');
+				type->dump(b1);
+				b1.append('\0');
+				cg.error((*expr)->range(), "Expression has type '%s' but '%s' is required",
+					b0.data(), b1.data());
 				return None{};
 			}
 			if (!dst->store(cg, *value)) {
@@ -489,6 +503,32 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		if (m_rhs->is_expr<AstCallExpr>()) {
 			cg.error(range(), "Unimplemented method call");
 		} else {
+			// When the right hand side is an AstVarExpr it means we're indexing the
+			// tuple by field name.
+			if (m_rhs->is_expr<AstVarExpr>()) {
+				auto expr = static_cast<const AstVarExpr*>(m_rhs);
+				// Work out the index of the tuple element
+				auto ast = static_cast<const AstTupleType*>(type->ast());
+				Maybe<Ulen> n;
+				Ulen i = 0;
+				for (const auto& elem : ast->elems()) {
+					if (type->at(i)->is_padding()) {
+						i++;
+					}
+					if (elem.name() == expr->name()) {
+						n.emplace(i);
+						break;
+					}
+					i++;
+				}
+				if (!n) {
+					cg.error(m_rhs->range(), "Undeclared field '%.*s'", Sint32(expr->name().length()), expr->name().data());
+					return None{};
+				}
+				return lhs->at(cg, *n);
+			}
+
+			// Otherwis it's a compile-time integer constant expression.
 			auto rhs = m_rhs->eval();
 			if (!rhs) {
 				cg.error(rhs->range(), "Expected constant expression");

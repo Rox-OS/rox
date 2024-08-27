@@ -219,15 +219,6 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 			return CgValue { type, value };
 		}
 		break;
-	case CgType::Kind::UNION:
-		// LLVM does not have typed Unions. We implement them as an [N x i8] array
-		// where N is the size of the largest field in the union. The alignment of
-		// the union is set to the alignment of the largest field as well. This
-		// makes it quite trivial to implement a constant zero union.
-		if (auto array = cg.types.make(CgType::ArrayInfo { cg.types.u8(), type->size() })) {
-			return zero(array, cg);
-		}
-		break;
 	case CgType::Kind::FN:
 		{
 			auto value = llvm.ConstPointerNull(type->ref());

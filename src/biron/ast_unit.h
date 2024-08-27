@@ -46,6 +46,7 @@ struct AstTopType : AstNode {
 		, m_attrs{move(attrs)}
 	{
 	}
+	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 private:
 	StringView             m_name;
 	AstType*               m_type;
@@ -67,7 +68,7 @@ struct AstUnit {
 	[[nodiscard]] Bool add_let(AstLetStmt* let) noexcept {
 		return m_lets.push_back(let);
 	}
-	[[nodiscard]] Bool add_type(AstTopType* type) noexcept {
+	[[nodiscard]] Bool add_typedef(AstTopType* type) noexcept {
 		return m_types.push_back(type);
 	}
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;

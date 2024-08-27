@@ -66,7 +66,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 					return None{};
 				}
 			}
-			auto type = cg.types.make(CgType::TupleInfo { move(types) });
+			auto type = cg.types.make(CgType::TupleInfo { move(types), nullptr });
 			if (!type) {
 				return None{};
 			}
@@ -104,18 +104,15 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 			if (!values.reserve(m_as_array.elems.length())) {
 				return None{};
 			}
+			auto base = m_as_array.type->codegen(cg);
+			if (!base) {
+				return None{};
+			}
 			for (const auto& elem : m_as_array.elems) {
 				auto value = elem.codegen(cg);
 				if (!value) {
 					return None{};
 				}
-				// if (*value->type() != *type) {
-				// 	value->type()->dump(false);
-				// 	fprintf(stderr, " != ");
-				// 	type->dump();
-				// 	// The element value type does not match the base type of the array.
-				// 	// return None{};
-				// }
 				if (!values.push_back(move(*value))) {
 					return None{};
 				}
@@ -128,10 +125,6 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 				if (!consts.push_back(value.ref())) {
 					return None{};
 				}
-			}
-			auto base = m_as_array.type->codegen(cg);
-			if (!base) {
-				return None{};
 			}
 			auto value = cg.llvm.ConstArray2(base->ref(),
 			                                 consts.data(),

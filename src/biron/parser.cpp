@@ -343,8 +343,17 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 		}
 		break;
 	case Token::Kind::LBRACE: // {}
-		if (auto type = parse_type_expr()) {
-			return parse_agg_expr(type);
+		{
+			auto name = m_lexer.string(token.range);
+			auto type = new_node<AstIdentType>(name, token.range);
+			if (!type) {
+				return nullptr;
+			}
+			auto expr = new_node<AstTypeExpr>(type, token.range);
+			if (!expr) {
+				return nullptr;
+			}
+			return parse_agg_expr(expr);
 		}
 		break;
 	case Token::Kind::LBRACKET: // []
@@ -1376,7 +1385,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		break;
 	case Token::Kind::KW_TYPE:
 		if (auto type = parse_top_type(move(attrs))) {
-			if (!unit.add_type(type)) {
+			if (!unit.add_typedef(type)) {
 				ERROR("Out of memory");
 				return None{};
 			}
