@@ -123,6 +123,7 @@ endif
 # Linker flags
 #
 LDFLAGS := -ldl
+LDFLAGS += -static-libgcc
 
 # Strip unused symbols if requested.
 ifeq ($(UNUSED), 1)
