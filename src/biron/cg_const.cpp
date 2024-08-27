@@ -1,4 +1,5 @@
 #include <biron/ast_const.h>
+#include <biron/ast_type.h>
 
 #include <biron/cg_value.h>
 #include <biron/cg.h>
@@ -12,33 +13,33 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 	case Kind::NONE:
 		return None{};
 	case Kind::U8:
-		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(cg), m_as_uint, false) };
+		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(), m_as_uint, false) };
 	case Kind::U16:
-		return CgValue { cg.types.u16(), cg.llvm.ConstInt(cg.types.u16()->ref(cg), m_as_uint, false) };
+		return CgValue { cg.types.u16(), cg.llvm.ConstInt(cg.types.u16()->ref(), m_as_uint, false) };
 	case Kind::U32:
-		return CgValue { cg.types.u32(), cg.llvm.ConstInt(cg.types.u32()->ref(cg), m_as_uint, false) };
+		return CgValue { cg.types.u32(), cg.llvm.ConstInt(cg.types.u32()->ref(), m_as_uint, false) };
 	case Kind::U64:
-		return CgValue { cg.types.u64(), cg.llvm.ConstInt(cg.types.u64()->ref(cg), m_as_uint, false) };
+		return CgValue { cg.types.u64(), cg.llvm.ConstInt(cg.types.u64()->ref(), m_as_uint, false) };
 	case Kind::S8:
-		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(cg), m_as_uint, false) };
+		return CgValue { cg.types.u8(), cg.llvm.ConstInt(cg.types.u8()->ref(), m_as_uint, false) };
 	case Kind::S16:
-		return CgValue { cg.types.s16(), cg.llvm.ConstInt(cg.types.s16()->ref(cg), m_as_uint, true) };
+		return CgValue { cg.types.s16(), cg.llvm.ConstInt(cg.types.s16()->ref(), m_as_uint, true) };
 	case Kind::S32:
-		return CgValue { cg.types.s32(), cg.llvm.ConstInt(cg.types.s32()->ref(cg), m_as_uint, true) };
+		return CgValue { cg.types.s32(), cg.llvm.ConstInt(cg.types.s32()->ref(), m_as_uint, true) };
 	case Kind::S64:
-		return CgValue { cg.types.s64(), cg.llvm.ConstInt(cg.types.s64()->ref(cg), m_as_uint, true) };
+		return CgValue { cg.types.s64(), cg.llvm.ConstInt(cg.types.s64()->ref(), m_as_uint, true) };
 	case Kind::B8:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b8()->ref(cg), m_as_bool ? 1 : 0, false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b8()->ref(), m_as_bool ? 1 : 0, false) };
 	case Kind::B16:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b16()->ref(cg), m_as_bool ? 1 : 0, false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b16()->ref(), m_as_bool ? 1 : 0, false) };
 	case Kind::B32:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b32()->ref(cg), m_as_bool ? 1 : 0, false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b32()->ref(), m_as_bool ? 1 : 0, false) };
 	case Kind::B64:
-		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b64()->ref(cg), m_as_bool ? 1 : 0, false) };
+		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b64()->ref(), m_as_bool ? 1 : 0, false) };
 	case Kind::F32:
-		return CgValue { cg.types.f32(), cg.llvm.ConstReal(cg.types.f32()->ref(cg), as_f32()) };
+		return CgValue { cg.types.f32(), cg.llvm.ConstReal(cg.types.f32()->ref(), as_f32()) };
 	case Kind::F64:
-		return CgValue { cg.types.f64(), cg.llvm.ConstReal(cg.types.f64()->ref(cg), as_f64()) };
+		return CgValue { cg.types.f64(), cg.llvm.ConstReal(cg.types.f64()->ref(), as_f64()) };
 	case Kind::TUPLE:
 		{
 			// Generate constant CgValues for each tuple element.
@@ -64,7 +65,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 					return None{};
 				}
 			}
-			auto type = cg.types.alloc(CgType::TupleInfo { move(types) });
+			auto type = cg.types.make(CgType::TupleInfo { move(types) });
 			if (!type) {
 				return None{};
 			}
@@ -94,6 +95,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 			}
 			return CgValue { type, value };
 		}
+		break;
 	case Kind::ARRAY:
 		{
 			// Generate constant CgValues for each array element.
@@ -101,7 +103,6 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 			if (!values.reserve(m_as_array.elems.length())) {
 				return None{};
 			}
-			// auto type = m_as_array.type->types()[0];
 			for (const auto& elem : m_as_array.elems) {
 				auto value = elem.codegen(cg);
 				if (!value) {
@@ -127,15 +128,20 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 					return None{};
 				}
 			}
-			auto value = cg.llvm.ConstArray2(m_as_array.type->ref(cg),
+			auto base = m_as_array.type->codegen(cg);
+			if (!base) {
+				return None{};
+			}
+			auto value = cg.llvm.ConstArray2(base->ref(),
 			                                 consts.data(),
 			                                 consts.length());
 			if (!value) {
 				return None{};
 			}
 
-			return CgValue { m_as_array.type, value };
+			return CgValue { base, value };
 		}
+		break;
 	case Kind::STRING:
 		// TODO(dweiler): implement
 		return None{};

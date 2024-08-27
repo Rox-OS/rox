@@ -11,7 +11,8 @@ namespace Biron {
 
 struct Cg;
 struct CgValue;
-struct CgType;
+
+struct AstType;
 
 // Compile time typed constants
 struct AstConst {
@@ -74,7 +75,7 @@ struct AstConst {
 	constexpr AstConst(Range range, StringView string)
 		: m_range{range}, m_kind{Kind::STRING}, m_as_string{string} {}
 
-	constexpr AstConst(Range range, CgType* base, Array<AstConst>&& array)
+	constexpr AstConst(Range range, AstType* base, Array<AstConst>&& array)
 		: m_range{range}, m_kind{Kind::ARRAY}, m_as_array{base, move(array)} {}
 
 	AstConst(AstConst&& other) noexcept;
@@ -113,12 +114,12 @@ struct AstConst {
 
 private:
 	struct ConstArray {
-		constexpr ConstArray(CgType* type, Array<AstConst>&& elems) noexcept
+		constexpr ConstArray(AstType* type, Array<AstConst>&& elems) noexcept
 			: type{type}, elems{move(elems)}
 		{
 		}
 		constexpr ConstArray(ConstArray&&) noexcept = default;
-		CgType*         type;
+		AstType*        type;
 		Array<AstConst> elems;
 	};
 

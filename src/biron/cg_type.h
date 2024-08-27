@@ -91,9 +91,7 @@ struct CgType {
 	CgType* addrof(Cg& cg) noexcept;
 
 	[[nodiscard]] CgType* deref() const noexcept { return at(0); }
-	[[nodiscard]] CgType* at(Ulen i) const noexcept {
-		return m_types ? (*m_types)[i] : nullptr;
-	}
+	[[nodiscard]] CgType* at(Ulen i) const noexcept { return m_types ? (*m_types)[i] : nullptr; }
 
 	[[nodiscard]] constexpr const Array<CgType*>& types() const noexcept {
 		BIRON_ASSERT(m_types && "No nested types");
@@ -122,7 +120,7 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_fn() const noexcept { return m_kind == Kind::FN; }
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
 
-	LLVM::TypeRef ref(Cg& cg) noexcept;
+	[[nodiscard]] constexpr LLVM::TypeRef ref() const noexcept { return m_ref; }
 
 	Bool operator==(const CgType& other) const noexcept {
 		if (other.m_kind   != m_kind)   return false;
@@ -157,14 +155,7 @@ struct CgType {
 		Ulen align;
 	};
 
-	struct StringInfo {
-		CgType* ptr;
-		CgType* len;
-	};
-
-	struct UnionInfo {
-		Array<CgType*> types;
-	};
+	struct StringInfo {};
 
 	struct TupleInfo {
 		Array<CgType*> types;
@@ -193,26 +184,13 @@ struct CgType {
 private:
 	friend struct CgTypeCache;
 
-	static Maybe<CgType> make(Cache& cache, IntInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, FltInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, PtrInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, BoolInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, StringInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, UnionInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, TupleInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, ArrayInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, SliceInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, PaddingInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, FnInfo info) noexcept;
-	static Maybe<CgType> make(Cache& cache, VaInfo info) noexcept;
-
-	constexpr CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types) noexcept
+	constexpr CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types, LLVM::TypeRef ref = nullptr) noexcept
 		: m_kind{kind}
 		, m_size{size}
 		, m_align{align}
 		, m_extent{extent}
 		, m_types{move(types)}
-		, m_ref{nullptr}
+		, m_ref{ref}
 	{
 	}
 
@@ -225,56 +203,43 @@ private:
 };
 
 struct CgTypeCache {
-	template<typename... Ts>
-	CgType* alloc(Ts&&... args) noexcept {
-		if (auto type = alloc(m_cache, forward<Ts>(args)...)) {
-			return type;
-		}
-		return nullptr;
-	}
-
-	static Maybe<CgTypeCache> make(Allocator& allocator, Ulen capacity);
-
-	[[nodiscard]] constexpr Allocator& allocator() const noexcept {
-		return m_cache.allocator();
-	}
+	static Maybe<CgTypeCache> make(Allocator& allocator, LLVM& llvm, LLVM::ContextRef context, Ulen capacity);
 
 	// Builtin types that are likely used everywhere.
-	constexpr CgType* u8()   const noexcept { return m_uints[0]; }
-	constexpr CgType* u16()  const noexcept { return m_uints[1]; }
-	constexpr CgType* u32()  const noexcept { return m_uints[2]; }
-	constexpr CgType* u64()  const noexcept { return m_uints[3]; }
-	constexpr CgType* s8()   const noexcept { return m_sints[0]; }
-	constexpr CgType* s16()  const noexcept { return m_sints[1]; }
-	constexpr CgType* s32()  const noexcept { return m_sints[2]; }
-	constexpr CgType* s64()  const noexcept { return m_sints[3]; }
-	constexpr CgType* b8()   const noexcept { return m_bools[0]; }
-	constexpr CgType* b16()  const noexcept { return m_bools[1]; }
-	constexpr CgType* b32()  const noexcept { return m_bools[2]; }
-	constexpr CgType* b64()  const noexcept { return m_bools[3]; }
-	constexpr CgType* f32()  const noexcept { return m_reals[0]; }
-	constexpr CgType* f64()  const noexcept { return m_reals[1]; }
-	constexpr CgType* ptr()  const noexcept { return m_ptr;      }
-	constexpr CgType* str()  const noexcept { return m_str;      }
-	constexpr CgType* unit() const noexcept { return m_unit;     }
-	constexpr CgType* va()   const noexcept { return m_va;       }
+	constexpr CgType* u8()   const noexcept { return m_builtin[0]; }
+	constexpr CgType* u16()  const noexcept { return m_builtin[1]; }
+	constexpr CgType* u32()  const noexcept { return m_builtin[2]; }
+	constexpr CgType* u64()  const noexcept { return m_builtin[3]; }
 
-	template<typename... Ts>
-	static CgType* alloc(Cache& cache, Ts&&... args) noexcept {
-		if (auto src = CgType::make(cache, forward<Ts>(args)...)) {
-			// Search the cache for a representation of 'src' and try to reuse it
-			for (const auto& elem : cache) {
-				auto type = static_cast<CgType*>(elem);
-				if (*type == *src) {
-					return type;
-				}
-			}
-			if (auto dst = cache.allocate()) {
-				return new (dst, Nat{}) CgType{move(*src)};
-			}
-		}
-		return nullptr;
-	}
+	constexpr CgType* s8()   const noexcept { return m_builtin[4]; }
+	constexpr CgType* s16()  const noexcept { return m_builtin[5]; }
+	constexpr CgType* s32()  const noexcept { return m_builtin[6]; }
+	constexpr CgType* s64()  const noexcept { return m_builtin[7]; }
+
+	constexpr CgType* b8()   const noexcept { return m_builtin[8]; }
+	constexpr CgType* b16()  const noexcept { return m_builtin[9]; }
+	constexpr CgType* b32()  const noexcept { return m_builtin[10]; }
+	constexpr CgType* b64()  const noexcept { return m_builtin[11]; }
+
+	constexpr CgType* f32()  const noexcept { return m_builtin[12]; }
+	constexpr CgType* f64()  const noexcept { return m_builtin[13]; }
+
+	constexpr CgType* ptr()  const noexcept { return m_builtin[14]; }
+	constexpr CgType* str()  const noexcept { return m_builtin[15]; }
+	constexpr CgType* unit() const noexcept { return m_builtin[16]; }
+	constexpr CgType* va()   const noexcept { return m_builtin[17]; }
+
+	CgType* make(CgType::IntInfo info) noexcept;
+	CgType* make(CgType::FltInfo info) noexcept;
+	CgType* make(CgType::PtrInfo info) noexcept;
+	CgType* make(CgType::BoolInfo info) noexcept;
+	CgType* make(CgType::StringInfo info) noexcept;
+	CgType* make(CgType::TupleInfo info) noexcept;
+	CgType* make(CgType::ArrayInfo info) noexcept;
+	CgType* make(CgType::SliceInfo info) noexcept;
+	CgType* make(CgType::PaddingInfo info) noexcept;
+	CgType* make(CgType::FnInfo info) noexcept;
+	CgType* make(CgType::VaInfo info) noexcept;
 
 	~CgTypeCache() noexcept {
 		for (const auto& type : m_cache) {
@@ -285,52 +250,17 @@ struct CgTypeCache {
 	constexpr CgTypeCache(CgTypeCache&&) noexcept = default;
 
 private:
-	constexpr CgTypeCache(Cache&& cache,
-	                      CgType *const (&uints)[4],
-	                      CgType *const (&sints)[4],
-	                      CgType *const (&bools)[4],
-	                      CgType *const (&reals)[2],
-	                      CgType *const ptr,
-	                      CgType *const str,
-	                      CgType *const unit,
-	                      CgType *const va) noexcept
+	constexpr CgTypeCache(Cache&& cache, LLVM& llvm, LLVM::ContextRef context)
 		: m_cache{move(cache)}
-		, m_uints{uints[0], uints[1], uints[2], uints[3]}
-		, m_sints{sints[0], sints[1], sints[2], sints[3]}
-		, m_bools{bools[0], bools[1], bools[2], bools[3]}
-		, m_reals{reals[0], reals[1]}
-		, m_ptr{ptr}
-		, m_str{str}
-		, m_unit{unit}
-		, m_va{va}
+		, m_llvm{llvm}
+		, m_context{context}
 	{
 	}
 
-	Maybe<CgType> make(CgType::SliceInfo info) noexcept {
-		Array<CgType*> types{m_cache.allocator()};
-		if (!types.resize(2)) {
-			return None{};
-		}
-		types[0] = info.base;
-		types[1] = m_uints[3]; // U64
-		return CgType {
-			CgType::Kind::SLICE,
-			sum(types[0]->size(), types[1]->size()),
-			max(types[0]->align(), types[1]->align()),
-			0,
-			move(types)
-		};
-	}
-
 	Cache m_cache;
-	CgType *const m_uints[4]; // Uint{8,16,32,64}
-	CgType *const m_sints[4]; // Sint{8,16,32,64}
-	CgType *const m_bools[4]; // Bool{8,16,32,64}
-	CgType *const m_reals[2]; // Float{32,64}
-	CgType *const m_ptr;      // *void
-	CgType *const m_str;      // String
-	CgType *const m_unit;     // ()
-	CgType *const m_va;       // ...
+	LLVM& m_llvm;
+	LLVM::ContextRef m_context;
+	CgType* m_builtin[18];
 };
 
 } // namespace Biron

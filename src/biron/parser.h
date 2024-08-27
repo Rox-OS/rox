@@ -60,14 +60,13 @@ private:
 };
 
 struct Parser {
-	constexpr Parser(Lexer& lexer, Cg& cg) noexcept
+	constexpr Parser(Lexer& lexer, Allocator& allocator) noexcept
 		: m_lexer{lexer}
 		, m_last_range{0, 0}
 		, m_scope{nullptr}
-		, m_caches{cg.allocator}
-		, m_nodes{cg.allocator}
-		, m_allocator{cg.allocator}
-		, m_cg{cg}
+		, m_caches{allocator}
+		, m_nodes{allocator}
+		, m_allocator{allocator}
 	{
 	}
 
@@ -184,7 +183,6 @@ private:
 	Array<Cache> m_caches;
 	Array<AstNode*> m_nodes;
 	Allocator& m_allocator;
-	Cg& m_cg;
 };
 
 } // namespace Biron

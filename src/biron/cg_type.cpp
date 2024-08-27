@@ -8,484 +8,40 @@
 
 namespace Biron {
 
-Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, Ulen capacity) {
+Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::ContextRef context, Ulen capacity) {
 	Cache cache{allocator, sizeof(CgType), capacity};
-	CgType *const uints[4] = {
-		alloc(cache, CgType::IntInfo { 1, 1, false }),
-		alloc(cache, CgType::IntInfo { 2, 2, false }),
-		alloc(cache, CgType::IntInfo { 4, 4, false }),
-		alloc(cache, CgType::IntInfo { 8, 8, false }),
-	};
-	CgType *const sints[4] = {
-		alloc(cache, CgType::IntInfo { 1, 1, true }),
-		alloc(cache, CgType::IntInfo { 2, 2, true }),
-		alloc(cache, CgType::IntInfo { 4, 4, true }),
-		alloc(cache, CgType::IntInfo { 8, 8, true }),
-	};
-	CgType *const bools[4] = {
-		alloc(cache, CgType::BoolInfo { 1, 1 }),
-		alloc(cache, CgType::BoolInfo { 2, 2 }),
-		alloc(cache, CgType::BoolInfo { 4, 4 }),
-		alloc(cache, CgType::BoolInfo { 8, 8 }),
-	};
-	CgType *const reals[2] = {
-		alloc(cache, CgType::FltInfo { 4, 4 }),
-		alloc(cache, CgType::FltInfo { 8, 8 })
-	};
-	for (Ulen i = 0; i < 4; i++) {
-		if (!uints[i] || !sints[i] || !bools[i]) {
+	// We will construct a "bootstrapping" CgTypeCache which will be used to
+	// construct some builtin types which are always expected to exist.
+	CgTypeCache bootstrap{move(cache), llvm, context};
+	CgType* (&builtin)[countof(bootstrap.m_builtin)] = bootstrap.m_builtin;
+	builtin[0]  = bootstrap.make(CgType::IntInfo    { 1, 1, false });
+	builtin[1]  = bootstrap.make(CgType::IntInfo    { 2, 2, false });
+	builtin[2]  = bootstrap.make(CgType::IntInfo    { 4, 4, false });
+	builtin[3]  = bootstrap.make(CgType::IntInfo    { 8, 8, false });
+	builtin[4]  = bootstrap.make(CgType::IntInfo    { 1, 1, true  });
+	builtin[5]  = bootstrap.make(CgType::IntInfo    { 2, 2, true  });
+	builtin[6]  = bootstrap.make(CgType::IntInfo    { 4, 4, true  });
+	builtin[7]  = bootstrap.make(CgType::IntInfo    { 8, 8, true  });
+	builtin[8]  = bootstrap.make(CgType::BoolInfo   { 1, 1 });
+	builtin[9]  = bootstrap.make(CgType::BoolInfo   { 2, 2 });
+	builtin[10] = bootstrap.make(CgType::BoolInfo   { 4, 4 });
+	builtin[11] = bootstrap.make(CgType::BoolInfo   { 8, 8 });
+	builtin[12] = bootstrap.make(CgType::FltInfo    { 4, 4 }),
+	builtin[13] = bootstrap.make(CgType::FltInfo    { 8, 8 }),
+	builtin[14] = bootstrap.make(CgType::PtrInfo    { nullptr, 8, 8 });
+	builtin[15] = bootstrap.make(CgType::StringInfo { });
+	builtin[16] = bootstrap.make(CgType::TupleInfo  { { allocator } });
+	builtin[17] = bootstrap.make(CgType::VaInfo     { });
+	for (Ulen i = 0; i < countof(builtin); i++) {
+		if (!builtin[i]) {
 			return None{};
 		}
 	}
-	for (Ulen i = 0; i < 2; i++) {
-		if (!reals[i]) {
-			return None{};
-		}
-	}
-	CgType *const ptr = alloc(cache, CgType::PtrInfo { nullptr, 8, 8 });
-	CgType *const str = alloc(cache, CgType::StringInfo { ptr, uints[3] });
-	if (!ptr || !str) {
-		return None{};
-	}
-	// The empty tuple is the Unit type (i.e "void")
-	CgType *const unit = alloc(cache, CgType::TupleInfo { {allocator} });
-	if (!unit) {
-		return None{};
-	}
-	CgType *const va = alloc(cache, CgType::VaInfo { });
-	if (!va) {
-		return None{};
-	}
-	return CgTypeCache {
-		move(cache),
-		uints,
-		sints,
-		bools,
-		reals,
-		ptr,
-		str,
-		unit,
-		va,
-	};
-}
-
-Maybe<CgType> CgType::make(Cache&, IntInfo info) noexcept {
-	static constexpr const Kind U[] = { Kind::U8, Kind::U16, Kind::U32, Kind::U64 };
-	static constexpr const Kind S[] = { Kind::S8, Kind::S16, Kind::S32, Kind::S64 };
-
-	// Work out the index from the integer log2 size.
-	Ulen i = 0;
-	for (Ulen j = info.size; j >>= 1; ++i);
-
-	if (i >= countof(info.sign ? S : U)) {
-		// Unsupported integer kind.
-		return None{};
-	}
-
-	return CgType {
-		info.sign ? S[i] : U[i],
-		info.size,
-		info.align,
-		0,
-		None{}
-	};
-}
-
-
-Maybe<CgType> CgType::make(Cache&, FltInfo info) noexcept {
-	Kind kind;
-	if (info.size == 4) {
-		kind = Kind::F32;
-	} else if (info.size == 8) {
-		kind = Kind::F64;
-	} else {
-		return None{};
-	}
-	return CgType {
-		kind,
-		info.size,
-		info.align,
-		0,
-		None{}
-	};
-}
-
-Maybe<CgType> CgType::make(Cache& cache, PtrInfo info) noexcept {
-	Maybe<Array<CgType*>> types;
-	if (info.base) {
-		if (!types.emplace(cache.allocator()).push_back(info.base)) {
-			return None{};
-		}
-	}
-	return CgType {
-		Kind::POINTER,
-		info.size,
-		info.align,
-		0,
-		move(types)
-	};
-}
-
-Maybe<CgType> CgType::make(Cache&, BoolInfo info) noexcept {
-	static constexpr const Kind K[] = { Kind::B8, Kind::B16, Kind::B32, Kind::B64 };
-	// Work out the index from the integer log2 size.
-	Ulen i = 0;
-	for (Ulen j = info.size; j >>= 1; ++i);
-
-	if (i >= countof(K)) {
-		// Unsupported boolean kind.
-		return None{};
-	}
-
-	return CgType {
-		K[i],
-		info.size,
-		info.align,
-		0,
-		None{}
-	};
-}
-
-Maybe<CgType> CgType::make(Cache& cache, StringInfo info) noexcept {
-	Array<CgType*> types{cache.allocator()};
-	if (!types.push_back(info.ptr) || !types.push_back(info.len)) {
-		return None{};
-	}
-	const auto size = info.ptr->size() + info.len->size();
-	const auto align = max(info.ptr->align(), info.len->align());
-	return CgType { Kind::STRING, size, align, 0, move(types) };
-}
-
-Maybe<CgType> CgType::make(Cache&, UnionInfo info) noexcept {
-	Ulen size = 0;
-	Ulen align = 0;
-	// The size and alignment of a union type is the max size and alignment of
-	// all nested types. We implement UNION as a simple [N x i8] which is later
-	// bitcast to the appropriate types.
-	for (Ulen l = info.types.length(), i = 0; i < l; i++) {
-		const auto type = info.types[i];
-		size = max(size, type->size());
-		align = max(align, type->align());
-	}
-	return CgType {
-		Kind::UNION,
-		size,
-		align,
-		0,
-		move(info.types)
-	};
-}
-
-Maybe<CgType> CgType::make(Cache& cache, TupleInfo info) noexcept {
-	// The size of a tuple is the sum of all types as well as padding needed
-	// between the fields for alignment. Likewise, the alignment of a tuple is the
-	// largest field alignment.
-	//
-	// We do not rely on LLVM here to introduce padding since we want padding
-	// fields to be considered as accessible and addressible for the purposes
-	// of deterministic hashing, memory comparisons, memory copying, and memory
-	// zeroing. To make this possible we introduce our own custom padding type
-	// between fields manually.
-	//
-	// The padding type is a special "scalar" type in the codegen which has an
-	// alignment of one and the exact number of bytes needed to align the next
-	// field. It's not an array type, it's a packed, nested structure type. The
-	// reason we do it this way instead of using an array is because we can make
-	// a module scoped %.PadN struct type declarations so the IR is easier to
-	// read and because we save time within LLVM's ArrayType::get which is what
-	// the LLVMArrayType2 function wraps. That function does a DenseMap lookup
-	// each time an array type is constructed. This lookup is not done with a
-	// struct type though and saves a lot of time inside LLVM.
-	Array<CgType*> padded{cache.allocator()};
-	Ulen offset = 0;
-	Ulen alignment = 0;
-	for (const auto& type : info.types) {
-		if (!type->is_va()) {
-			const auto align_mask = type->align() - 1;
-			const auto aligned_offset = (offset + align_mask) & ~align_mask;
-			if (auto padding = aligned_offset - offset) {
-				auto pad = CgTypeCache::alloc(cache, PaddingInfo { padding });
-				if (!pad || !padded.push_back(pad)) {
-					return None{};
-				}
-			}
-			offset = aligned_offset + type->size();
-			alignment = max(alignment, type->align());
-		}
-		if (!padded.push_back(type)) {
-			return None{};
-		}
-	}
-	// We may need trailing padding at the end of the structure too.
-	const auto align_mask = alignment - 1;
-	const auto aligned_offset = (offset + align_mask) & ~align_mask;
-	if (auto padding = aligned_offset - offset) {
-		auto pad = CgTypeCache::alloc(cache, PaddingInfo { padding });
-		if (!pad || !padded.push_back(pad)) {
-			return None{};
-		}
-	}
-	return CgType {
-		Kind::TUPLE,
-		offset,
-		alignment,
-		0,
-		move(padded)
-	};
-}
-
-Maybe<CgType> CgType::make(Cache& cache, ArrayInfo info) noexcept {
-	if (info.extent == 0) {
-		return None{};
-	}
-	Array<CgType*> types{cache.allocator()};
-	if (!types.push_back(info.base)) {
-		return None{};
-	}
-	return CgType {
-		Kind::ARRAY,
-		info.base->size() * info.extent,
-		info.base->align(),
-		info.extent,
-		move(types)
-	};
-}
-
-Maybe<CgType> CgType::make(Cache& cache, SliceInfo info) noexcept {
-	auto ptr = CgTypeCache::alloc(cache, PtrInfo { info.base, 8, 8 });
-	auto len = CgTypeCache::alloc(cache, IntInfo { 8, 8, false });
-	if (!ptr || !len) {
-		return None{};
-	}
-	Array<CgType*> types{cache.allocator()};
-	if (!types.push_back(ptr) || !types.push_back(len)) {
-		return None{};
-	}
-	return CgType {
-		Kind::SLICE,
-		16,
-		8,
-		0,
-		move(types)
-	};
-}
-
-Maybe<CgType> CgType::make(Cache& cache, PaddingInfo info) noexcept {
-	// Ensure we have a i8
-	auto u8 = CgTypeCache::alloc(cache, IntInfo { 1, 1, false });
-	if (!u8) {
-		return None{};
-	}
-	// Using i8 make a [N x i8]
-	auto array = CgTypeCache::alloc(cache, ArrayInfo { u8, info.padding });
-	if (!array) {
-		return None{};
-	}
-	Array<CgType*> types{cache.allocator()};
-	if (!types.push_back(array)) {
-		return None{};
-	}
-	return CgType {
-		Kind::PADDING,
-		info.padding,
-		1,
-		0,
-		move(types)
-	};
-}
-
-Maybe<CgType> CgType::make(Cache& cache, FnInfo info) noexcept {
-	Array<CgType*> types{cache.allocator()};
-	if (!types.push_back(info.args) || !types.push_back(info.rets)) {
-		return None{};
-	}
-	return CgType {
-		Kind::FN,
-		0,
-		0,
-		0,
-		move(types)
-	};
-}
-
-Maybe<CgType> CgType::make(Cache&, VaInfo) noexcept {
-	return CgType { Kind::VA, 0, 0, 0, None{} };
+	return move(bootstrap);
 }
 
 CgType* CgType::addrof(Cg& cg) noexcept {
-	return cg.types.alloc(CgType::PtrInfo { this, 8, 8 });
-}
-
-LLVM::TypeRef CgType::ref(Cg& cg) noexcept {
-	if (m_ref) {
-		// We already have generated the LLVM::TypeRef
-		return m_ref;
-	}
-
-	auto& llvm = cg.llvm;
-	auto& context = cg.context;
-	switch (m_kind) {
-	case Kind::U8:
-	case Kind::S8:
-		m_ref = llvm.Int8TypeInContext(context);
-		break;
-	case Kind::U16:
-	case Kind::S16:
-		m_ref = llvm.Int16TypeInContext(context);
-		break;
-	case Kind::U32:
-	case Kind::S32:
-		m_ref = llvm.Int32TypeInContext(context);
-		break;
-	case Kind::U64:
-	case Kind::S64:
-		m_ref = llvm.Int64TypeInContext(context);
-		break;
-	case Kind::B8:
-	case Kind::B16:
-	case Kind::B32:
-	case Kind::B64:
-		m_ref = llvm.Int1TypeInContext(context);
-		break;
-	case Kind::F32:
-		m_ref = llvm.FloatTypeInContext(context);
-		break;
-	case Kind::F64:
-		m_ref = llvm.DoubleTypeInContext(context);
-		break;
-	case Kind::POINTER:
-		m_ref = llvm.PointerTypeInContext(context, 0);
-		break;
-	case Kind::SLICE:
-		if (auto find = llvm.GetTypeByName2(context, ".Slice")) {
-			m_ref = find;
-		} else if (auto type = llvm.StructCreateNamed(context, ".Slice")) {
-			LLVM::TypeRef types[2] = {
-				cg.types.ptr()->ref(cg),
-				cg.types.u64()->ref(cg),
-			};
-			llvm.StructSetBody(type, types, countof(types), false);
-			m_ref = type;
-		}
-		break;
-	case Kind::STRING:
-		if (auto find = llvm.GetTypeByName2(context, ".String")) {
-			m_ref = find;
-		} else if (auto type = llvm.StructCreateNamed(context, ".String")) {
-			LLVM::TypeRef types[2] = {
-				cg.types.ptr()->ref(cg),
-				cg.types.u64()->ref(cg),
-			};
-			llvm.StructSetBody(type, types, countof(types), false);
-			m_ref = type;
-		}
-		break;
-	case Kind::TUPLE:
-		{
-			// An empty tuple is the void type.
-			if (m_types->length() == 0) {
-				m_ref = llvm.VoidTypeInContext(context);
-				break;
-			}
-			Array<LLVM::TypeRef> types{cg.allocator};
-			for (const auto type : *m_types) {
-				if (!types.push_back(type->ref(cg))) {
-					return nullptr;
-				}
-			}
-			m_ref = llvm.StructTypeInContext(cg.context,
-			                                 types.data(),
-			                                 types.length(),
-			                                 false);
-		}
-		break;
-	case Kind::ARRAY:
-		m_ref = llvm.ArrayType2(at(0)->ref(cg), m_extent);
-		break;
-	case Kind::PADDING:
-		{
-			// Special "scalar" type that has the exact size of the padding needed
-			// before the next aligned field of a structure or tuple. Within LLVM it
-			// is implemented as a { [N x i8] } and has the name .Pad%d where %d is
-			// the # of bytes of padding.
-			StringBuilder name{cg.allocator};
-			name.append(".Pad");
-			name.append(m_size);
-			name.append('\0');
-
-			if (!name.valid()) {
-				return nullptr;
-			}
-
-			// See if we can find a padding type already named this.
-			auto type = llvm.GetTypeByName2(cg.context, name.data());
-			if (type) {
-				m_ref = type;
-			} else {
-				// We couldn't which means this is the first time generating it.
-				auto type = llvm.StructCreateNamed(cg.context, name.data());
-				if (!type) {
-					return nullptr;
-				}
-
-				// Populate it with the [N x i8] padding array contained in at(0)
-				auto array = at(0)->ref(cg);
-		
-				// The structure is "packed" even though the only thing contained within
-				// it is a byte array which has alignment one. We mark it packed here
-				// because the only operation that is performed on the data from the IR
-				// size is a zeroinitializer and it's a good canonical form.
-				llvm.StructSetBody(type, &array, 1, true);
-
-				m_ref = type;
-			}
-		}
-		break;
-	case Kind::UNION:
-		m_ref = llvm.ArrayType2(cg.types.u8()->ref(cg), m_size);
-		break;
-	case Kind::FN:
-		{
-			// When making a function type the nested type array should contain two
-			// tuple types: (args) -> (rets)
-			//
-			// We do not generate a tuple for the args though, we prefer to expand the
-			// nested types of the tuple directly into the function. This means the
-			// padding we insert inbetween tuple fields as-if we want to use them as
-			// structures needs to be omitted for ABI reasons. When generating the
-			// rets we only generate a tuple if there is more than one return type,
-			// otherwise we detuple it.
-			Array<LLVM::TypeRef> types{cg.allocator};
-			const auto& args = at(0);
-			Bool has_va = false;
-			for (Ulen l = args->length(), i = 0; i < l; i++) {
-				auto arg = args->at(i);
-				if (arg->is_padding()) {
-					continue;
-				}
-				if (arg->is_va()) {
-					has_va = true;
-					break;
-				}
-				if (!types.push_back(arg->ref(cg))) {
-					return nullptr;
-				}
-			}
-			const auto& rets = at(1);
-			if (rets->length() == 1) {
-				// We do not generate a tuple for the return when there is only a single
-				// return type in the tuple.
-				m_ref = llvm.FunctionType(rets->at(0)->ref(cg), types.data(), types.length(), has_va);
-			} else {
-				m_ref = llvm.FunctionType(rets->ref(cg), types.data(), types.length(), has_va);
-			}
-		}
-		break;
-	case Kind::VA:
-		BIRON_ASSERT(false && "Cannot generate an LLVM type for '...'");
-		break;
-	}
-	return m_ref;
+	return cg.types.make(CgType::PtrInfo { this, 8, 8 });
 }
 
 CgType* AstTupleType::codegen(Cg& cg) const noexcept {
@@ -499,7 +55,7 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 			return nullptr;
 		}
 	}
-	return cg.types.alloc(CgType::TupleInfo { move(types) });
+	return cg.types.make(CgType::TupleInfo { move(types) });
 }
 
 CgType* AstIdentType::codegen(Cg& cg) const noexcept {
@@ -532,7 +88,7 @@ CgType* AstPtrType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	return cg.types.alloc(CgType::PtrInfo { base, 8, 8 });
+	return cg.types.make(CgType::PtrInfo { base, 8, 8 });
 }
 
 CgType* AstArrayType::codegen(Cg& cg) const noexcept {
@@ -540,7 +96,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	auto value = m_extent->eval(cg);
+	auto value = m_extent->eval();
 	if (!value || !value->is_integral()) {
 		// Not a compile time integer constant expression.
 		return nullptr;
@@ -550,7 +106,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 		// Cannot cast integer constant expression to Uint64 extent
 		return nullptr;
 	}
-	return cg.types.alloc(CgType::ArrayInfo { base, *extent });
+	return cg.types.make(CgType::ArrayInfo { base, *extent });
 }
 
 CgType* AstSliceType::codegen(Cg& cg) const noexcept {
@@ -558,7 +114,7 @@ CgType* AstSliceType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	return cg.types.alloc(CgType::SliceInfo { base });
+	return cg.types.make(CgType::SliceInfo { base });
 }
 
 CgType* AstFnType::codegen(Cg& cg) const noexcept {
@@ -570,7 +126,377 @@ CgType* AstFnType::codegen(Cg& cg) const noexcept {
 	if (!rets) {
 		return nullptr;
 	}
-	return cg.types.alloc(CgType::FnInfo { args, rets });
+	return cg.types.make(CgType::FnInfo { args, rets });
+}
+
+CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
+	LLVM::TypeRef ref = nullptr;
+	CgType::Kind kind;
+	switch (info.size) {
+	case 8:
+		ref = m_llvm.Int64TypeInContext(m_context);
+		kind = info.sign ? CgType::Kind::S64 : CgType::Kind::U64;
+		break;
+	case 4:
+		ref = m_llvm.Int32TypeInContext(m_context);
+		kind = info.sign ? CgType::Kind::S32 : CgType::Kind::U32;
+		break;
+	case 2:
+		ref = m_llvm.Int16TypeInContext(m_context);
+		kind = info.sign ? CgType::Kind::S16 : CgType::Kind::U16;
+		break;
+	case 1:
+		ref = m_llvm.Int8TypeInContext(m_context);
+		kind = info.sign ? CgType::Kind::S8 : CgType::Kind::U8;
+	}
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		kind,
+		info.size,
+		info.align,
+		0,
+		None{},
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::FltInfo info) noexcept {
+	LLVM::TypeRef ref = nullptr;
+	CgType::Kind kind;
+	switch (info.size) {
+	case 8:
+		ref = m_llvm.DoubleTypeInContext(m_context);
+		kind = CgType::Kind::F64;
+		break;
+	case 4:
+		ref = m_llvm.FloatTypeInContext(m_context);
+		kind = CgType::Kind::F32;
+		break;
+	}
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		kind,
+		info.size,
+		info.align,
+		0,
+		None{},
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::PtrInfo info) noexcept {
+	Maybe<Array<CgType*>> types{m_cache.allocator()};
+	if (info.base && !types.emplace(m_cache.allocator()).push_back(info.base)) {
+		return nullptr;
+	}
+	auto ref = m_llvm.PointerTypeInContext(m_context, 0);
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::POINTER,
+		info.size,
+		info.align,
+		0,
+		move(types),
+		ref,
+	};
+}
+
+CgType* CgTypeCache::make(CgType::BoolInfo info) noexcept {
+	auto ref = m_llvm.Int1TypeInContext(m_context);
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	// TODO(select: B8->)
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::B32,
+		info.size,
+		info.align,
+		0,
+		None{},
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
+	LLVM::TypeRef ref = nullptr;
+	if (auto find = m_llvm.GetTypeByName2(m_context, ".String")) {
+		ref = find;
+	} else if (auto type = m_llvm.StructCreateNamed(m_context, ".String")) {
+		LLVM::TypeRef types[2] = {
+			ptr()->ref(),
+			u64()->ref(),
+		};
+		m_llvm.StructSetBody(type, types, countof(types), false);
+		ref = type;
+	} else {
+		return nullptr;
+	}
+	Array<CgType*> types{m_cache.allocator()};
+	if (!types.resize(2)) {
+		return nullptr;
+	}
+	types[0] = ptr();
+	types[1] = u64();
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::STRING,
+		sum(ptr()->size(), u64()->size()),
+		max(ptr()->align(), u64()->align()),
+		0,
+		move(types),
+		ref,
+	};
+}
+
+CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
+	Array<CgType*> padded{m_cache.allocator()};
+	if (!padded.reserve(info.types.length())) {
+		return nullptr;
+	}
+	Ulen offset = 0;
+	Ulen alignment = 0;
+	for (auto type : info.types) {
+		if (!type->is_va()) {
+			const auto align_mask = type->align() - 1;
+			const auto aligned_offset = (offset + align_mask) & ~align_mask;
+			if (auto padding = aligned_offset - offset) {
+				auto pad = make(CgType::PaddingInfo { padding });
+				if (!pad || !padded.push_back(pad)) {
+					return nullptr;
+				}
+			}
+			offset = sum(aligned_offset, type->size());
+			alignment = max(alignment, type->align());
+		}
+		if (!padded.push_back(type)) {
+			return nullptr;
+		}
+	}
+	const auto align_mask = alignment - 1;
+	const auto aligned_offset = (offset + align_mask) & ~align_mask;
+	if (auto padding = aligned_offset - offset) {
+		auto pad = make(CgType::PaddingInfo { padding });
+		if (!pad || !padded.push_back(pad)) {
+			return nullptr;
+		}
+	}
+
+	LLVM::TypeRef ref = nullptr;
+	if (padded.empty()) {
+		ref = m_llvm.VoidTypeInContext(m_context);
+	} else {
+		Array<LLVM::TypeRef> types{m_cache.allocator()};
+		if (!types.reserve(padded.length())) {
+			return nullptr;
+		}
+		for (auto type : padded) {
+			if (!types.push_back(type->ref())) {
+				return nullptr;
+			}
+		}
+		ref = m_llvm.StructTypeInContext(m_context, types.data(), types.length(), false);
+	}
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::TUPLE,
+		offset,
+		alignment,
+		0,
+		move(padded),
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::ArrayInfo info) noexcept {
+	Array<CgType*> types{m_cache.allocator()};
+	if (!types.push_back(info.base)) {
+		return nullptr;
+	}
+	auto ref = m_llvm.ArrayType2(info.base->ref(), info.extent);
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::ARRAY,
+		info.base->size() * info.extent,
+		info.base->align(),
+		info.extent,
+		move(types),
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::SliceInfo info) noexcept {
+	LLVM::TypeRef ref = nullptr;
+	if (auto find = m_llvm.GetTypeByName2(m_context, ".Slice")) {
+		ref = find;
+	} else if (auto type = m_llvm.StructCreateNamed(m_context, ".Slice")) {
+		LLVM::TypeRef types[2] = {
+			ptr()->ref(),
+			u64()->ref(),
+		};
+		m_llvm.StructSetBody(type, types, countof(types), false);
+		ref = type;
+	} else {
+		return nullptr;
+	}
+	Array<CgType*> types{m_cache.allocator()};
+	if (!types.resize(2)) {
+		return nullptr;
+	}
+	types[0] = info.base;
+	types[1] = u64();
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::SLICE,
+		sum(ptr()->size(), u64()->size()),
+		max(ptr()->align(), u64()->align()),
+		0,
+		move(types),
+		ref,
+	};
+}
+
+CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
+	StringBuilder name{m_cache.allocator()};
+	name.append(".Pad");
+	name.append(info.padding);
+	name.append('\0');
+	if (!name.valid()) {
+		return nullptr;
+	}
+	auto array = make(CgType::ArrayInfo { u8(), info.padding });
+	if (!array) {
+		return nullptr;
+	}
+	LLVM::TypeRef ref = nullptr;
+	if (auto find = m_llvm.GetTypeByName2(m_context, name.data())) {
+		ref = find;
+	} else if (auto type = m_llvm.StructCreateNamed(m_context, name.data())) {
+		LLVM::TypeRef types[1] = {
+			array->ref()
+		};
+		m_llvm.StructSetBody(type, types, countof(types), true);
+		ref = type;
+	} else {
+		return nullptr;
+	}
+	Array<CgType*> types{m_cache.allocator()};
+	if (!types.push_back(array)) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::PADDING,
+		info.padding,
+		1,
+		0,
+		move(types),
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
+	Array<CgType*> types{m_cache.allocator()};
+	if (!types.resize(2)) {
+		return nullptr;
+	}
+	types[0] = info.args;
+	types[1] = info.rets;
+
+	Array<LLVM::TypeRef> args{m_cache.allocator()};
+	Bool has_va = false;
+	for (Ulen l = info.args->length(), i = 0; i < l; i++) {
+		auto arg = info.args->at(i);
+		if (arg->is_padding()) {
+			continue;
+		}
+		if (arg->is_va()) {
+			has_va = true;
+			break;
+		}
+		if (!args.push_back(arg->ref())) {
+			return nullptr;
+		}
+	}
+
+	auto ref = m_llvm.FunctionType(info.rets->length() == 1
+	                                 ? info.rets->at(0)->ref()
+	                                 : info.rets->ref(),
+	                               args.data(),
+	                               args.length(),
+	                               has_va);
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::FN,
+		0,
+		0,
+		0,
+		move(types),
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::VaInfo) noexcept {
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new(dst, Nat{}) CgType {
+		CgType::Kind::VA,
+		0,
+		0,
+		0,
+		None{},
+		nullptr
+	};
 }
 
 } // namespace Biron

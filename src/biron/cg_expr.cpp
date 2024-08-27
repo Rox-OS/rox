@@ -20,7 +20,7 @@ Maybe<CgAddr> AstExpr::gen_addr(Cg&) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstExpr::eval(Cg&) const noexcept {
+Maybe<AstConst> AstExpr::eval() const noexcept {
 	fprintf(stderr, "Unsupported eval for AstExpr %s\n", name());
 	return None{};
 }
@@ -44,12 +44,12 @@ const char* AstExpr::name() const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<AstConst> AstTupleExpr::eval(Cg& cg) const noexcept {
+Maybe<AstConst> AstTupleExpr::eval() const noexcept {
 	Array<AstConst> values{m_exprs.allocator()};
 	Range range{0, 0};
 	for (const auto& expr : m_exprs) {
 		range.include(expr->range());
-		auto value = expr->eval(cg);
+		auto value = expr->eval();
 		if (!value || !values.push_back(move(*value))) {
 			return None{};
 		}
@@ -88,7 +88,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 			return None{};
 		}
 	}
-	auto type = cg.types.alloc(CgType::TupleInfo { move(types) });
+	auto type = cg.types.make(CgType::TupleInfo { move(types) });
 	if (!type) {
 		return None{};
 	}
@@ -157,7 +157,7 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg) const noexcept {
 
 	auto type = callee->type()->deref();
 	auto value = cg.llvm.BuildCall2(cg.builder,
-	                                type->ref(cg),
+	                                type->ref(),
 	                                callee->ref(),
 	                                values.data(),
 	                                values.length(),
@@ -205,7 +205,7 @@ Maybe<CgValue> AstVarExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstIntExpr::eval(Cg&) const noexcept {
+Maybe<AstConst> AstIntExpr::eval() const noexcept {
 	switch (m_kind) {
 	case Kind::U8:  return AstConst { range(), m_as_u8 };
 	case Kind::U16: return AstConst { range(), m_as_u16 };
@@ -223,14 +223,14 @@ Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
 	CgType* t = nullptr;
 	LLVM::ValueRef v = nullptr;
 	switch (m_kind) {
-	/****/ case Kind::U8:  t = cg.types.u8(),  v = cg.llvm.ConstInt(t->ref(cg), m_as_u8, false);
-	break; case Kind::U16: t = cg.types.u16(), v = cg.llvm.ConstInt(t->ref(cg), m_as_u16, false);
-	break; case Kind::U32: t = cg.types.u32(), v = cg.llvm.ConstInt(t->ref(cg), m_as_u32, false);
-	break; case Kind::U64: t = cg.types.u64(), v = cg.llvm.ConstInt(t->ref(cg), m_as_u64, false);
-	break; case Kind::S8:  t = cg.types.s8(),  v = cg.llvm.ConstInt(t->ref(cg), m_as_s8, true);
-	break; case Kind::S16: t = cg.types.s16(), v = cg.llvm.ConstInt(t->ref(cg), m_as_s16, true);
-	break; case Kind::S32: t = cg.types.s32(), v = cg.llvm.ConstInt(t->ref(cg), m_as_s32, true);
-	break; case Kind::S64: t = cg.types.s64(), v = cg.llvm.ConstInt(t->ref(cg), m_as_s64, true);
+	/****/ case Kind::U8:  t = cg.types.u8(),  v = cg.llvm.ConstInt(t->ref(), m_as_u8, false);
+	break; case Kind::U16: t = cg.types.u16(), v = cg.llvm.ConstInt(t->ref(), m_as_u16, false);
+	break; case Kind::U32: t = cg.types.u32(), v = cg.llvm.ConstInt(t->ref(), m_as_u32, false);
+	break; case Kind::U64: t = cg.types.u64(), v = cg.llvm.ConstInt(t->ref(), m_as_u64, false);
+	break; case Kind::S8:  t = cg.types.s8(),  v = cg.llvm.ConstInt(t->ref(), m_as_s8, true);
+	break; case Kind::S16: t = cg.types.s16(), v = cg.llvm.ConstInt(t->ref(), m_as_s16, true);
+	break; case Kind::S32: t = cg.types.s32(), v = cg.llvm.ConstInt(t->ref(), m_as_s32, true);
+	break; case Kind::S64: t = cg.types.s64(), v = cg.llvm.ConstInt(t->ref(), m_as_s64, true);
 	}
 	if (v) {
 		return CgValue { t, v };
@@ -238,7 +238,7 @@ Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstFltExpr::eval(Cg&) const noexcept {
+Maybe<AstConst> AstFltExpr::eval() const noexcept {
 	switch (m_kind) {
 	case Kind::F32: return AstConst { range(), m_as_f32 };
 	case Kind::F64: return AstConst { range(), m_as_f64 };
@@ -250,8 +250,8 @@ Maybe<CgValue> AstFltExpr::gen_value(Cg& cg) const noexcept {
 	CgType* t = nullptr;
 	LLVM::ValueRef v = nullptr;
 	switch (m_kind) {
-	/****/ case Kind::F32: t = cg.types.f32(), v = cg.llvm.ConstReal(t->ref(cg), m_as_f32);
-	break; case Kind::F64: t = cg.types.f64(), v = cg.llvm.ConstReal(t->ref(cg), m_as_f64);
+	/****/ case Kind::F32: t = cg.types.f32(), v = cg.llvm.ConstReal(t->ref(), m_as_f32);
+	break; case Kind::F64: t = cg.types.f64(), v = cg.llvm.ConstReal(t->ref(), m_as_f64);
 	break;
 	}
 	if (v) {
@@ -260,7 +260,7 @@ Maybe<CgValue> AstFltExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstStrExpr::eval(Cg&) const noexcept {
+Maybe<AstConst> AstStrExpr::eval() const noexcept {
 	return AstConst { range(), m_literal };
 }
 
@@ -288,17 +288,17 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	auto ptr = cg.llvm.BuildGlobalString(cg.builder,
 	                                     builder.data(),
 	                                     "");
-	auto len = cg.llvm.ConstInt(cg.types.u64()->ref(cg), m_literal.length(), false);
+	auto len = cg.llvm.ConstInt(cg.types.u64()->ref(), m_literal.length(), false);
 	if (!ptr || !len) {
 		return None{};
 	}
 	LLVM::ValueRef values[2] = { ptr, len };
 	auto t = cg.types.str();
-	auto v = cg.llvm.ConstNamedStruct(t->ref(cg), values, 2);
+	auto v = cg.llvm.ConstNamedStruct(t->ref(), values, 2);
 	return CgValue { t, v };
 }
 
-Maybe<AstConst> AstBoolExpr::eval(Cg&) const noexcept {
+Maybe<AstConst> AstBoolExpr::eval() const noexcept {
 	return AstConst { range(), Bool32 { m_value } };
 }
 
@@ -307,11 +307,11 @@ Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg) const noexcept {
 	// the IR uses for "boolean" like things. We map our Bool32 to this type.
 	// except our booleans are typed.
 	auto t = cg.types.b32();
-	auto v = cg.llvm.ConstInt(t->ref(cg), m_value ? 1 : 0, false);
+	auto v = cg.llvm.ConstInt(t->ref(), m_value ? 1 : 0, false);
 	return CgValue { t, v };
 }
 
-Maybe<AstConst> AstAggExpr::eval(Cg& cg) const noexcept {
+Maybe<AstConst> AstAggExpr::eval() const noexcept {
 	// We only support AstArrayType for now.
 	// TODO(dweiler): Remove AstTupleExpr and make it an AstAggExpr
 	if (!m_type->is_type<AstArrayType>()) {
@@ -323,7 +323,7 @@ Maybe<AstConst> AstAggExpr::eval(Cg& cg) const noexcept {
 	}
 	auto range = m_type->range();
 	for (auto expr : m_exprs) {
-		auto value = expr->eval(cg);
+		auto value = expr->eval();
 		if (!value) {
 			return None{};
 		}
@@ -332,8 +332,7 @@ Maybe<AstConst> AstAggExpr::eval(Cg& cg) const noexcept {
 			return None{};
 		}
 	}
-	auto type = m_type->codegen(cg);
-	return AstConst { range, type, move(values) };
+	return AstConst { range, m_type, move(values) };
 }
 
 Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
@@ -392,19 +391,19 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<AstConst> AstBinExpr::eval(Cg& cg) const noexcept {
+Maybe<AstConst> AstBinExpr::eval() const noexcept {
 	if (m_op == Op::DOT) {
 		// TODO(dweiler): See if we can work out constant tuple indexing
 		return None{};
 	}
 
-	auto lhs = m_lhs->eval(cg);
+	auto lhs = m_lhs->eval();
 	if (!lhs) {
 		// Not a valid compile time constant expression
 		return None{};
 	}
 
-	auto rhs = m_rhs->eval(cg);
+	auto rhs = m_rhs->eval();
 	if (!rhs) {
 		return None{};
 	}
@@ -492,7 +491,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		if (m_rhs->is_expr<AstCallExpr>()) {
 			fprintf(stderr, "Unimplemented method call\n");
 		} else {
-			auto rhs = m_rhs->eval(cg);
+			auto rhs = m_rhs->eval();
 			if (!rhs) {
 				fprintf(stderr, "Expected constant expression");
 				return None{};
@@ -570,10 +569,10 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		auto cast_op =
 			cg.llvm.GetCastOpcode(lhs->ref(),
 			                      lhs_is_signed,
-			                      rhs->ref(cg),
+			                      rhs->ref(),
 			                      rhs_is_signed);
 
-		auto v = cg.llvm.BuildCast(cg.builder, cast_op, lhs->ref(), rhs->ref(cg), "");
+		auto v = cg.llvm.BuildCast(cg.builder, cast_op, lhs->ref(), rhs->ref(), "");
 
 		return CgValue { rhs, v };
 	}
@@ -701,12 +700,12 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			};
 
 			LLVM::ValueRef values[] = {
-				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 1, false),
-				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 1, false),
-				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 0, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(), 1, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(), 1, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(), 0, false),
 			};
 			
-			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(cg), "");
+			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(), "");
 			cg.llvm.AddIncoming(phi, values, blocks, 3);
 
 			return CgValue { cg.types.b32(), phi };
@@ -780,12 +779,12 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			};
 
 			LLVM::ValueRef values[] = {
-				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 0, false),
-				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 1, false),
-				cg.llvm.ConstInt(cg.types.b32()->ref(cg), 0, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(), 0, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(), 1, false),
+				cg.llvm.ConstInt(cg.types.b32()->ref(), 0, false),
 			};
 			
-			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(cg), "");
+			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(), "");
 			cg.llvm.AddIncoming(phi, values, blocks, 3);
 
 			return CgValue { cg.types.b32(), phi };

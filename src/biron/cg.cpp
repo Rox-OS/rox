@@ -23,11 +23,6 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple) n
 		return None{};
 	}
 
-	auto types = CgTypeCache::make(allocator, 1024);
-	if (!types) {
-		return None{};
-	}
-
 	auto machine = llvm.CreateTargetMachine(target,
 	                                        triple,
 	                                        "generic",
@@ -48,6 +43,11 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple) n
 		if (module)  llvm.DisposeModule(module);
 		if (builder) llvm.DisposeBuilder(builder);
 		if (context) llvm.ContextDispose(context);
+		return None{};
+	}
+
+	auto types = CgTypeCache::make(allocator, llvm, context, 1024);
+	if (!types) {
 		return None{};
 	}
 
@@ -114,7 +114,7 @@ Bool Cg::emit(StringView name) noexcept {
 }
 
 Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
-	if (auto value = llvm.BuildAlloca(builder, type->ref(*this), "")) {
+	if (auto value = llvm.BuildAlloca(builder, type->ref(), "")) {
 		// We may have a higher alignment requirement than what Alloca will pick.
 		llvm.SetAlignment(value, type->align());
 		return CgAddr { type->addrof(*this), value };

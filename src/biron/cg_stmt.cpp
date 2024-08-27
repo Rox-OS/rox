@@ -149,7 +149,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
-	auto eval = m_init->eval(cg);
+	auto eval = m_init->eval();
 	if (!eval) {
 		fprintf(stderr, "Expected constant expression");
 		return false;
@@ -161,7 +161,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	}
 
 	auto dst = cg.llvm.AddGlobal(cg.module,
-	                             src->type()->ref(cg),
+	                             src->type()->ref(),
 	                             m_name.terminated(cg.allocator));
 
 	cg.llvm.SetInitializer(dst, src->ref());

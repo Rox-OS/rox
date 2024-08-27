@@ -1311,7 +1311,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		}
 		if (name == "section") {
 			auto expr = args->at(0);
-			auto value = expr->eval(m_cg);
+			auto value = expr->eval();
 			if (!value || value->kind() != AstConst::Kind::STRING) {
 				ERROR(expr->range(), "Expected constant string expression for section name");
 				return None{};
@@ -1322,7 +1322,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			}
 		} else if (name == "align") {
 			auto expr = args->at(0);
-			auto value = expr->eval(m_cg);
+			auto value = expr->eval();
 			if (!value || !value->is_integral()) {
 				ERROR("Expected constant integer expression for alignment");
 				return None{};
@@ -1342,7 +1342,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			}
 		} else if (name == "used") {
 			auto expr = args->at(0);
-			auto value = expr->eval(m_cg);
+			auto value = expr->eval();
 			if (!value || !value->is_bool()) {
 				ERROR("Expected constant boolean expression for used attribute");
 				return None{};
@@ -1354,7 +1354,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			}
 		} else if (name == "inline") {
 			auto expr = args->at(0);
-			auto value = expr->eval(m_cg);
+			auto value = expr->eval();
 			if (!value || !value->is_bool()) {
 				ERROR("Expected constant boolean expression for inline attribute");
 				return None{};

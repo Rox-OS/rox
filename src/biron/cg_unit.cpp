@@ -20,14 +20,14 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto fn_t = cg.types.alloc(CgType::FnInfo { args_t, rets_t });
+	auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
 	if (!fn_t) {
 		return false;
 	}
 
 	auto fn_v = cg.llvm.AddFunction(cg.module,
 	                                m_name.terminated(cg.allocator),
-	                                fn_t->ref(cg));
+	                                fn_t->ref());
 
 	if (!cg.fns.emplace_back(m_name, CgAddr{fn_t->addrof(cg), fn_v})) {
 		return false;
@@ -127,17 +127,17 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!rets.push_back(cg.types.s32())) {
 			return false;
 		}
-		auto args_t = cg.types.alloc(CgType::TupleInfo { move(args) });
-		auto rets_t = cg.types.alloc(CgType::TupleInfo { move(rets) });
+		auto args_t = cg.types.make(CgType::TupleInfo { move(args) });
+		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets) });
 		if (!args_t || !rets_t) {
 			return false;
 		}
 
-		auto fn_t = cg.types.alloc(CgType::FnInfo { args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
 		if (!fn_t) {
 			return false;
 		}
-		auto fn_v = cg.llvm.AddFunction(cg.module, "printf", fn_t->ref(cg));
+		auto fn_v = cg.llvm.AddFunction(cg.module, "printf", fn_t->ref());
 		if (!cg.fns.emplace_back("printf", CgAddr{fn_t->addrof(cg), fn_v})) {
 			return false;
 		}

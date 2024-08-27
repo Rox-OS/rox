@@ -6,7 +6,7 @@ namespace Biron {
 // CgAddr
 Maybe<CgValue> CgAddr::load(Cg& cg) const noexcept {
 	auto type = m_type->deref();
-	auto load = cg.llvm.BuildLoad2(cg.builder, type->ref(cg), m_ref, "");
+	auto load = cg.llvm.BuildLoad2(cg.builder, type->ref(), m_ref, "");
 	return CgValue { type, load };
 }
 
@@ -44,7 +44,7 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 	// 	- &(*x_ptr)[index] is *Uint32
 	auto type = m_type->deref();
 	LLVM::ValueRef indices[] = {
-		cg.llvm.ConstInt(cg.types.u32()->ref(cg), 0, false),
+		cg.llvm.ConstInt(cg.types.u32()->ref(), 0, false),
 		index.ref(),
 	};
 
@@ -54,7 +54,7 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 
 	auto is_ptr = type->is_pointer();
 	auto gep = cg.llvm.BuildGEP2(cg.builder,
-	                             is_ptr ? type->deref()->ref(cg) : type->ref(cg),
+	                             is_ptr ? type->deref()->ref() : type->ref(),
 	                             is_ptr ? load(cg)->ref() : ref(),
 	                             indices + is_ptr,
 	                             countof(indices) - is_ptr,
@@ -80,13 +80,13 @@ CgAddr::CgAddr(CgType *const type, LLVM::ValueRef ref) noexcept
 Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	auto u32 = cg.types.u32();
 	LLVM::ValueRef indices[] = {
-		cg.llvm.ConstInt(u32->ref(cg), 0, false),
-		cg.llvm.ConstInt(u32->ref(cg), i, false),
+		cg.llvm.ConstInt(u32->ref(), 0, false),
+		cg.llvm.ConstInt(u32->ref(), i, false),
 	};
 
 	auto type = m_type->deref();
 	auto gep = cg.llvm.BuildGEP2(cg.builder,
-	                             type->ref(cg),
+	                             type->ref(),
 	                             m_ref,
 	                             indices,
 	                             countof(indices),
@@ -109,7 +109,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 	case CgType::Kind::U32: case CgType::Kind::S32:
 	case CgType::Kind::U64: case CgType::Kind::S64:
 		{
-			auto value = llvm.ConstInt(type->ref(cg), 0, false);
+			auto value = llvm.ConstInt(type->ref(), 0, false);
 			auto name = StringView(".ZeroInt");
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
@@ -119,7 +119,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 	case CgType::Kind::B32:
 	case CgType::Kind::B64:
 		{
-			auto value = llvm.ConstInt(type->ref(cg), 0, false);
+			auto value = llvm.ConstInt(type->ref(), 0, false);
 			auto name = StringView(".ZeroBool");
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
@@ -127,14 +127,14 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 	case CgType::Kind::F32:
 	case CgType::Kind::F64:
 		{
-			auto value = llvm.ConstReal(type->ref(cg), 0.0);
+			auto value = llvm.ConstReal(type->ref(), 0.0);
 			auto name = StringView(".ZeroReal");
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
 		}
 	case CgType::Kind::POINTER:
 		{
-			auto value = llvm.ConstPointerNull(type->ref(cg));
+			auto value = llvm.ConstPointerNull(type->ref());
 			auto name = StringView(".ZeroPtr");
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
@@ -176,7 +176,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 					return None{};
 				}
 			}
-			auto value = llvm.ConstArray2(type->deref()->ref(cg),
+			auto value = llvm.ConstArray2(type->deref()->ref(),
 			                              zeros.data(),
 			                              zeros.length());
 			auto name = StringView(".ZeroArray");
@@ -192,7 +192,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 			};
 			// Then construct a constant structure with that zero initialized array
 			// to produce the zero initialized padding.
-			auto value = llvm.ConstNamedStruct(type->ref(cg), values, countof(values));
+			auto value = llvm.ConstNamedStruct(type->ref(), values, countof(values));
 			auto name = StringView(".ZeroPad");
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
@@ -223,13 +223,13 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 		// where N is the size of the largest field in the union. The alignment of
 		// the union is set to the alignment of the largest field as well. This
 		// makes it quite trivial to implement a constant zero union.
-		if (auto array = cg.types.alloc(CgType::ArrayInfo { cg.types.u8(), type->size() })) {
+		if (auto array = cg.types.make(CgType::ArrayInfo { cg.types.u8(), type->size() })) {
 			return zero(array, cg);
 		}
 		break;
 	case CgType::Kind::FN:
 		{
-			auto value = llvm.ConstPointerNull(type->ref(cg));
+			auto value = llvm.ConstPointerNull(type->ref());
 			auto name = StringView(".ZeroFn");
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
