@@ -54,8 +54,10 @@ Bool Parser::has_symbol(StringView name) const noexcept {
 }
 
 Parser::~Parser() noexcept {
-	for (auto node : m_nodes) {
-		node->~AstNode();
+	for (auto& cache : m_caches) {
+		for (auto node : cache) {
+			static_cast<AstNode*>(node)->~AstNode();
+		}
 	}
 }
 

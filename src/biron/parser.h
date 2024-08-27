@@ -66,7 +66,6 @@ struct Parser {
 		, m_scope{nullptr}
 		, m_in_defer{false}
 		, m_caches{allocator}
-		, m_nodes{allocator}
 		, m_allocator{allocator}
 	{
 	}
@@ -163,7 +162,6 @@ private:
 			}
 			if (auto addr = cache.allocate()) {
 				auto node = new (addr, Nat{}) T{forward<Ts>(args)...};
-				(void)m_nodes.push_back(node);
 				return node;
 			} else {
 				return nullptr;
@@ -183,7 +181,6 @@ private:
 	Scope* m_scope;
 	Bool m_in_defer;
 	Array<Cache> m_caches;
-	Array<AstNode*> m_nodes;
 	Allocator& m_allocator;
 };
 
