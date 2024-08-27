@@ -175,9 +175,11 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 		return false;
 	}
 
+	ScratchAllocator scratch{cg.allocator};
+
 	auto dst = cg.llvm.AddGlobal(cg.module,
 	                             src->type()->ref(),
-	                             m_name.terminated(cg.allocator));
+	                             m_name.terminated(scratch));
 
 	cg.llvm.SetInitializer(dst, src->ref());
 
@@ -189,7 +191,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 				cg.llvm.SetAlignment(dst, attr->value());
 			} else if (it->is_attr<AstSectionAttr>()) {
 				auto attr = static_cast<const AstSectionAttr*>(it);
-				cg.llvm.SetSection(dst, attr->value().terminated(cg.allocator));
+				cg.llvm.SetSection(dst, attr->value().terminated(scratch));
 			}
 		}
 	}

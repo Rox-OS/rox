@@ -9,6 +9,7 @@
 namespace Biron {
 
 Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
+	ScratchAllocator scratch{cg.allocator};
 	switch (kind()) {
 	case Kind::NONE:
 		return None{};
@@ -71,7 +72,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 			}
 			// Walk the type declaration to know where to make padding zeroinitializer
 			// and where to put our actual constant values.
-			Array<LLVM::ValueRef> consts{cg.allocator};
+			Array<LLVM::ValueRef> consts{scratch};
 			Ulen j = 0;
 			for (Ulen l = type->length(), i = 0; i < l; i++) {
 				auto field_type = type->at(i);
@@ -119,7 +120,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 					return None{};
 				}
 			}
-			Array<LLVM::ValueRef> consts{cg.allocator};
+			Array<LLVM::ValueRef> consts{scratch};
 			if (!consts.reserve(values.length())) {
 				return None{};
 			}

@@ -1,2 +1,10 @@
 fn main() -> Uint32 {
+  let x = 10;
+  let y = x + 1;
+  let z = &y;
+  for let i = 0; i < *z; i = i + 1 {
+    printf("%d\n", i);
+  }
+  let q = (x, y, &z);
+  printf("%d\n", **q.2);
 }

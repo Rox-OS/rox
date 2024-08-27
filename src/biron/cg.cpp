@@ -17,7 +17,10 @@ static LLVM::TargetRef target_from_triple(LLVM& llvm, const char* triple) noexce
 }
 
 Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, Diagnostic& diagnostic) noexcept {
-	auto triple = target_triple.terminated(allocator);
+	// The target triple cannot be that long so use an inline allocator here for it.
+	InlineAllocator<1024> scratch;
+	auto triple = target_triple.terminated(scratch);
+
 	auto target = target_from_triple(llvm, triple);
 	if (!target) {
 		return None{};
@@ -98,13 +101,19 @@ Bool Cg::emit(StringView name) noexcept {
 	if (!verify()) {
 		return false;
 	}
+	InlineAllocator<FILENAME_MAX + 1> scratch;
+	auto terminated = name.terminated(scratch);
+	if (!terminated) {
+		fprintf(stderr, "Out of memory\n");
+		return false;
+	}
 	if (llvm.TargetMachineEmitToFile(machine,
 	                                 module,
-	                                 name.terminated(allocator),
+	                                 terminated,
 	                                 LLVM::CodeGenFileType::Object,
 	                                 &error) != 0)
 	{
-		fprintf(stderr, "Could not compile module: %s\n", error);
+		fprintf(stderr, "Could not compile module %s: %s\n", terminated, error);
 		llvm.DisposeMessage(error);
 		return false;
 	}

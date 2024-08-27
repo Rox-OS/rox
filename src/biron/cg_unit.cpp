@@ -32,8 +32,9 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
+	ScratchAllocator scratch{cg.allocator};
 	auto fn_v = cg.llvm.AddFunction(cg.module,
-	                                m_name.terminated(cg.allocator),
+	                                m_name.terminated(scratch),
 	                                fn_t->ref());
 
 	if (!cg.fns.emplace_back(m_name, CgAddr{fn_t->addrof(cg), fn_v})) {

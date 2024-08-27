@@ -132,7 +132,8 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg) const noexcept {
 		return None{};
 	}
 
-	Array<LLVM::ValueRef> values{cg.allocator};
+	ScratchAllocator scratch{cg.allocator};
+	Array<LLVM::ValueRef> values{scratch};
 	for (Ulen l = m_args->length(), i = 0; i < l; i++) {
 		auto value = m_args->at(i)->gen_value(cg);
 		if (!value) {

@@ -426,7 +426,8 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 	if (padded.empty()) {
 		ref = m_llvm.VoidTypeInContext(m_context);
 	} else {
-		Array<LLVM::TypeRef> types{m_cache.allocator()};
+		ScratchAllocator scratch{m_cache.allocator()};
+		Array<LLVM::TypeRef> types{scratch};
 		if (!types.reserve(padded.length())) {
 			return nullptr;
 		}
@@ -561,7 +562,8 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	types[0] = info.args;
 	types[1] = info.rets;
 
-	Array<LLVM::TypeRef> args{m_cache.allocator()};
+	ScratchAllocator scratch{m_cache.allocator()};
+	Array<LLVM::TypeRef> args{scratch};
 	Bool has_va = false;
 	for (Ulen l = info.args->length(), i = 0; i < l; i++) {
 		auto arg = info.args->at(i);

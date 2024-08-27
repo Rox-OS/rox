@@ -54,7 +54,7 @@ Maybe<Ulen> StringView::find_last_of(int ch) const noexcept {
 }
 
 char* StringView::terminated(Allocator& allocator) const noexcept {
-	if (char *dst = reinterpret_cast<char *>(allocator.scratch(m_length + 1))) {
+	if (char *dst = reinterpret_cast<char *>(allocator.allocate(m_length + 1))) {
 		memcpy(dst, m_data, m_length);
 		dst[m_length] = '\0';
 		return dst;

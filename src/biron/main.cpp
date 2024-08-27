@@ -16,35 +16,14 @@ using namespace Biron;
 namespace Biron {
 
 struct Mallocator : Allocator {
-	constexpr Mallocator() noexcept
-		: temporary{*this}
-	{
-	}
-	~Mallocator() {
-		for (Ulen l = temporary.length(), i = 0; i < l; i++) {
-			deallocate(temporary[i], 0);
-		}
-	}
+	constexpr Mallocator() noexcept = default;
 	virtual void* allocate(Ulen size) noexcept override {
 		return malloc(size);
-	}
-	virtual void* scratch(Ulen size) noexcept override {
-		Ulen offset = temporary.length();
-		if (!temporary.reserve(offset + 1)) {
-			return nullptr;
-		}
-		void* ptr = allocate(size);
-		if (!ptr) {
-			return nullptr;
-		}
-		(void)temporary.push_back(ptr); // Cannot fail
-		return ptr;
 	}
 	virtual void deallocate(void* old, Ulen size) noexcept override {
 		(void)size;
 		free(old);
 	}
-	Array<void*> temporary;
 };
 
 } // namespace Biron
