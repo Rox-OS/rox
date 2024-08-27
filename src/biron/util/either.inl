@@ -78,7 +78,8 @@ struct Either {
 		} else if (is_rhs()) {
 			return other.rhs() == rhs();
 		}
-		return false;
+		// NIL == NIL
+		return true;
 	}
 	void reset() noexcept { drop(); }
 private:

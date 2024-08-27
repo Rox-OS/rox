@@ -212,6 +212,16 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 	if (!src) {
 		return false;
 	}
+	if (*dst->type()->deref() != *src->type()) {
+		StringBuilder b0{cg.allocator};
+		StringBuilder b1{cg.allocator};
+		dst->type()->deref()->dump(b0);
+		src->type()->dump(b1);
+		b0.append('\0');
+		b1.append('\0');
+		cg.error(range(), "Cannot assign an rvalue of type '%s' to an lvalue of type '%s'", b1.data(), b0.data());
+		return false;
+	}
 	return dst->store(cg, *src);
 }
 

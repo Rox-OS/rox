@@ -136,7 +136,6 @@ int main(int argc, char **argv) {
 	}
 
 	if (!unit->codegen(*cg)) {
-		fprintf(stderr, "Could not codegen unit\n");
 		return 1;
 	}
 

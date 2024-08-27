@@ -28,7 +28,7 @@ void Diagnostic::diagnostic(Range range, const char *message) noexcept {
 		line_number--;
 		this_column = last_column;
 	}
-	fprintf(stderr, "%.*s:%zu:%zu: %s\n",
+	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31merror:\033[0m %s\n",
 	        (int)m_lexer.name().length(),
 	        m_lexer.name().data(),
 	        line_number,
