@@ -34,6 +34,27 @@ void Diagnostic::diagnostic(Range range, const char *message) noexcept {
 	        line_number,
 	        this_column,
 	        message);
+
+	// Print the offending line.
+	auto line_beg = range.offset;
+	auto line_end = range.offset;
+	while (line_beg && m_lexer[line_beg - 1] != '\n') {
+		line_beg--;
+	}
+	while (m_lexer[line_end + 1] != '\n') {
+		line_end++;
+	}
+	const auto line_len = line_end - line_beg;
+	fprintf(stderr, "%.*s\n", Sint32(line_len), &m_lexer[line_beg]);
+
+	// Then print some swiggles underneath the offense.
+	for (Ulen i = line_beg; i < range.offset; i++) {
+		fprintf(stderr, " ");
+	}
+	for (Ulen i = 0; i < range.length; i++) {
+		fprintf(stderr, "~");
+	}
+	fprintf(stderr, "\n");
 }
 
 } // namespace Biron

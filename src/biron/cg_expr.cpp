@@ -539,9 +539,21 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	Maybe<CgValue> lhs;
 	Maybe<CgValue> rhs;
 	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS) {
- 		lhs = m_lhs->gen_value(cg);
- 		rhs = m_rhs->gen_value(cg);
+		lhs = m_lhs->gen_value(cg);
+		rhs = m_rhs->gen_value(cg);
 		if (!lhs || !rhs) {
+			return None{};
+		}
+		// Operands to binary operator must be the same type
+		if (*lhs->type() != *rhs->type()) {
+			StringBuilder lhs_to_string{cg.allocator};
+			lhs->type()->dump(lhs_to_string);
+			lhs_to_string.append('\0');
+			StringBuilder rhs_to_string{cg.allocator};
+			rhs->type()->dump(rhs_to_string);
+			rhs_to_string.append('\0');
+			cg.error(range(), "Operands to binary operator must be the same type: Got '%s' and '%s'",
+				lhs_to_string.data(), rhs_to_string.data());
 			return None{};
 		}
 	}
@@ -811,10 +823,10 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 	switch (m_op) {
 	case Op::NEG:
-		cg.error(range(), "Cannot take the address of unary expression");
+		cg.error(range(), "Cannot take the address of an rvalue");
 		return None{};
 	case Op::NOT:
-		cg.error(range(), "Cannot take the address of unary expression");
+		cg.error(range(), "Cannot take the address of an rvalue");
 		return None{};
 	case Op::DEREF:
 		// When dereferencing on the LHS we will have a R-value of the address 
@@ -824,11 +836,18 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 		// used in combination with an AssignStmt to allow storing results through
 		// the pointer.
 		if (auto operand = m_operand->gen_value(cg)) {
+			if (!operand->type()->is_pointer()) {
+				StringBuilder builder{cg.allocator};
+				operand->type()->dump(builder);
+				builder.append('\0');
+				cg.error(m_operand->range(), "Operand to '*' must have pointer type. Got '%s' instead", builder.data());
+				return None{};
+			}
 			return operand->to_addr();
 		}
 		break;
 	case Op::ADDROF:
-		cg.error(range(), "Cannot take the address of unary expression");
+		cg.error(range(), "Cannot take the address of an rvalue");
 		break;
 	}
 	return None{};
@@ -870,8 +889,28 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 		return None{};
 	}
 
+	auto type = operand->type()->deref();
+	if (!type->is_pointer() && !type->is_array() && !type->is_slice()) {
+		StringBuilder builder{cg.allocator};
+		type->dump(builder);
+		builder.append('\0');
+		cg.error(range(), "Cannot index expression of type '%s'", builder.data());
+		return None{};
+	}
+
 	auto index = m_index->gen_value(cg);
 	if (!index) {
+		return None{};
+	}
+
+	if (!index->type()->is_uint() && !index->type()->is_sint()) {
+		StringBuilder b0{cg.allocator};
+		StringBuilder b1{cg.allocator};
+		index->type()->dump(b0);
+		b0.append('\0');
+		type->dump(b1);
+		b1.append('\0');
+		cg.error(m_index->range(), "Value of type '%s' cannot be used to index '%s'", b0.data(), b1.data());
 		return None{};
 	}
 

@@ -182,7 +182,7 @@ struct Lexer {
 	constexpr StringView string(Range range) noexcept {
 		return m_data.slice(range.offset, range.length);
 	}
-	int operator[](Ulen offset) const noexcept {
+	const char& operator[](Ulen offset) const noexcept {
 		return m_data[offset];
 	}
 	constexpr StringView name() const noexcept {
