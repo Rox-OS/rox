@@ -286,6 +286,8 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 		return parse_bool_expr();
 	case Token::Kind::LIT_INT:
 		return parse_int_expr();
+	case Token::Kind::LIT_FLT:
+		return parse_flt_expr();
 	case Token::Kind::LIT_STR:
 		return parse_str_expr();
 	case Token::Kind::LPAREN:
@@ -402,7 +404,7 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 //	::= "'"
 AstIntExpr* Parser::parse_int_expr() noexcept {
 	if (peek().kind != Token::Kind::LIT_INT) {
-		ERROR("Expected int");
+		ERROR("Expected int literal");
 		return nullptr;
 	}
 
@@ -487,6 +489,44 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 	}
 
 	return new_node<AstIntExpr>(Sint32(n), token.range);
+}
+
+// FltExpr
+//	::= (DecDigit DigitSep?)+
+AstFltExpr* Parser::parse_flt_expr() noexcept {
+	if (peek().kind != Token::Kind::LIT_FLT) {
+		ERROR("Expected float literal");
+		return nullptr;
+	}
+
+	auto token = next();
+
+	// Filter out digit separator '
+	StringBuilder builder{m_allocator};
+	auto lit = m_lexer.string(token.range);
+	for (Ulen l = lit.length(), i = 0; i < l; i++) {
+		if (lit[i] != '\'') {
+			builder.append(lit[i]);
+		} else if (i == l - 1 || lit[i + 1] == '_') {
+			// The floating-point literal should not end with trailing ' or '_T
+			auto skip = token.range;
+			skip.offset += i;
+			skip.length -= i;
+			ERROR(skip, "Unexpected trailing digits separator in floating-point literal");
+			return nullptr;
+		}
+	}
+	builder.append('\0');
+	if (!builder.valid()) {
+		ERROR("Out of memory");
+		return nullptr;
+	}
+	char* end = nullptr;
+	auto value = strtod(builder.data(), &end);
+	if (!strncmp(end, "_f64", 3)) {
+		return new_node<AstFltExpr>(value, token.range);
+	}
+	return new_node<AstFltExpr>(static_cast<Float32>(value), token.range);
 }
 
 // StrExpr
@@ -1257,9 +1297,10 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		}
 		auto token = next(); // Consume IDENT
 		auto name = m_lexer.string(token.range);
-		if (name == "section") {
+		/****/ if (name == "section") {
 		} else if (name == "align") {
 		} else if (name == "used") {
+		} else if (name == "inline") {
 		} else {
 			ERROR("Unknown attribute: '%.*s'", (int)name.length(), name.data());
 			return None{};
@@ -1307,6 +1348,21 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 				return None{};
 			}
 			auto used = value->to<Bool32>();
+			auto attr = new_node<AstUsedAttr>(used->as_b32(), expr->range());
+			if (!attr || !attrs.push_back(attr)) {
+				return None{};
+			}
+		} else if (name == "inline") {
+			auto expr = args->at(0);
+			auto value = expr->eval(m_cg);
+			if (!value || !value->is_boolean()) {
+				ERROR("Expected constant boolean expression for inline attribute");
+				return None{};
+			}
+			auto attr = new_node<AstInlineAttr>(value->to<Bool32>(), expr->range());
+			if (!attr || !attrs.push_back(attr)) {
+				return None{};
+			}
 		}
 		if (peek().kind != Token::Kind::COMMA) {
 			break;

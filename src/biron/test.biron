@@ -1,9 +1,7 @@
-type Foo = (
-  a: Uint32,
-  b: (Uint32, Uint32)
-);
-
-type Bar = fn(Uint32) -> Uint32;
-
 fn main() {
+  let i = 1.0;
+  let j = i + 1.0;
+  let k = j * 2.0;
+  let l = k - 0.5;
+  printf("%f\n", l as Float64);
 }

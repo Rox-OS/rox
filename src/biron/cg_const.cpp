@@ -35,6 +35,10 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b32()->ref(cg), as_b32(), false) };
 	case Kind::B64:
 		return CgValue { cg.types.b8(), cg.llvm.ConstInt(cg.types.b64()->ref(cg), as_b64(), false) };
+	case Kind::F32:
+		return CgValue { cg.types.f32(), cg.llvm.ConstReal(cg.types.f32()->ref(cg), as_f32()) };
+	case Kind::F64:
+		return CgValue { cg.types.f64(), cg.llvm.ConstReal(cg.types.f64()->ref(cg), as_f64()) };
 	case Kind::TUPLE:
 		{
 			// Generate constant CgValues for each tuple element.

@@ -70,6 +70,8 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(Int32TypeInContext);
 	LINK(Int64TypeInContext);
 	LINK(VoidTypeInContext);
+	LINK(FloatTypeInContext);
+	LINK(DoubleTypeInContext);
 	LINK(PointerTypeInContext);
 	LINK(StructTypeInContext);
 	LINK(StructCreateNamed);
@@ -80,6 +82,7 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(GetBasicBlockParent);
 	LINK(GetBasicBlockTerminator);
 	LINK(ConstInt);
+	LINK(ConstReal);
 	LINK(ConstArray2);
 	LINK(ConstPointerNull);
 	LINK(ConstStructInContext);
@@ -108,8 +111,12 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(BuildRetVoid);
 	LINK(BuildBr);
 	LINK(BuildAdd);
+	LINK(BuildFAdd);
 	LINK(BuildSub);
+	LINK(BuildFSub);
 	LINK(BuildMul);
+	LINK(BuildFMul);
+	LINK(BuildFDiv);
 	LINK(BuildAnd);
 	LINK(BuildShl);
 	LINK(BuildLShr);

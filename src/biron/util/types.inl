@@ -19,6 +19,8 @@ using Sint32 = signed int;
 using Uint32 = unsigned int;
 using Sint64 = signed long long;
 using Uint64 = unsigned long long;
+using Float32 = float;
+using Float64 = double;
 using Ulen = decltype(sizeof 0);
 using Bool = bool;
 
@@ -38,7 +40,7 @@ typedef struct {} Nat;
 constexpr Bool operator==(Nat, Nat) noexcept { return true; }
 constexpr Bool operator!=(Nat, Nat) noexcept { return false; }
 
-// Like the sizeof and alignof operator countof gets the count of some type.
+// Like the sizeof and alignof operator countof gets the count of an array.
 template<typename T, Ulen E>
 constexpr Ulen countof(const T (&)[E]) noexcept {
 	return E;

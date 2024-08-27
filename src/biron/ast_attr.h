@@ -7,7 +7,7 @@ namespace Biron {
 
 struct AstAttr : AstNode {
 	static inline constexpr auto KIND = Kind::ATTR;
-	enum class Kind { SECTION, ALIGN, USED };
+	enum class Kind { SECTION, ALIGN, USED, INLINE };
 	constexpr AstAttr(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_kind{kind}
@@ -56,6 +56,20 @@ struct AstUsedAttr : AstAttr {
 		, m_value{value}
 	{
 	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
+private:
+	Bool m_value;
+};
+
+struct AstInlineAttr : AstAttr {
+	static inline constexpr auto KIND = Kind::INLINE;
+	constexpr AstInlineAttr(Bool value, Range range) noexcept
+		: AstAttr{KIND, range}
+		, m_value{value}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
 private:
 	Bool m_value;

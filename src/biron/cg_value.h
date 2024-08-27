@@ -28,7 +28,8 @@ private:
 
 struct CgValue {
 	constexpr CgValue(CgType *const type, LLVM::ValueRef ref) noexcept
-		: m_type{type}, m_ref{ref}
+		: m_type{type}
+		, m_ref{ref}
 	{
 	}
 
@@ -38,7 +39,7 @@ struct CgValue {
 	{
 	}
 
-	CgValue(const CgValue& value) noexcept
+	constexpr CgValue(const CgValue& value) noexcept
 		: m_type{value.m_type}
 		, m_ref{value.m_ref}
 	{
@@ -61,7 +62,7 @@ private:
 };
 
 struct CgVar {
-	CgVar(StringView name, CgAddr&& addr) noexcept
+	constexpr CgVar(StringView name, CgAddr&& addr) noexcept
 		: m_name{name}
 		, m_addr{move(addr)}
 	{

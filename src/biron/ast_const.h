@@ -11,7 +11,6 @@
 namespace Biron {
 
 struct Cg;
-struct CgAddr;
 struct CgValue;
 struct CgType;
 
@@ -22,6 +21,7 @@ struct AstConst {
 		U8, U16, U32, U64, // digit+
 		S8, S16, S32, S64, // digit+
 		B8, B16, B32, B64,
+		F32, F64,
 		TUPLE,             // (...)
 		STRING,            // ".*"
 		ARRAY,             // {}
@@ -53,6 +53,10 @@ struct AstConst {
 		: m_range{range}, m_kind{Kind::B32}, m_as_b32{value} {}
 	constexpr AstConst(Range range, Bool64 value) noexcept
 		: m_range{range}, m_kind{Kind::B8}, m_as_b64{value} {}
+	constexpr AstConst(Range range, Float32 value) noexcept
+		: m_range{range}, m_kind{Kind::F32}, m_as_f32{value} {}
+	constexpr AstConst(Range range, Float64 value) noexcept
+		: m_range{range}, m_kind{Kind::F64}, m_as_f64{value} {}
 	constexpr AstConst(Range range, Array<AstConst>&& tuple) noexcept
 		: m_range{range}, m_kind{Kind::TUPLE}, m_as_tuple{move(tuple)} {}
 	constexpr AstConst(Range range, StringView string)
@@ -87,6 +91,8 @@ struct AstConst {
 	[[nodiscard]] constexpr Bool16 as_b16() const noexcept { return m_as_b16; }
 	[[nodiscard]] constexpr Bool32 as_b32() const noexcept { return m_as_b32; }
 	[[nodiscard]] constexpr Bool64 as_b64() const noexcept { return m_as_b64; }
+	[[nodiscard]] constexpr Float32 as_f32() const noexcept { return m_as_f32; }
+	[[nodiscard]] constexpr Float64 as_f64() const noexcept { return m_as_f64; }
 
 	[[nodiscard]] constexpr const Array<AstConst>& as_tuple() const noexcept { return m_as_tuple; }
 	[[nodiscard]] constexpr StringView as_string() const noexcept { return m_as_string; }
@@ -126,6 +132,8 @@ private:
 		Bool16          m_as_b16;
 		Bool32          m_as_b32;
 		Bool64          m_as_b64;
+		Float32         m_as_f32;
+		Float64         m_as_f64;
 		Array<AstConst> m_as_tuple;
 		StringView      m_as_string;
 		ConstArray      m_as_array;
@@ -161,6 +169,8 @@ Maybe<AstConst> AstConst::to() const noexcept {
 	case Kind::B16:  return cast(as_b16());
 	case Kind::B32:  return cast(as_b32());
 	case Kind::B64:  return cast(as_b64());
+	case Kind::F32:  return cast(as_f32());
+	case Kind::F64:  return cast(as_f64());
 	default:
 		// Cannot perform constant compile time cast
 		return None{};

@@ -10,11 +10,9 @@ void AstTupleType::dump(StringBuilder& builder) const noexcept {
 		if (!f) builder.append(", ");
 		if (elem.name()) {
 			builder.append(*elem.name());
-		} else {
-			builder.append("_");
+			builder.append(':');
+			builder.append(' ');
 		}
-		builder.append(':');
-		builder.append(' ');
 		elem.type()->dump(builder);
 		f = false;
 	}

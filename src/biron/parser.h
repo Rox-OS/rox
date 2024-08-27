@@ -17,6 +17,7 @@ struct AstAttr;
 struct AstExpr;
 struct AstTupleExpr;
 struct AstIntExpr;
+struct AstFltExpr;
 struct AstStrExpr;
 struct AstBoolExpr;
 
@@ -76,6 +77,7 @@ struct Parser {
 	[[nodiscard]] AstExpr*         parse_expr() noexcept;
 	[[nodiscard]] AstTupleExpr*    parse_tuple_expr() noexcept;
 	[[nodiscard]] AstIntExpr*      parse_int_expr() noexcept;
+	[[nodiscard]] AstFltExpr*      parse_flt_expr() noexcept;
 	[[nodiscard]] AstStrExpr*      parse_str_expr() noexcept;
 	[[nodiscard]] AstBoolExpr*     parse_bool_expr() noexcept;
 

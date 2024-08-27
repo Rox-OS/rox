@@ -15,13 +15,14 @@ struct CgType {
 		U8, U16, U32, U64, // Uint{8,16,32,64}
 		S8, S16, S32, S64, // Sint{8,16,32,64}
 		B8, B16, B32, B64, // Bool{8,16,32,64}
+		F32, F64,          // Float{32, 64}
 		STRING,            // String
 		POINTER,           // *T
 		SLICE,             // []T
 		ARRAY,             // [N]T
 		PADDING,           // [N]u8 // Special meta-type for tuple padding
 		TUPLE,             // (T1, ..., Tn)
-		UNION,             // union{_: T1; ...; _: Tn}
+		UNION,             // T1 | ... | Tn
 		FN,                // fn (T1, ..., Tn) -> (R1, ..., Rn)
 		VA,                // ...
 	};
@@ -40,6 +41,8 @@ struct CgType {
 		break; case Kind::B16:     fprintf(stderr, "Bool16");
 		break; case Kind::B32:     fprintf(stderr, "Bool32");
 		break; case Kind::B64:     fprintf(stderr, "Bool64");
+		break; case Kind::F32:     fprintf(stderr, "Float32");
+		break; case Kind::F64:     fprintf(stderr, "Float64");
 		break; case Kind::POINTER: fprintf(stderr, "*"); if (auto base = at(0)) base->dump(false);
 		break; case Kind::STRING:  fprintf(stderr, "String");
 		break; case Kind::SLICE:   fprintf(stderr, "[]"); at(0)->dump(false);
@@ -107,6 +110,7 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_bool() const noexcept { return m_kind >= Kind::B8 && m_kind <= Kind::B64; }
 	[[nodiscard]] constexpr Bool is_sint() const noexcept { return m_kind >= Kind::S8 && m_kind <= Kind::S64; }
 	[[nodiscard]] constexpr Bool is_uint() const noexcept { return m_kind >= Kind::U8 && m_kind <= Kind::U64; }
+	[[nodiscard]] constexpr Bool is_real() const noexcept { return m_kind >= Kind::F32 && m_kind <= Kind::F64; }
 
 	[[nodiscard]] constexpr Bool is_pointer() const noexcept { return m_kind == Kind::POINTER; }
 	[[nodiscard]] constexpr Bool is_string() const noexcept { return m_kind == Kind::STRING; }
@@ -135,6 +139,11 @@ struct CgType {
 		Ulen size;
 		Ulen align;
 		Bool sign;
+	};
+
+	struct FltInfo {
+		Ulen size;
+		Ulen align;
 	};
 
 	struct PtrInfo {
@@ -185,6 +194,7 @@ private:
 	friend struct CgTypeCache;
 
 	static Maybe<CgType> make(Cache& cache, IntInfo info) noexcept;
+	static Maybe<CgType> make(Cache& cache, FltInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, PtrInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, BoolInfo info) noexcept;
 	static Maybe<CgType> make(Cache& cache, StringInfo info) noexcept;
@@ -242,6 +252,8 @@ struct CgTypeCache {
 	constexpr CgType* b16()  const noexcept { return m_bools[1]; }
 	constexpr CgType* b32()  const noexcept { return m_bools[2]; }
 	constexpr CgType* b64()  const noexcept { return m_bools[3]; }
+	constexpr CgType* f32()  const noexcept { return m_reals[0]; }
+	constexpr CgType* f64()  const noexcept { return m_reals[1]; }
 	constexpr CgType* ptr()  const noexcept { return m_ptr;      }
 	constexpr CgType* str()  const noexcept { return m_str;      }
 	constexpr CgType* unit() const noexcept { return m_unit;     }
@@ -277,6 +289,7 @@ private:
 	                      CgType *const (&uints)[4],
 	                      CgType *const (&sints)[4],
 	                      CgType *const (&bools)[4],
+	                      CgType *const (&reals)[2],
 	                      CgType *const ptr,
 	                      CgType *const str,
 	                      CgType *const unit,
@@ -285,6 +298,7 @@ private:
 		, m_uints{uints[0], uints[1], uints[2], uints[3]}
 		, m_sints{sints[0], sints[1], sints[2], sints[3]}
 		, m_bools{bools[0], bools[1], bools[2], bools[3]}
+		, m_reals{reals[0], reals[1]}
 		, m_ptr{ptr}
 		, m_str{str}
 		, m_unit{unit}
@@ -292,10 +306,27 @@ private:
 	{
 	}
 
+	Maybe<CgType> make(CgType::SliceInfo info) noexcept {
+		Array<CgType*> types{m_cache.allocator()};
+		if (!types.resize(2)) {
+			return None{};
+		}
+		types[0] = info.base;
+		types[1] = m_uints[3]; // U64
+		return CgType {
+			CgType::Kind::SLICE,
+			sum(types[0]->size(), types[1]->size()),
+			max(types[0]->align(), types[1]->align()),
+			0,
+			move(types)
+		};
+	}
+
 	Cache m_cache;
 	CgType *const m_uints[4]; // Uint{8,16,32,64}
 	CgType *const m_sints[4]; // Sint{8,16,32,64}
 	CgType *const m_bools[4]; // Bool{8,16,32,64}
+	CgType *const m_reals[2]; // Float{32,64}
 	CgType *const m_ptr;      // *void
 	CgType *const m_str;      // String
 	CgType *const m_unit;     // ()

@@ -213,7 +213,9 @@ Token Lexer::read() noexcept {
 			// separators next to each other and never the first character in a digit.
 			auto z = peek() == '0';
 			Ulen n = fwd(); // Consume digit
-			Bool s = false; // Encountered a separator
+			Ulen s = 0;     // Encountered a separator
+			Ulen d = 0;     // Encountered a dot
+			Kind k = Kind::LIT_INT;
 			if (z) {
 				// Consumed a '0'
 				switch (peek()) {
@@ -225,11 +227,33 @@ Token Lexer::read() noexcept {
 					fwd(); // Consume 'b'
 					while (peek() != -1 && (is_bin(peek()) || s)) fwd(), s = peek() == '\'';
 					break;
+				case '.':
+					// 0.\d+
+					k = Kind::LIT_FLT;
+					d = true;
+					goto L_dec;
 				}
 			} else {
-				while (peek() != -1 && (is_digit(peek()) || s)) fwd(), s = peek() == '\'';
+L_dec:
+				while (peek() != -1) {
+					if (is_digit(peek())) {
+						fwd(); // Consume \d
+						continue;
+					} else if (peek() == '\'') {
+						fwd(); // Consume '
+						s++;
+						continue;
+					} else if (peek() == '.') {
+						fwd(); // Consume '.'
+						d++;
+						k = Kind::LIT_FLT;
+						continue;
+					} else {
+						break;
+					}
+				}
 			}
-			// The integer literal can be typed with one of the following suffix
+			// The numeric literal can be typed with one of the following suffix
 			//	_(u|s){8,16,32,64}
 			if (peek() == '_') {
 				fwd(); // Consume '_'
@@ -241,10 +265,17 @@ Token Lexer::read() noexcept {
 					break; case '3': fwd(); if (peek() == '2') fwd(); // Consume '32'
 					break; case '6': fwd(); if (peek() == '4') fwd(); // Consume '64'
 					}
+				} else if (peek() == 'f') {
+					k = Kind::LIT_FLT;
+					fwd(); // Consume 'f'
+					switch (peek()) {
+					/****/ case '3': fwd(); if (peek() == '2') fwd(); // Consume '32'
+					break; case '6': fwd(); if (peek() == '4') fwd(); // Consume '64'
+					}
 				}
 			}
 			Ulen l = m_offset - n;
-			return {Kind::LIT_INT, {n, l}};
+			return {k, {n, l}};
 		}
 	}
 	return {Kind::UNKNOWN, {fwd(), 1}};

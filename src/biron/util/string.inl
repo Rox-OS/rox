@@ -74,6 +74,8 @@ struct StringBuilder {
 	Bool append(Uint32 value) noexcept { return append(static_cast<Uint64>(value)); }
 	Bool append(Sint64 value) noexcept;
 	Bool append(Uint64 value) noexcept;
+	Bool append(Float32 value) noexcept;
+	Bool append(Float64 value) noexcept;
 	Bool append(StringView view) noexcept;
 	Bool repeat(int ch, Ulen count) noexcept;
 	Bool repeat(StringView view, Ulen count) noexcept;

@@ -28,8 +28,17 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, Ulen capacity) {
 		alloc(cache, CgType::BoolInfo { 4, 4 }),
 		alloc(cache, CgType::BoolInfo { 8, 8 }),
 	};
+	CgType *const reals[2] = {
+		alloc(cache, CgType::FltInfo { 4, 4 }),
+		alloc(cache, CgType::FltInfo { 8, 8 })
+	};
 	for (Ulen i = 0; i < 4; i++) {
 		if (!uints[i] || !sints[i] || !bools[i]) {
+			return None{};
+		}
+	}
+	for (Ulen i = 0; i < 2; i++) {
+		if (!reals[i]) {
 			return None{};
 		}
 	}
@@ -52,6 +61,7 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, Ulen capacity) {
 		uints,
 		sints,
 		bools,
+		reals,
 		ptr,
 		str,
 		unit,
@@ -74,6 +84,25 @@ Maybe<CgType> CgType::make(Cache&, IntInfo info) noexcept {
 
 	return CgType {
 		info.sign ? S[i] : U[i],
+		info.size,
+		info.align,
+		0,
+		None{}
+	};
+}
+
+
+Maybe<CgType> CgType::make(Cache&, FltInfo info) noexcept {
+	Kind kind;
+	if (info.size == 4) {
+		kind = Kind::F32;
+	} else if (info.size == 8) {
+		kind = Kind::F64;
+	} else {
+		return None{};
+	}
+	return CgType {
+		kind,
 		info.size,
 		info.align,
 		0,
@@ -318,6 +347,12 @@ LLVM::TypeRef CgType::ref(Cg& cg) noexcept {
 	case Kind::B64:
 		m_ref = llvm.Int1TypeInContext(context);
 		break;
+	case Kind::F32:
+		m_ref = llvm.FloatTypeInContext(context);
+		break;
+	case Kind::F64:
+		m_ref = llvm.DoubleTypeInContext(context);
+		break;
 	case Kind::POINTER:
 		m_ref = llvm.PointerTypeInContext(context, 0);
 		break;
@@ -480,6 +515,8 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Bool16")  return cg.types.b16();
 	if (m_ident == "Bool32")  return cg.types.b32();
 	if (m_ident == "Bool64")  return cg.types.b64();
+	if (m_ident == "Float32") return cg.types.f32();
+	if (m_ident == "Float64") return cg.types.f64();
 	if (m_ident == "String")  return cg.types.str();
 	if (m_ident == "Address") return cg.types.ptr();
 	return nullptr;

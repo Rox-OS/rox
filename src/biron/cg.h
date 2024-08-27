@@ -53,7 +53,7 @@ struct Cg {
 	{
 	}
 
-	~Cg();
+	~Cg() noexcept;
 
 private:
 	friend struct AstForStmt;

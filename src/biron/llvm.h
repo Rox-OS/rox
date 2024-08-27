@@ -109,6 +109,8 @@ struct LLVM {
 	TypeRef (*Int32TypeInContext)(ContextRef); // Uint32, Sint32
 	TypeRef (*Int64TypeInContext)(ContextRef); // Uint64, Sint64
 	TypeRef (*VoidTypeInContext)(ContextRef); // ()
+	TypeRef (*FloatTypeInContext)(ContextRef);
+	TypeRef (*DoubleTypeInContext)(ContextRef);
 	TypeRef (*PointerTypeInContext)(ContextRef, unsigned); // *T
 	TypeRef (*StructTypeInContext)(ContextRef, TypeRef*, unsigned, Bool); // struct{..}, (...)
 	TypeRef (*StructCreateNamed)(ContextRef, const char*);
@@ -123,6 +125,7 @@ struct LLVM {
 	ValueRef (*GetBasicBlockParent)(BasicBlockRef);
 	ValueRef (*GetBasicBlockTerminator)(BasicBlockRef);
 	ValueRef (*ConstInt)(TypeRef, unsigned long long, Bool);
+	ValueRef (*ConstReal)(TypeRef, Float64);
 	ValueRef (*ConstArray2)(TypeRef, ValueRef*, Uint64);
 	ValueRef (*ConstPointerNull)(TypeRef);
 	ValueRef (*ConstStructInContext)(ContextRef, ValueRef*, unsigned, Bool);
@@ -157,8 +160,12 @@ struct LLVM {
 	ValueRef (*BuildRetVoid)(BuilderRef);
 	ValueRef (*BuildBr)(BuilderRef, BasicBlockRef);
 	ValueRef (*BuildAdd)(BuilderRef, ValueRef, ValueRef, const char*);
+	ValueRef (*BuildFAdd)(BuilderRef, ValueRef, ValueRef, const char*);
 	ValueRef (*BuildSub)(BuilderRef, ValueRef, ValueRef, const char*);
+	ValueRef (*BuildFSub)(BuilderRef, ValueRef, ValueRef, const char*);
 	ValueRef (*BuildMul)(BuilderRef, ValueRef, ValueRef, const char*);
+	ValueRef (*BuildFMul)(BuilderRef, ValueRef, ValueRef, const char*);
+	ValueRef (*BuildFDiv)(BuilderRef, ValueRef, ValueRef, const char*);
 	ValueRef (*BuildAnd)(BuilderRef, ValueRef, ValueRef, const char*);
 	ValueRef (*BuildOr)(BuilderRef, ValueRef, ValueRef, const char*);
 	ValueRef (*BuildShl)(BuilderRef, ValueRef, ValueRef, const char*);

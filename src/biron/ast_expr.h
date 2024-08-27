@@ -15,7 +15,7 @@ struct AstConst;
 
 struct AstExpr : AstNode {
 	static inline constexpr auto KIND = Kind::EXPR;
-	enum class Kind : Uint8 { TUPLE, CALL, TYPE, VAR, INT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE };
+	enum class Kind : Uint8 { TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE };
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstExpr(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
@@ -136,6 +136,26 @@ private:
 		Sint16 m_as_s16;
 		Sint32 m_as_s32;
 		Sint64 m_as_s64;
+	};
+};
+
+struct AstFltExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::FLT;
+	enum class Kind {
+		F32, F64
+	};
+	constexpr AstFltExpr(Float32 value, Range range) noexcept
+		: AstExpr{KIND, range}, m_kind{Kind::F32}, m_as_f32{value} {}
+	constexpr AstFltExpr(Float64 value, Range range) noexcept
+		: AstExpr{KIND, range}, m_kind{Kind::F64}, m_as_f64{value} {}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval(Cg&) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
+private:
+	Kind m_kind;
+	union {
+		Float32 m_as_f32;
+		Float64 m_as_f64;
 	};
 };
 

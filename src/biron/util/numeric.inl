@@ -9,8 +9,14 @@ template<typename T>
 [[nodiscard]] constexpr T min(T&& t) noexcept {
 	return forward<T>(t);
 }
+
 template<typename T>
 [[nodiscard]] constexpr T max(T&& t) noexcept {
+	return forward<T>(t);
+}
+
+template<typename T>
+[[nodiscard]] constexpr T sum(T&& t) noexcept {
 	return forward<T>(t);
 }
 
@@ -22,6 +28,11 @@ template<typename T0, typename T1, typename... Ts>
 template<typename T0, typename T1, typename... Ts>
 [[nodiscard]] constexpr auto max(T0&& v0, T1&& v1, Ts&&... vs) noexcept {
 	return v0 > v1 ? max(v0, forward<Ts>(vs)...) : max(v1, forward<Ts>(vs)...);
+}
+
+template<typename T0, typename T1, typename... Ts>
+[[nodiscard]] constexpr auto sum(T0&& v0, T1&& v1, Ts&&... vs) noexcept {
+	return sum(v0, forward<Ts>(vs)...) + v1;
 }
 
 template<typename T>

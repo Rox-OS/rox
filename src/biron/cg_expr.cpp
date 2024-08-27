@@ -32,6 +32,7 @@ const char* AstExpr::name() const noexcept {
 	case Kind::TYPE:    return "TYPE";
 	case Kind::VAR:     return "VAR";
 	case Kind::INT:     return "INT";
+	case Kind::FLT:     return "FLT";
 	case Kind::BOOL:    return "BOOL";
 	case Kind::STR:     return "STR";
 	case Kind::AGG:     return "AGG";
@@ -230,6 +231,28 @@ Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
 	break; case Kind::S16: t = cg.types.s16(), v = cg.llvm.ConstInt(t->ref(cg), m_as_s16, true);
 	break; case Kind::S32: t = cg.types.s32(), v = cg.llvm.ConstInt(t->ref(cg), m_as_s32, true);
 	break; case Kind::S64: t = cg.types.s64(), v = cg.llvm.ConstInt(t->ref(cg), m_as_s64, true);
+	}
+	if (v) {
+		return CgValue { t, v };
+	}
+	return None{};
+}
+
+Maybe<AstConst> AstFltExpr::eval(Cg&) const noexcept {
+	switch (m_kind) {
+	case Kind::F32: return AstConst { range(), m_as_f32 };
+	case Kind::F64: return AstConst { range(), m_as_f64 };
+	}
+	return None{};
+}
+
+Maybe<CgValue> AstFltExpr::gen_value(Cg& cg) const noexcept {
+	CgType* t = nullptr;
+	LLVM::ValueRef v = nullptr;
+	switch (m_kind) {
+	/****/ case Kind::F32: t = cg.types.f32(), v = cg.llvm.ConstReal(t->ref(cg), m_as_f32);
+	break; case Kind::F64: t = cg.types.f64(), v = cg.llvm.ConstReal(t->ref(cg), m_as_f64);
+	break;
 	}
 	if (v) {
 		return CgValue { t, v };
@@ -463,6 +486,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 	if (!lhs) {
 		return None{};
 	}
+
 	auto type = lhs->type()->deref();
 	Bool ptr = false;
 	if (type->is_pointer()) {
@@ -472,28 +496,35 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		type = type->deref();
 	}
 	if (type->is_tuple()) {
-		auto rhs = m_rhs->eval(cg);
-		if (!rhs) {
-			fprintf(stderr, "Expected constant expression");
-			return None{};
+		// When the right hand side is an AstCallExpr we're performing method
+		// dispatch. We support multimethods / multiple dispatch with this method
+		// too since it's just a tuple of multiple things.
+		if (m_rhs->is_expr<AstCallExpr>()) {
+			fprintf(stderr, "Unimplemented method call\n");
+		} else {
+			auto rhs = m_rhs->eval(cg);
+			if (!rhs) {
+				fprintf(stderr, "Expected constant expression");
+				return None{};
+			}
+			// We support an integer constant expression inside a tuple
+			Maybe<AstConst> index;
+			if (rhs->is_tuple() && rhs->as_tuple().length() == 1) {
+				index = rhs->as_tuple()[0].copy();
+			} else if (rhs->is_integral()) {
+				index = rhs->copy();
+			}
+			if (!index || !index->is_integral()) {
+				fprintf(stderr, "Expected constant integer expression for indexing tuple");
+				return None{};
+			}
+			// TODO(dweiler): We need to map logical index to physical tuple index...
+			auto n = index->to<Uint64>()->as_u64();
+			if (type->at(n)->is_padding()) {
+				n++;
+			}
+			return lhs->at(cg, n);
 		}
-		// We support an integer constant expression inside a tuple
-		Maybe<AstConst> index;
-		if (rhs->is_tuple() && rhs->as_tuple().length() == 1) {
-			index = rhs->as_tuple()[0].copy();
-		} else if (rhs->is_integral()) {
-			index = rhs->copy();
-		}
-		if (!index || !index->is_integral()) {
-			fprintf(stderr, "Expected constant integer expression for indexing tuple");
-			return None{};
-		}
-		// TODO(dweiler): We need to map logical index to physical tuple index...
-		auto n = index->to<Uint64>()->as_u64();
-		if (type->at(n)->is_padding()) {
-			n++;
-		}
-		return lhs->at(cg, n);
 	} else {
 		fprintf(stderr, "Can only index structure and tuple types with '.' operator\n");
 		return None{};
@@ -517,7 +548,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 
 	Maybe<CgValue> lhs;
 	Maybe<CgValue> rhs;
-	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND) {
+	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS) {
  		lhs = m_lhs->gen_value(cg);
  		rhs = m_rhs->gen_value(cg);
 		if (!lhs || !rhs) {
@@ -525,13 +556,53 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		}
 	}
 
+	if (m_op == Op::AS) {
+		auto lhs = m_lhs->gen_value(cg);
+		if (!lhs) {
+			return None{};
+		}
+	
+		// Handle casting operator
+		if (!m_rhs->is_expr<AstTypeExpr>()) {
+			fprintf(stderr, "Expected type on right-hand-side of 'as' operator");
+			return None{};
+		}
+
+		auto rhs = static_cast<AstTypeExpr*>(m_rhs)->type()->codegen(cg);
+
+		Bool lhs_is_signed = lhs->type()->is_sint();
+		Bool rhs_is_signed = rhs->is_sint();
+
+		auto cast_op =
+			cg.llvm.GetCastOpcode(lhs->ref(),
+			                      lhs_is_signed,
+			                      rhs->ref(cg),
+			                      rhs_is_signed);
+
+		auto v = cg.llvm.BuildCast(cg.builder, cast_op, lhs->ref(), rhs->ref(cg), "");
+
+		return CgValue { rhs, v };
+	}
+
 	switch (m_op) {
 	case Op::ADD:
-		return CgValue { lhs->type(), cg.llvm.BuildAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
+		if (lhs->type()->is_real()) {
+			return CgValue { lhs->type(), cg.llvm.BuildFAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			return CgValue { lhs->type(), cg.llvm.BuildAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
+		}
 	case Op::SUB:
-		return CgValue { lhs->type(), cg.llvm.BuildSub(cg.builder, lhs->ref(), rhs->ref(), "") };
+		if (lhs->type()->is_real()) {
+			return CgValue { lhs->type(), cg.llvm.BuildFSub(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			return CgValue { lhs->type(), cg.llvm.BuildSub(cg.builder, lhs->ref(), rhs->ref(), "") };
+		}
 	case Op::MUL:
-		return CgValue { lhs->type(), cg.llvm.BuildMul(cg.builder, lhs->ref(), rhs->ref(), "") };
+		if (lhs->type()->is_real()) {
+			return CgValue { lhs->type(), cg.llvm.BuildFMul(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			return CgValue { lhs->type(), cg.llvm.BuildMul(cg.builder, lhs->ref(), rhs->ref(), "") };
+		}
 	case Op::EQ:
 		return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::EQ, lhs->ref(), rhs->ref(), "") };
 	case Op::NE:

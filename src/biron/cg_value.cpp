@@ -124,6 +124,14 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 			llvm.SetValueName2(value, name.data(), name.length());
 			return CgValue { type, value };
 		}
+	case CgType::Kind::F32:
+	case CgType::Kind::F64:
+		{
+			auto value = llvm.ConstReal(type->ref(cg), 0.0);
+			auto name = StringView(".ZeroReal");
+			llvm.SetValueName2(value, name.data(), name.length());
+			return CgValue { type, value };
+		}
 	case CgType::Kind::POINTER:
 		{
 			auto value = llvm.ConstPointerNull(type->ref(cg));

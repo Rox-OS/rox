@@ -122,15 +122,11 @@ Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
 	return None{};
 }
 
-Cg::~Cg() {
+Cg::~Cg() noexcept {
 	llvm.DisposeTargetMachine(machine);
 	llvm.DisposeModule(module);
 	llvm.DisposeBuilder(builder);
 	llvm.ContextDispose(context);
-	// ContextRef             context;
-	// BuilderRef             builder;
-	// ModuleRef              module;
-	// TargetMachineRef       machine;
 }
 
 } // namespace Biron

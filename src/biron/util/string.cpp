@@ -1,4 +1,6 @@
 #include <string.h>
+#include <stdio.h> // snprintf
+#include <float.h>
 
 #include <biron/util/string.inl>
 
@@ -102,6 +104,24 @@ Bool StringBuilder::append(Uint64 value) noexcept {
 		fill[--length] = '0' + (value % 10);
 	}
 	return true;
+}
+
+Bool StringBuilder::append(Float32 value) noexcept {
+	char buffer[FLT_MANT_DIG + FLT_DECIMAL_DIG * 2 + 1];
+	auto n = snprintf(buffer, sizeof buffer, "%f", value);
+	if (n <= 0) {
+		return false;
+	}
+	return append(StringView { buffer, Ulen(n) });
+}
+
+Bool StringBuilder::append(Float64 value) noexcept {
+	char buffer[DBL_MANT_DIG + DBL_DECIMAL_DIG * 2 + 1];
+	auto n = snprintf(buffer, sizeof buffer, "%f", value);
+	if (n <= 0) {
+		return false;
+	}
+	return append(StringView { buffer, Ulen(n) });
 }
 
 Bool StringBuilder::append(StringView view) noexcept {

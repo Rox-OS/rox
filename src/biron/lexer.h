@@ -7,45 +7,45 @@
 namespace Biron {
 
 struct Token {
-	enum class Kind {
+	enum class Kind : Uint8 {
 		END,
-		AT,        // '@'
-		COMMA,     // ','
-		COLON,     // ':'
-		SEMI,      // ';'
-		LPAREN,    // '('
-		RPAREN,    // ')'
-		LBRACKET,  // '['
-		RBRACKET,  // ']'
-		LBRACE,    // '{'
-		RBRACE,    // '}'
-		PLUS,      // '+'
-		MINUS,     // '-'
-		STAR,      // '*'
-		PERCENT,   // '%'
-		NOT,       // '!'
-		DOLLAR,    // '$'
-		BOR,       // '|'
-		LOR,       // '||'
-		BAND,      // '&'
-		LAND,      // '&&'
-		DOT,       // '.'
-		SEQUENCE,  // '..'
-		ELLIPSIS,  // '...'
-		EQ,        // '='
-		EQEQ,      // '=='
-		NEQ,       // '!='
-		LT,        // '<'
-		LTE,       // '<='
-		LSHIFT,    // '<<'
-		GT,        // '>'
-		GTE,       // '>='
-		RSHIFT,    // '>>'
-		ARROW,     // '->'
-		IDENT,     // [a-z][A-Z]([a-z][A-Z][0-9]_)+
+		AT,          // '@'
+		COMMA,       // ','
+		COLON,       // ':'
+		SEMI,        // ';'
+		LPAREN,      // '('
+		RPAREN,      // ')'
+		LBRACKET,    // '['
+		RBRACKET,    // ']'
+		LBRACE,      // '{'
+		RBRACE,      // '}'
+		PLUS,        // '+'
+		MINUS,       // '-'
+		STAR,        // '*'
+		PERCENT,     // '%'
+		NOT,         // '!'
+		DOLLAR,      // '$'
+		BOR,         // '|'
+		LOR,         // '||'
+		BAND,        // '&'
+		LAND,        // '&&'
+		DOT,         // '.'
+		SEQUENCE,    // '..'
+		ELLIPSIS,    // '...'
+		EQ,          // '='
+		EQEQ,        // '=='
+		NEQ,         // '!='
+		LT,          // '<'
+		LTE,         // '<='
+		LSHIFT,      // '<<'
+		GT,          // '>'
+		GTE,         // '>='
+		RSHIFT,      // '>>'
+		ARROW,       // '->'
+		IDENT,       // [a-z][A-Z]([a-z][A-Z][0-9]_)+
 
-		KW_TRUE,   // true
-		KW_FALSE,  // false
+		KW_TRUE,     // true
+		KW_FALSE,    // false
 
 		KW_FN,       // 'fn'
 		KW_IF,       // 'if'
@@ -63,6 +63,7 @@ struct Token {
 		LIT_INT,     // 0b[01]+(_(u|s){8,16,32,64})?
 		             // 0x([0-9][a-f])+(_(u|s){8,16,32,64})?
 		             // [1-9][0-9]+(_(u|s){8,16,32,64})?
+		LIT_FLT,     // \d+\.?\d+
 		LIT_STR,     // ".*"
 		LIT_CHR,     // '.*'
 
@@ -126,6 +127,7 @@ struct Token {
 		case Kind::KW_RETURN:   return "RETURN";
 		case Kind::KW_CONTINUE: return "CONTINUE";
 		case Kind::LIT_INT:     return "INT";
+		case Kind::LIT_FLT:     return "FLT";
 		case Kind::LIT_STR:     return "STR";
 		case Kind::LIT_CHR:     return "CHR";
 		case Kind::COMMENT:     return "COMMENT";
@@ -183,13 +185,13 @@ struct Lexer {
 	int operator[](Ulen offset) const noexcept {
 		return m_data[offset];
 	}
-	StringView name() const noexcept {
+	constexpr StringView name() const noexcept {
 		return m_name;
 	}
 private:
 	Token read() noexcept;
 	Ulen fwd() noexcept { return m_offset++; }
-	int peek() {
+	int peek() noexcept {
 		return m_offset < m_data.length() ? m_data[m_offset] : -1;
 	}
 	StringView m_name;

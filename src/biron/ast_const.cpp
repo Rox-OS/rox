@@ -20,6 +20,8 @@ AstConst::AstConst(AstConst&& other) noexcept
 	break; case Kind::B16:  m_as_b16 = exchange(other.m_as_b16, false);
 	break; case Kind::B32:  m_as_b32 = exchange(other.m_as_b32, false);
 	break; case Kind::B64:  m_as_b64 = exchange(other.m_as_b64, false);
+	break; case Kind::F32:  m_as_f32 = exchange(other.m_as_f32, 0.0f);
+	break; case Kind::F64:  m_as_f64 = exchange(other.m_as_f64, 0.0);
 	break;
 	case Kind::TUPLE: 
 		new (&m_as_tuple, Nat{}) Array<AstConst>{move(other.m_as_tuple)};
@@ -63,6 +65,8 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 	case Kind::B16:   return AstConst { range(), as_b16() };
 	case Kind::B32:   return AstConst { range(), as_b32() };
 	case Kind::B64:   return AstConst { range(), as_b64() };
+	case Kind::F32:   return AstConst { range(), as_f32() };
+	case Kind::F64:   return AstConst { range(), as_f64() };
 	case Kind::TUPLE:
 		{
 			Array<AstConst> values{m_as_tuple.allocator()};

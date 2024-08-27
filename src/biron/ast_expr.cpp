@@ -68,6 +68,19 @@ void AstIntExpr::dump(StringBuilder& builder) const noexcept {
 	}
 }
 
+void AstFltExpr::dump(StringBuilder& builder) const noexcept {
+	switch (m_kind) {
+	case Kind::F32:
+		builder.append(m_as_f32);
+		builder.append("_f32");
+		break;
+	case Kind::F64:
+		builder.append(m_as_f64);
+		builder.append("_f64");
+		break;
+	}
+}
+
 void AstStrExpr::dump(StringBuilder& builder) const noexcept {
 	builder.append('"');
 	builder.append(m_literal);
