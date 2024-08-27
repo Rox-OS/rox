@@ -40,6 +40,122 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::Con
 	return move(bootstrap);
 }
 
+void CgType::dump(StringBuilder& builder) const noexcept {
+	switch (m_kind) {
+	case Kind::U8:
+		builder.append("Uint8");
+		break;
+	case Kind::U16:
+		builder.append("Uint16");
+		break;
+	case Kind::U32:
+		builder.append("Uint32");
+		break;
+	case Kind::U64:
+		builder.append("Uint64");
+		break;
+	case Kind::S8:
+		builder.append("Sint8");
+		break;
+	case Kind::S16:
+		builder.append("Sint16");
+		break;
+	case Kind::S32:
+		builder.append("Sint32");
+		break;
+	case Kind::S64:
+		builder.append("Sint64");
+		break;
+	case Kind::B8:
+		builder.append("Bool8");
+		break;
+	case Kind::B16:
+		builder.append("Bool16");
+		break;
+	case Kind::B32:
+		builder.append("Bool32");
+		break;
+	case Kind::B64:
+		builder.append("Bool64");
+		break;
+	case Kind::F32:
+		builder.append("Float32");
+		break;
+	case Kind::F64:
+		builder.append("Float64");
+		break;
+	case Kind::STRING:
+		builder.append("String");
+		break;
+	case Kind::POINTER:
+		builder.append('*');
+		if (auto base = at(0)) {
+			base->dump(builder);
+		}
+		break;
+	case Kind::SLICE:
+		builder.append("[]");
+		at(0)->dump(builder);
+		break;
+	case Kind::ARRAY:
+		builder.append('[');
+		builder.append(m_extent);
+		builder.append(']');
+		at(0)->dump(builder);
+		break;
+	case Kind::PADDING:
+		builder.append(".Pad");
+		builder.append(m_size);
+		break;
+	case Kind::UNION:
+		// TODO
+		break;
+	case Kind::TUPLE:
+		{
+			builder.append('(');
+			for (Ulen l = length(), i = 0; i < l; i++) {
+				at(i)->dump(builder);
+				if (i != l - 1) {
+					builder.append(", ");
+				}
+			}
+			builder.append(')');
+		}
+		break;
+	case Kind::FN:
+		{
+			const auto& args = at(0)->types();
+			const auto& rets = at(1)->types();
+			builder.append("fn");
+			builder.append('(');
+			Bool f = true;
+			for (const auto& arg : args) {
+				if (!f) {
+					builder.append(", ");
+				}
+				arg->dump(builder);
+				f = false;
+			}
+			builder.append(')');
+			builder.append(" -> ");
+			builder.append('(');
+			f = true;
+			for (const auto& ret : rets) {
+				if (!f) {
+					builder.append(", ");
+				}
+				ret->dump(builder);
+				f = false;
+			}
+			builder.append(')');
+		}
+		break;
+	case Kind::VA:
+		builder.append("...");
+		break;
+	}
+}
+
 CgType* CgType::addrof(Cg& cg) noexcept {
 	return cg.types.make(CgType::PtrInfo { this, 8, 8 });
 }

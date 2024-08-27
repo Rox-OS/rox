@@ -1,6 +1,5 @@
 #ifndef BIRON_CG_TYPE_H
 #define BIRON_CG_TYPE_H
-#include <stdio.h>
 
 #include <biron/util/pool.h>
 #include <biron/llvm.h>
@@ -9,6 +8,8 @@ namespace Biron {
 
 struct Cg;
 struct CgTypeCache;
+
+struct StringBuilder;
 
 struct CgType {
 	enum class Kind {
@@ -27,71 +28,12 @@ struct CgType {
 		VA,                // ...
 	};
 
-	void dump(Bool nl = true) const noexcept {
-		switch (m_kind) {
-		/****/ case Kind::U8:      fprintf(stderr, "Uint8");
-		break; case Kind::U16:     fprintf(stderr, "Uint16");
-		break; case Kind::U32:     fprintf(stderr, "Uint32");
-		break; case Kind::U64:     fprintf(stderr, "Uint64");
-		break; case Kind::S8:      fprintf(stderr, "Sint8");
-		break; case Kind::S16:     fprintf(stderr, "Sint16");
-		break; case Kind::S32:     fprintf(stderr, "Sint32");
-		break; case Kind::S64:     fprintf(stderr, "Sint64");
-		break; case Kind::B8:      fprintf(stderr, "Bool8");
-		break; case Kind::B16:     fprintf(stderr, "Bool16");
-		break; case Kind::B32:     fprintf(stderr, "Bool32");
-		break; case Kind::B64:     fprintf(stderr, "Bool64");
-		break; case Kind::F32:     fprintf(stderr, "Float32");
-		break; case Kind::F64:     fprintf(stderr, "Float64");
-		break; case Kind::POINTER: fprintf(stderr, "*"); if (auto base = at(0)) base->dump(false);
-		break; case Kind::STRING:  fprintf(stderr, "String");
-		break; case Kind::SLICE:   fprintf(stderr, "[]"); at(0)->dump(false);
-		break; case Kind::ARRAY:   fprintf(stderr, "[%zu]", m_extent); at(0)->dump(false);
-		break; case Kind::PADDING: fprintf(stderr, ".Pad%zu", m_size);
-		break; case Kind::UNION:   fprintf(stderr, "union{...}");
-		break; case Kind::TUPLE:
-			{
-				fprintf(stderr, "(");
-				for (Ulen l = length(), i = 0; i < l; i++) {
-					at(i)->dump(false);
-					if (i != l - 1) {
-						fprintf(stderr, ", ");
-					}
-				}
-				fprintf(stderr, ")");
-			}
-		break; case Kind::FN:
-			{
-				const auto& args = at(0)->types();
-				const auto& rets = at(1)->types();
-				fprintf(stderr, "fn(");
-				Bool f = true;
-				for (const auto& arg : args) {
-					if (!f) fprintf(stderr, ", ");
-					arg->dump(false);
-					f = false;
-				}
-				fprintf(stderr, ") -> (");
-				f = true;
-				for (const auto& ret : rets) {
-					if (!f) fprintf(stderr, ", ");
-					ret->dump(false);
-					f = false;
-				}
-				fprintf(stderr, ")");
-			}
-		break; case Kind::VA: fprintf(stderr, "...");
-		break;
-		}
-		fprintf(stderr, " (size = %zu, align = %zu, extent = %zu)",
-			m_size, m_align, m_extent);
-		if (nl) fprintf(stderr, "\n");
-	}
+	void dump(StringBuilder& builder) const noexcept;
 
 	CgType* addrof(Cg& cg) noexcept;
 
 	[[nodiscard]] CgType* deref() const noexcept { return at(0); }
-	[[nodiscard]] CgType* at(Ulen i) const noexcept { return m_types ? (*m_types)[i] : nullptr; }
+	[[nodiscard]] CgType* at(Ulen i) const noexcept { return types()[i]; }
 
 	[[nodiscard]] constexpr const Array<CgType*>& types() const noexcept {
 		BIRON_ASSERT(m_types && "No nested types");
