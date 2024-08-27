@@ -56,9 +56,13 @@ NEW(size_t, const nothrow_t&)
 NEW(size_t, align_val_t, const nothrow_t&)
 
 // Replacable usual deallocation functions.
-DELETE(void*)
 DELETE(void*, size_t);
-DELETE(void*, align_val_t)
+
+// Need to add noexcept specification on these four in particular
+DELETE_TEMPLATE(delete(void*) noexcept);
+DELETE_TEMPLATE(delete[](void*) noexcept);
+DELETE_TEMPLATE(delete(void*, align_val_t) noexcept);
+DELETE_TEMPLATE(delete[](void*, align_val_t) noexcept);
 
 DELETE(void*, size_t, align_val_t)
 DELETE(void*, const nothrow_t&);

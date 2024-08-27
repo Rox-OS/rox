@@ -2,7 +2,7 @@
 
 #include <biron/parser.h>
 #include <biron/llvm.h>
-#include <biron/pool.h>
+#include <biron/util/pool.h>
 #include <biron/ast.h>
 #include <biron/cg.h>
 #include <biron/cg_value.h>

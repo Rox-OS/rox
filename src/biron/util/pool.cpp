@@ -1,6 +1,6 @@
 #include <string.h> // memset
 
-#include <biron/pool.h>
+#include <biron/util/pool.h>
 
 namespace Biron {
 

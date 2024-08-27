@@ -1,10 +1,9 @@
 #ifndef BIRON_PARSER_H
 #define BIRON_PARSER_H
 #include <biron/lexer.h>
-#include <biron/pool.h>
 #include <biron/ast_unit.h>
 #include <biron/diagnostic.h>
-#include <biron/util/format.inl>
+#include <biron/util/pool.h>
 #include <biron/cg.h>
 
 namespace Biron {

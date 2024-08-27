@@ -2,7 +2,7 @@
 #define BIRON_CG_TYPE_H
 #include <stdio.h>
 
-#include <biron/pool.h>
+#include <biron/util/pool.h>
 #include <biron/llvm.h>
 
 namespace Biron {

@@ -5,7 +5,7 @@
 
 namespace Biron {
 
-void Diagnostic::diagnostic(Range range, const char *message) {
+void Diagnostic::diagnostic(Range range, const char *message) noexcept {
 	// Work out the column and line from the token offset.
 	Ulen line_number = 1;
 	Ulen this_column = 1;
