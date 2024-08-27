@@ -10,18 +10,17 @@
 
 namespace Biron {
 
-Maybe<CgValue> AstExpr::gen_value(Cg&) const noexcept {
-	fprintf(stderr, "Unsupported gen_value for AstExpr %s\n", name());
+Maybe<CgValue> AstExpr::gen_value(Cg& cg) const noexcept {
+	cg.error(range(), "Unsupported gen_value for %s", name());
 	return None{};
 }
 
-Maybe<CgAddr> AstExpr::gen_addr(Cg&) const noexcept {
-	fprintf(stderr, "Unsupported gen_addr for AstExpr %s\n", name());
+Maybe<CgAddr> AstExpr::gen_addr(Cg& cg) const noexcept {
+	cg.error(range(), "Unsupported gen_addr for %s", name());
 	return None{};
 }
 
 Maybe<AstConst> AstExpr::eval() const noexcept {
-	fprintf(stderr, "Unsupported eval for AstExpr %s\n", name());
 	return None{};
 }
 
@@ -193,7 +192,7 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 			return fn.addr();
 		}
 	}
-	fprintf(stderr, "Could not find symbol '%.*s'\n", Sint32(m_name.length()), m_name.data());
+	cg.error(range(), "Could not find symbol '%.*s'", Sint32(m_name.length()), m_name.data());
 	return None{};
 }
 
@@ -487,11 +486,11 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		// dispatch. We support multimethods / multiple dispatch with this method
 		// too since it's just a tuple of multiple things.
 		if (m_rhs->is_expr<AstCallExpr>()) {
-			fprintf(stderr, "Unimplemented method call\n");
+			cg.error(range(), "Unimplemented method call");
 		} else {
 			auto rhs = m_rhs->eval();
 			if (!rhs) {
-				fprintf(stderr, "Expected constant expression");
+				cg.error(rhs->range(), "Expected constant expression");
 				return None{};
 			}
 			// We support an integer constant expression inside a tuple
@@ -502,13 +501,13 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 				index = rhs->copy();
 			}
 			if (!index || !index->is_integral()) {
-				fprintf(stderr, "Expected constant integer expression for indexing tuple");
+				cg.error(rhs->range(), "Expected constant integer expression for indexing tuple");
 				return None{};
 			}
 			// TODO(dweiler): We need to map logical index to physical tuple index...
 			auto n = index->to<Uint64>();
 			if (!n) {
-				fprintf(stderr, "Expected integer constant expression for indexing tuple");
+				cg.error(rhs->range(), "Expected integer constant expression for indexing tuple");
 				return None{};
 			}
 			if (type->at(*n)->is_padding()) {
@@ -517,7 +516,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 			return lhs->at(cg, *n);
 		}
 	} else {
-		fprintf(stderr, "Can only index structure and tuple types with '.' operator\n");
+		cg.error(range(), "Can only index structure and tuple types with '.' operator");
 		return None{};
 	}
 
@@ -555,7 +554,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	
 		// Handle casting operator
 		if (!m_rhs->is_expr<AstTypeExpr>()) {
-			fprintf(stderr, "Expected type on right-hand-side of 'as' operator");
+			cg.error(m_rhs->range(), "Expected type on right-hand-side of 'as' operator");
 			return None{};
 		}
 
@@ -812,10 +811,10 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 	switch (m_op) {
 	case Op::NEG:
-		fprintf(stderr, "Cannot take the address of unary - expression");
+		cg.error(range(), "Cannot take the address of unary expression");
 		return None{};
 	case Op::NOT:
-		fprintf(stderr, "Cannot take the address of unary ! expression");
+		cg.error(range(), "Cannot take the address of unary expression");
 		return None{};
 	case Op::DEREF:
 		// When dereferencing on the LHS we will have a R-value of the address 
@@ -829,7 +828,7 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 		}
 		break;
 	case Op::ADDROF:
-		fprintf(stderr, "Cannot take the address of unary & expression");
+		cg.error(range(), "Cannot take the address of unary expression");
 		break;
 	}
 	return None{};

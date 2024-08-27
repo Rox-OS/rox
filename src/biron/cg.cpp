@@ -16,7 +16,7 @@ static LLVM::TargetRef target_from_triple(LLVM& llvm, const char* triple) noexce
 	return target;
 }
 
-Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple) noexcept {
+Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, Diagnostic& diagnostic) noexcept {
 	auto triple = target_triple.terminated(allocator);
 	auto target = target_from_triple(llvm, triple);
 	if (!target) {
@@ -51,17 +51,16 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple) n
 		return None{};
 	}
 
-	auto result = Cg {
+	return Cg {
 		allocator,
 		llvm,
 		context,
 		builder,
 		module,
 		machine,
-		move(*types)
+		move(*types),
+		diagnostic
 	};
-
-	return result;
 }
 
 Bool Cg::optimize() noexcept {

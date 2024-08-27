@@ -59,7 +59,7 @@ Bool AstBreakStmt::codegen(Cg& cg) const noexcept {
 		cg.llvm.BuildBr(cg.builder, loop->exit);
 		return true;
 	}
-	fprintf(stderr, "Cannot 'break' from outside a loop\n");
+	cg.error(range(), "Cannot 'break' from outside a loop");
 	return false;
 }
 
@@ -68,7 +68,7 @@ Bool AstContinueStmt::codegen(Cg& cg) const noexcept {
 		cg.llvm.BuildBr(cg.builder, loop->post);
 		return true;
 	}
-	fprintf(stderr, "Cannot 'continue' from outside a loop\n");
+	cg.error(range(), "Cannot 'continue' from outside a loop");
 	return false;
 }
 
@@ -153,7 +153,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 				auto attr = static_cast<AstAlignAttr*>(it);
 				cg.llvm.SetAlignment(addr->ref(), attr->value());
 			} else {
-				fprintf(stderr, "Unknown attribute for local let\n");
+				cg.error(range(), "Unknown attribute for 'let'");
 			}
 		}
 	}
@@ -166,7 +166,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	auto eval = m_init->eval();
 	if (!eval) {
-		fprintf(stderr, "Expected constant expression");
+		cg.error(m_init->range(), "Expected constant expression");
 		return false;
 	}
 
@@ -265,7 +265,6 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	// join_bb = cg.llvm.GetInsertBlock(cg.builder);
 	cg.llvm.BuildBr(cg.builder, post_bb);
 
 	cg.llvm.PositionBuilderAtEnd(cg.builder, post_bb);
@@ -274,7 +273,6 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	// post_bb = cg.llvm.GetInsertBlock(cg.builder);
 	cg.llvm.BuildBr(cg.builder, loop_bb);
 
 	cg.llvm.PositionBuilderAtEnd(cg.builder, exit_bb);

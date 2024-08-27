@@ -121,14 +121,15 @@ int main(int argc, char **argv) {
 
 	StringView code{src.data(), src.length()};
 	Lexer lexer{name, code};
-	Parser parser{lexer, mallocator};
+	Diagnostic diagnostic{lexer, mallocator};
+	Parser parser{lexer, diagnostic, mallocator};
 	auto unit = parser.parse();
 	if (!unit) {
 		fprintf(stderr, "Could not parse unit\n");
 		return 1;
 	}
 
-	auto cg = Cg::make(mallocator, *llvm, "x86_64-linux-pc-unknown");
+	auto cg = Cg::make(mallocator, *llvm, "x86_64-linux-pc-unknown", diagnostic);
 	if (!cg) {
 		fprintf(stderr, "Could not initialize code generator\n");
 		return 1;

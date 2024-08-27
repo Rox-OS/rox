@@ -5,8 +5,6 @@
 #include <biron/util/traits/is_same.inl>
 #include <biron/util/traits/conditional.inl>
 
-#include <stdio.h>
-
 namespace Biron {
 
 struct Allocator;

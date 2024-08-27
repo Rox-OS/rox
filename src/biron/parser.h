@@ -3,8 +3,8 @@
 #include <biron/lexer.h>
 #include <biron/pool.h>
 #include <biron/ast_unit.h>
+#include <biron/diagnostic.h>
 #include <biron/util/format.inl>
-
 #include <biron/cg.h>
 
 namespace Biron {
@@ -60,12 +60,12 @@ private:
 };
 
 struct Parser {
-	constexpr Parser(Lexer& lexer, Allocator& allocator) noexcept
+	constexpr Parser(Lexer& lexer, Diagnostic& diagnostic, Allocator& allocator) noexcept
 		: m_lexer{lexer}
-		, m_last_range{0, 0}
 		, m_scope{nullptr}
 		, m_in_defer{false}
 		, m_caches{allocator}
+		, m_diagnostic{diagnostic}
 		, m_allocator{allocator}
 	{
 	}
@@ -113,20 +113,14 @@ private:
 	Bool has_symbol(StringView name) const noexcept;
 
 	template<typename... Ts>
-	void error(Range range, const char *message, Ts&&... args) {
-		if constexpr (sizeof...(Ts) == 0) {
-			diagnostic(range, message);
-		} else if (auto fmt = format(m_allocator, message, forward<Ts>(args)...)) {
-			diagnostic(range, fmt->data());
-		} else {
-			diagnostic(range, "Out of memory");
-		}
+	void error(Range range, const char* message, Ts&&... args) {
+		m_diagnostic.error(range, message, forward<Ts>(args)...);
 	}
 	template<typename... Ts>
 	void error(const char *message, Ts&&... args) {
 		error(m_this_token.range, message, forward<Ts>(args)...);
 	}
-	void diagnostic(Range range, const char *message);
+
 	AstExpr* parse_primary_expr() noexcept;
 	AstExpr* parse_postfix_expr() noexcept;
 	AstExpr* parse_agg_expr(AstExpr* type) noexcept;
@@ -176,11 +170,11 @@ private:
 	Lexer& m_lexer;
 	Token m_this_token;
 	Token m_last_token;
-	Range m_last_range;
 	Maybe<Token> m_peek_token;
 	Scope* m_scope;
 	Bool m_in_defer;
 	Array<Cache> m_caches;
+	Diagnostic& m_diagnostic;
 	Allocator& m_allocator;
 };
 

@@ -1,7 +1,7 @@
-#include <stdio.h>
-
 #include <biron/ast_stmt.h>
 #include <biron/ast_expr.h>
+
+#include <biron/cg.h>
 
 #include <biron/util/unreachable.inl>
 
@@ -24,8 +24,8 @@ const char* AstStmt::name() const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Bool AstStmt::codegen(Cg&) const noexcept {
-	fprintf(stderr, "Unsupported codegen for %s\n", name());
+Bool AstStmt::codegen(Cg& cg) const noexcept {
+	cg.error(range(), "Unsupported codegen for %s", name());
 	return true;
 }
 

@@ -3,11 +3,15 @@
 #include <biron/cg_type.h>
 #include <biron/cg_value.h>
 
+#include <biron/diagnostic.h>
+
 #include <biron/util/string.inl>
 
 namespace Biron {
 
 struct Allocator;
+struct Diagnostic;
+
 struct AstTopFn;
 struct AstStmt;
 
@@ -34,7 +38,7 @@ struct Cg {
 	using ModuleRef        = LLVM::ModuleRef;
 	using TargetMachineRef = LLVM::TargetMachineRef;
 
-	static Maybe<Cg> make(Allocator& allocator, LLVM& llvm, StringView triple) noexcept;
+	static Maybe<Cg> make(Allocator& allocator, LLVM& llvm, StringView triple, Diagnostic& diagnostic) noexcept;
 
 	Bool optimize() noexcept;
 	Bool verify() noexcept;
@@ -51,6 +55,11 @@ struct Cg {
 		return nullptr;
 	}
 
+	template<typename... Ts>
+	void error(Range range, const char* message, Ts&&... args) {
+		diagnostic.error(range, message, forward<Ts>(args)...);
+	}
+
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
 
 	Allocator&             allocator;
@@ -62,6 +71,7 @@ struct Cg {
 	CgTypeCache            types;
 	Array<CgVar>           fns;
 	Array<CgScope>         scopes;
+	Diagnostic&            diagnostic;
 
 	constexpr Cg(Cg&& other) noexcept
 		: allocator{other.allocator}
@@ -73,6 +83,7 @@ struct Cg {
 		, types{move(other.types)}
 		, fns{move(other.fns)}
 		, scopes{move(other.scopes)}
+		, diagnostic{other.diagnostic}
 	{
 	}
 
@@ -93,7 +104,8 @@ private:
 	             BuilderRef       builder,
 	             ModuleRef        module,
 	             TargetMachineRef machine,
-	             CgTypeCache&&    types) noexcept
+	             CgTypeCache&&    types,
+	             Diagnostic&      diagnostic) noexcept
 		: allocator{allocator}
 		, llvm{llvm}
 		, context{context}
@@ -103,6 +115,7 @@ private:
 		, types{move(types)}
 		, fns{allocator}
 		, scopes{allocator}
+		, diagnostic{diagnostic}
 	{
 	}
 };

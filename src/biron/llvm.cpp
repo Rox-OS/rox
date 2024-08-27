@@ -1,8 +1,8 @@
-#include <dlfcn.h>
-#include <stdio.h>
-#include <string.h>
+#include <dlfcn.h> // dlopen, dlclose, dlsym
+#include <stdio.h> // fprintf, stderr
+#include <string.h> // memset
 
-#include "llvm.h"
+#include <biron/llvm.h>
 
 namespace Biron {
 

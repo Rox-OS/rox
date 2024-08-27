@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include <biron/ast_unit.h>
 #include <biron/ast_type.h>
 #include <biron/ast_stmt.h>

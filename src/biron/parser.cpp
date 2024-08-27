@@ -6,9 +6,8 @@
 #include <biron/ast_stmt.h>
 #include <biron/ast_type.h>
 
-#include <string.h> // memcpy
-#include <stdlib.h> // strtoul
-#include <stdio.h>  // fprintf
+#include <stdlib.h> // strtoul, strtod
+#include <string.h> // strncmp
 #include <errno.h>  // errno, ERANGE
 
 #define ERROR(...) \
@@ -59,38 +58,6 @@ Parser::~Parser() noexcept {
 			static_cast<AstNode*>(node)->~AstNode();
 		}
 	}
-}
-
-void Parser::diagnostic(Range range, const char *message) {
-	// Do not report the same error more than once.
-	if (range == m_last_range) {
-		return;
-	}
-	m_last_range = range;
-
-	// Work out the column and line from the token offset.
-	Ulen line_number = 1;
-	Ulen this_column = 1;
-	Ulen last_column = 1;
-	// We just count newlines from the beginning of the lexer stream up to but not
-	// including where the token starts itself. We also keep track of the previous
-	// lines length (last_column) to handle the case where a parse error happens
-	// right on the end of a line (see below).
-	for (Ulen i = 0; i < range.offset; i++) {
-		if (m_lexer[i] == '\n') {
-			line_number++;
-			last_column = this_column;
-			this_column = 0;
-		}
-		this_column++;
-	}
-	// When the error is right at the end of the line, the above counting logic
-	// will report an error on the first column of the next line.
-	if (this_column == 1 && line_number > 1) {
-		line_number--;
-		this_column = last_column;
-	}
-	fprintf(stderr, "%.*s:%zu:%zu: %s\n", (int)m_lexer.name().length(), m_lexer.name().data(), line_number, this_column, message);
 }
 
 AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
