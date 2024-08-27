@@ -230,7 +230,7 @@ Token Lexer::read() noexcept {
 				case '.':
 					// 0.\d+
 					k = Kind::LIT_FLT;
-					d = true;
+					d = 1;
 					goto L_dec;
 				}
 			} else {
@@ -243,7 +243,7 @@ L_dec:
 						fwd(); // Consume '
 						s++;
 						continue;
-					} else if (peek() == '.') {
+					} else if (d == 0 && peek() == '.') {
 						fwd(); // Consume '.'
 						d++;
 						k = Kind::LIT_FLT;

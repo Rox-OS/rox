@@ -41,20 +41,6 @@ AstConst::AstConst(AstConst&& other) noexcept
 }
 
 Maybe<AstConst> AstConst::copy() const noexcept {
-	// GCC incorrectly sees the following call stack as possible:
-	//
-	//	AstConst::~AstConst()
-	//		AstConst::drop()
-	//			Array<AstConst>::~Array()
-	//				Array<AstConst>::m_allocator <-- uninitialized
-	//
-	// Even though AstConst::drop() is only called when Kind::TUPLE which is also
-	// the only time the Array<AstConst> is initialized. Just disable the warning
-	// in here and restore it after.
-	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wpragmas"
-	#pragma GCC diagnostic ignored "-Wunknown-warning-option"
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	switch (m_kind) {
 	case Kind::NONE:  return AstConst { range() };
 	case Kind::U8:    return AstConst { range(), kind(), m_as_uint };
@@ -103,7 +89,6 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 		}
 	}
 	return None{};
-	#pragma GCC diagnostic pop
 }
 
 } // namespace Biron

@@ -16,6 +16,13 @@ namespace std {
 	};
 } // namespace std
 
+extern "C" {
+	void __cxa_pure_virtual() {
+		fprintf(stderr, "Pure virtual function call\n");
+		abort();
+	}
+}
+
 // We bring them into the global namespace though since that is where the
 // new and delete operators must be defined.
 using std::size_t;

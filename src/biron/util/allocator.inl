@@ -34,7 +34,7 @@ struct InlineAllocator : Allocator {
 	}
 private:
 	alignas(16) Uint8 m_data[CAPACITY];
-	Ulen m_offset;
+	Ulen m_offset = 0;
 };
 
 struct TemporaryAllocator : Allocator {

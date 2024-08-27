@@ -196,6 +196,7 @@ private:
 		: m_cache{move(cache)}
 		, m_llvm{llvm}
 		, m_context{context}
+		, m_padding_cache{m_cache.allocator()}
 	{
 	}
 
@@ -203,8 +204,9 @@ private:
 	LLVM& m_llvm;
 	LLVM::ContextRef m_context;
 	CgType* m_builtin[18];
+	Array<CgType*> m_padding_cache; // Indexed by padding size
 };
 
 } // namespace Biron
 
-#endif 
+#endif

@@ -20,6 +20,9 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, D
 	// The target triple cannot be that long so use an inline allocator here for it.
 	InlineAllocator<1024> scratch;
 	auto triple = target_triple.terminated(scratch);
+	if (!triple) {
+		return None{};
+	}
 
 	auto target = target_from_triple(llvm, triple);
 	if (!target) {

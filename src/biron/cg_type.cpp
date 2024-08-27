@@ -214,7 +214,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 	}
 	auto value = m_extent->eval();
 	if (!value || !value->is_integral()) {
-		// Not a compile time integer constant expression.
+		cg.error(m_extent->range(), "Expected integer constant expression");
 		return nullptr;
 	}
 	auto extent = value->to<Uint64>();
@@ -344,9 +344,25 @@ CgType* CgTypeCache::make(CgType::BoolInfo info) noexcept {
 	if (!dst) {
 		return nullptr;
 	}
-	// TODO(select: B8->)
+	CgType::Kind kind;
+	switch (info.size) {
+	case 8:
+		kind = CgType::Kind::B64;
+		break;
+	case 4:
+		kind = CgType::Kind::B32;
+		break;
+	case 2:
+		kind = CgType::Kind::B16;
+		break;
+	case 1:
+		kind = CgType::Kind::B8;
+		break;
+	default:
+		return nullptr;
+	}
 	return new(dst, Nat{}) CgType {
-		CgType::Kind::B32,
+		kind,
 		info.size,
 		info.align,
 		0,
@@ -390,6 +406,21 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 }
 
 CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
+	auto ensure_padding = [this](Ulen padding) -> CgType* {
+		if (auto find = m_padding_cache.at(padding)) {
+			return *find;
+		}
+		if (!m_padding_cache.resize(padding)) {
+			return nullptr;
+		}
+		auto pad = make(CgType::PaddingInfo { padding });
+		if (!pad) {
+			return nullptr;
+		}
+		m_padding_cache[padding] = pad;
+		return pad;
+	};
+
 	Array<CgType*> padded{m_cache.allocator()};
 	if (!padded.reserve(info.types.length())) {
 		return nullptr;
@@ -401,7 +432,7 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 			const auto align_mask = type->align() - 1;
 			const auto aligned_offset = (offset + align_mask) & ~align_mask;
 			if (auto padding = aligned_offset - offset) {
-				auto pad = make(CgType::PaddingInfo { padding });
+				auto pad = ensure_padding(padding);
 				if (!pad || !padded.push_back(pad)) {
 					return nullptr;
 				}
@@ -416,7 +447,7 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 	const auto align_mask = alignment - 1;
 	const auto aligned_offset = (offset + align_mask) & ~align_mask;
 	if (auto padding = aligned_offset - offset) {
-		auto pad = make(CgType::PaddingInfo { padding });
+		auto pad = ensure_padding(padding);
 		if (!pad || !padded.push_back(pad)) {
 			return nullptr;
 		}
