@@ -9,6 +9,15 @@
 
 namespace Biron {
 
+Bool CgScope::emit_defers(Cg& cg) const noexcept {
+	for (Ulen l = defers.length(), i = l - 1; i < l; i--) {
+		if (!defers[i]->codegen(cg)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 Bool AstTopFn::prepass(Cg& cg) const noexcept {
 	auto rets_t = m_rets->codegen(cg);
 	if (!rets_t) {

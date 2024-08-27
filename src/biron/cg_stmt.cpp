@@ -18,10 +18,23 @@ Bool AstBlockStmt::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 	}
+
+	// Generate the defers for this scope if any
+	if (!cg.scopes.last().emit_defers(cg)) {
+		return false;
+	}
+
 	return cg.scopes.pop_back();
 }
 
 Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
+	// Generate all the defer statements in reverse order here before the return.
+	for (Ulen l = cg.scopes.length(), i = l - 1; i < l; i--) {
+		if (!cg.scopes[i].emit_defers(cg)) {
+			return false;
+		}
+	}
+
 	if (!m_expr) {
 		cg.llvm.BuildRetVoid(cg.builder);
 		return true;
@@ -37,24 +50,26 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 	return true;
 }
 
+Bool AstDeferStmt::codegen(Cg& cg) const noexcept {
+	return cg.scopes.last().defers.push_back(m_stmt);
+}
+
 Bool AstBreakStmt::codegen(Cg& cg) const noexcept {
-	if (cg.loops.empty()) {
-		fprintf(stderr, "Cannot 'break' from outside a loop\n");
-		return false;
+	if (auto loop = cg.loop()) {
+		cg.llvm.BuildBr(cg.builder, loop->exit);
+		return true;
 	}
-	const auto& loop = cg.loops.last();
-	cg.llvm.BuildBr(cg.builder, loop.exit);
-	return true;
+	fprintf(stderr, "Cannot 'break' from outside a loop\n");
+	return false;
 }
 
 Bool AstContinueStmt::codegen(Cg& cg) const noexcept {
-	if (cg.loops.empty()) {
-		fprintf(stderr, "Cannot 'continue' from outside a loop\n");
-		return false;
+	if (auto loop = cg.loop()) {
+		cg.llvm.BuildBr(cg.builder, loop->post);
+		return true;
 	}
-	const auto& loop = cg.loops.last();
-	cg.llvm.BuildBr(cg.builder, loop.post);
-	return true;
+	fprintf(stderr, "Cannot 'continue' from outside a loop\n");
+	return false;
 }
 
 Bool AstIfStmt::codegen(Cg& cg) const noexcept {
@@ -229,9 +244,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	auto post_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "post");
 	auto exit_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "exit");
 
-	if (!cg.loops.emplace_back(post_bb, exit_bb)) {
-		return false;
-	}
+	cg.scopes.last().loop.emplace(post_bb, exit_bb);
 
 	cg.llvm.BuildBr(cg.builder, loop_bb);
 
@@ -267,7 +280,6 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	cg.llvm.PositionBuilderAtEnd(cg.builder, exit_bb);
 	cg.llvm.AppendExistingBasicBlock(this_fn, exit_bb);
 
-	cg.loops.pop_back();
 	cg.scopes.pop_back();
 
 	return true;

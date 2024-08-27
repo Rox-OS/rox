@@ -9,9 +9,23 @@ namespace Biron {
 
 struct Allocator;
 struct AstTopFn;
+struct AstStmt;
+
+// We keep track of the loop post and exit BBs for "continue" and "break"
+struct Loop {
+	LLVM::BasicBlockRef post;
+	LLVM::BasicBlockRef exit;
+};
 
 struct CgScope {
+	constexpr CgScope(Allocator& allocator) noexcept
+		: vars{allocator}, defers{allocator}
+	{
+	}
+	Bool emit_defers(Cg& cg) const noexcept;
 	Array<CgVar> vars;
+	Array<AstStmt*> defers;
+	Maybe<Loop> loop;
 };
 
 struct Cg {
@@ -26,6 +40,16 @@ struct Cg {
 	Bool verify() noexcept;
 	void dump() noexcept;
 	Bool emit(StringView name) noexcept;
+
+	// Searches for the lexically closest loop
+	const Loop* loop() const noexcept {
+		for (Ulen l = scopes.length(), i = l - 1; i < l; i--) {
+			if (const auto& scope = scopes[i]; scope.loop) {
+				return &scope.loop.some();
+			}
+		}
+		return nullptr;
+	}
 
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
 
@@ -49,7 +73,6 @@ struct Cg {
 		, types{move(other.types)}
 		, fns{move(other.fns)}
 		, scopes{move(other.scopes)}
-		, loops{move(other.loops)}
 	{
 	}
 
@@ -61,6 +84,8 @@ private:
 	friend struct AstVarExpr;
 	friend struct AstBreakStmt;
 	friend struct AstContinueStmt;
+	friend struct AstDeferStmt;
+	friend struct AstReturnStmt;
 
 	constexpr Cg(Allocator&       allocator,
 	             LLVM&            llvm,
@@ -78,17 +103,8 @@ private:
 		, types{move(types)}
 		, fns{allocator}
 		, scopes{allocator}
-		, loops{allocator}
 	{
 	}
-
-	// We keep track of the loop post and exit BBs for "continue" and "break"
-	struct Loop {
-		LLVM::BasicBlockRef post;
-		LLVM::BasicBlockRef exit;
-	};
-
-	Array<Loop> loops;
 };
 
 } // namespace Biron

@@ -413,11 +413,7 @@ Maybe<AstConst> AstBinExpr::eval() const noexcept {
 		return None{};
 	}
 
-	// This is a bit of a combinatorial explosion:
-	//	numeric - Instantiated 13 times to dispatch over 8 items, 104 possible numeric ops
-	//	boolean - Instantiated 4 times to dispatch over 4 items, 16 possible boolean ops
-	//
-	// This generates a total of 17 functions which process 120 possible combinations.
+	// Generates 26 functions
 	auto numeric = [&](auto f) noexcept -> Maybe<AstConst> {
 		if (lhs->is_uint()) {
 			return AstConst { range(), lhs->kind(), f(lhs->as_uint(), rhs->as_uint()) };
@@ -427,6 +423,7 @@ Maybe<AstConst> AstBinExpr::eval() const noexcept {
 		return None{};
 	};
 
+	// Generates 8 functions
 	auto boolean = [&](auto f) noexcept -> Maybe<AstConst> {
 		if (lhs->is_bool()) {
 			return AstConst { range(), lhs->kind(), f(lhs->as_bool(), rhs->as_bool()) };
@@ -434,6 +431,7 @@ Maybe<AstConst> AstBinExpr::eval() const noexcept {
 		return None{};
 	};
 
+	// Generates 4 functions
 	auto either = [&](auto f) noexcept -> Maybe<AstConst> {
 		if (auto try_numeric = numeric(f)) {
 			return try_numeric;
@@ -481,7 +479,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 	if (type->is_pointer()) {
 		ptr = true;
 		// We do the implicit dereference behavior so that we do not need a
-		// '->' operator like C and C++ here
+		// '->' operator like C and C++ here.
 		type = type->deref();
 	}
 	if (type->is_tuple()) {
@@ -627,9 +625,6 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else if (lhs->type()->is_uint()) {
 			return CgValue { lhs->type(), cg.llvm.BuildICmp(cg.builder, IntPredicate::ULE, lhs->ref(), rhs->ref(), "") };
 		}
-		break;
-	case Op::AS:
-		// TODO(dweiler): Implement
 		break;
 	case Op::LOR:
 		{

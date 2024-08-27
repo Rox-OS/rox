@@ -914,6 +914,10 @@ AstReturnStmt* Parser::parse_return_stmt() noexcept {
 		ERROR("Expected 'return'");
 		return nullptr;
 	}
+	if (m_in_defer) {
+		ERROR("Cannot use 'return' inside 'defer'");
+		return nullptr;
+	}
 	auto beg_token = next(); // Consume 'return'
 	AstExpr* expr = nullptr;
 	if (peek().kind != Token::Kind::SEMI) {
@@ -942,10 +946,12 @@ AstDeferStmt* Parser::parse_defer_stmt() noexcept {
 		return nullptr;
 	}
 	auto beg_token = next(); // Consume 'defer'
+	m_in_defer = true;
 	auto stmt = parse_stmt();
 	if (!stmt) {
 		return nullptr;
 	}
+	m_in_defer = false;
 	return new_node<AstDeferStmt>(stmt, beg_token.range.include(stmt->range()));
 };
 

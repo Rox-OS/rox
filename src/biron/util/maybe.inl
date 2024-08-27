@@ -59,7 +59,7 @@ struct Maybe {
 	constexpr void reset(const Maybe& other) noexcept
 		requires CopyConstructible<T> { new (drop(), Nat{}) Maybe{other}; }
 	template<typename... Ts>
-	[[nodiscard]] constexpr T& emplace(Ts&&... args) noexcept {
+	constexpr T& emplace(Ts&&... args) noexcept {
 		return m_either.emplace_lhs(forward<Ts>(args)...);
 	}
 	[[nodiscard]] constexpr Bool operator==(const Maybe& other) const noexcept {

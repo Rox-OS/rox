@@ -64,6 +64,7 @@ struct Parser {
 		: m_lexer{lexer}
 		, m_last_range{0, 0}
 		, m_scope{nullptr}
+		, m_in_defer{false}
 		, m_caches{allocator}
 		, m_nodes{allocator}
 		, m_allocator{allocator}
@@ -180,6 +181,7 @@ private:
 	Range m_last_range;
 	Maybe<Token> m_peek_token;
 	Scope* m_scope;
+	Bool m_in_defer;
 	Array<Cache> m_caches;
 	Array<AstNode*> m_nodes;
 	Allocator& m_allocator;

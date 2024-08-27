@@ -67,6 +67,7 @@ struct AstDeferStmt : AstStmt {
 	{
 	}
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
+	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
 private:
 	AstStmt* m_stmt;
 };
