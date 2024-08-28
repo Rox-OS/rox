@@ -181,9 +181,14 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	                             src->type()->ref(),
 	                             m_name.terminated(scratch));
 
+	auto addr = CgAddr { src->type()->addrof(cg), dst };
+	if (!cg.globals.emplace_back(m_name, move(addr))) {
+		return false;
+	}
+
 	cg.llvm.SetInitializer(dst, src->ref());
 
-	cg.llvm.SetGlobalConstant(dst, true);
+	// cg.llvm.SetGlobalConstant(dst, true);
 	if (m_attrs) {
 		for (auto it : *m_attrs) {
 			if (it->is_attr<AstAlignAttr>()) {

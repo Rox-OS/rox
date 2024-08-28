@@ -70,6 +70,7 @@ struct Cg {
 	TargetMachineRef       machine;
 	CgTypeCache            types;
 	Array<CgVar>           fns;
+	Array<CgVar>           globals;
 	Array<CgScope>         scopes;
 	Array<CgTypeDef>       typedefs;
 	Diagnostic&            diagnostic;
@@ -83,6 +84,7 @@ struct Cg {
 		, machine{exchange(other.machine, nullptr)}
 		, types{move(other.types)}
 		, fns{move(other.fns)}
+		, globals{move(other.globals)}
 		, scopes{move(other.scopes)}
 		, typedefs{move(other.typedefs)}
 		, diagnostic{other.diagnostic}
@@ -116,6 +118,7 @@ private:
 		, machine{machine}
 		, types{move(types)}
 		, fns{allocator}
+		, globals{allocator}
 		, scopes{allocator}
 		, typedefs{allocator}
 		, diagnostic{diagnostic}

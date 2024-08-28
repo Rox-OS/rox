@@ -193,6 +193,12 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 			return fn.addr();
 		}
 	}
+	// Search module for globals
+	for (const auto& global : cg.globals) {
+		if (global.name() == m_name) {
+			return global.addr();
+		}
+	}
 	cg.error(range(), "Could not find symbol '%.*s'", Sint32(m_name.length()), m_name.data());
 	return None{};
 }
@@ -313,11 +319,6 @@ Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg) const noexcept {
 
 Maybe<AstConst> AstAggExpr::eval() const noexcept {
 	ScratchAllocator scratch{m_exprs.allocator()};
-	// We only support AstArrayType for now.
-	// TODO(dweiler): Remove AstTupleExpr and make it an AstAggExpr
-	if (!m_type->is_type<AstArrayType>()) {
-		return None{};
-	}
 	Array<AstConst> values{m_exprs.allocator()};
 	if (!values.reserve(m_exprs.length())) {
 		return None{};

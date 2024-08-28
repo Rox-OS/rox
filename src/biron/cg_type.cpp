@@ -190,7 +190,7 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Address") return cg.types.ptr();
 	for (auto type : cg.typedefs) {
 		if (type.name() == m_ident) {
-			return type.type();
+			return type.type()->deref();
 		}
 	}
 	return nullptr;
@@ -417,7 +417,7 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 		if (auto find = m_padding_cache.at(padding)) {
 			return *find;
 		}
-		if (!m_padding_cache.resize(padding)) {
+		if (!m_padding_cache.resize(padding + 1)) {
 			return nullptr;
 		}
 		auto pad = make(CgType::PaddingInfo { padding });
