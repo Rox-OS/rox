@@ -171,6 +171,20 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 	return cg.types.make(CgType::TupleInfo { move(types), this });
 }
 
+CgType* AstUnionType::codegen(Cg& cg) const noexcept {
+	Array<CgType*> types{cg.allocator};
+	if (!types.reserve(m_types.length())) {
+		return nullptr;
+	}
+	for (const auto elem : m_types) {
+		auto type = elem->codegen(cg);
+		if (!type || !types.push_back(type)) {
+			return nullptr;
+		}
+	}
+	return cg.types.make(CgType::UnionInfo { move(types), this });
+}
+
 CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Uint8")   return cg.types.u8();
 	if (m_ident == "Uint16")  return cg.types.u16();
@@ -489,6 +503,37 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 		alignment,
 		0,
 		move(padded),
+		info.ast,
+		ref
+	};
+}
+
+CgType* CgTypeCache::make(CgType::UnionInfo info) noexcept {
+	Ulen size = 0;
+	Ulen align = 0;
+	for (auto type : info.types) {
+		size = max(size, type->size());
+		align = max(size, type->align());
+	}
+	// struct alignas(align) Union {
+	//   Uint8 data[size];
+	//   Uint8 tag;
+	//   Uint8 padding[];
+	// };
+	auto ref = m_llvm.ArrayType2(u8()->ref(), size);
+	if (!ref) {
+		return nullptr;
+	}
+	auto dst = m_cache.allocate();
+	if (!dst) {
+		return nullptr;
+	}
+	return new (dst, Nat{}) CgType {
+		CgType::Kind::UNION,
+		size,
+		align,
+		0,
+		move(info.types),
 		info.ast,
 		ref
 	};

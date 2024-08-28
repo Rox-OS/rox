@@ -358,6 +358,33 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 
 	auto count = type->is_array() ? type->extent() : type->length();
 
+	if (count == 0) {
+		// When the type is a scalar.
+		if (auto length = m_exprs.length()) {
+			if (length > 1) {
+				cg.error(range(), "Too many expressions in aggregate initializer");
+				return None{};
+			}
+			// We have an expression to initialize it with.
+			auto value = m_exprs[0]->gen_value(cg);
+			if (!value || !addr->store(cg, *value)) {
+				return None{};
+			}
+		} else {
+			// No expression so zero initialize it.
+			auto zero = CgValue::zero(addr->type()->deref(), cg);
+			if (!zero || !addr->store(cg, *zero)) {
+				return None{};
+			}
+		}
+		return addr;
+	}
+
+	if (m_exprs.length() > count) {
+		cg.error(range(), "Too many expressions in aggregate initializer");
+		return None{};
+	}
+
 	// We now actually go over every index in the type.
 	for (Ulen l = count, i = 0, j = 0; i < l; i++) {
 		auto dst = addr->at(cg, i);

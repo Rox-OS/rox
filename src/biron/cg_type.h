@@ -25,6 +25,7 @@ struct CgType {
 		ARRAY,             // [N]T
 		PADDING,           // [N]u8 // Special meta-type for tuple padding
 		TUPLE,             // (T1, ..., Tn)
+		UNION,             // T1 | ... | Tn
 		FN,                // fn (T1, ..., Tn) -> (R1, ..., Rn)
 		VA,                // ...
 	};
@@ -109,6 +110,11 @@ struct CgType {
 		const AstType* ast;
 	};
 
+	struct UnionInfo {
+		Array<CgType*> types;
+		const AstType* ast;
+	};
+
 	struct ArrayInfo {
 		CgType*        base;
 		Uint64         extent;
@@ -188,6 +194,7 @@ struct CgTypeCache {
 	CgType* make(CgType::BoolInfo info) noexcept;
 	CgType* make(CgType::StringInfo info) noexcept;
 	CgType* make(CgType::TupleInfo info) noexcept;
+	CgType* make(CgType::UnionInfo info) noexcept;
 	CgType* make(CgType::ArrayInfo info) noexcept;
 	CgType* make(CgType::SliceInfo info) noexcept;
 	CgType* make(CgType::PaddingInfo info) noexcept;

@@ -219,6 +219,9 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 			return CgValue { type, value };
 		}
 		break;
+	case CgType::Kind::UNION:
+		// TODO(dweiler): Implement
+		break;
 	case CgType::Kind::FN:
 		{
 			auto value = llvm.ConstPointerNull(type->ref());

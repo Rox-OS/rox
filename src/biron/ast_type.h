@@ -15,7 +15,7 @@ struct AstExpr;
 struct AstType : AstNode {
 	static inline constexpr auto KIND = Kind::TYPE;
 	enum class Kind {
-		TUPLE, IDENT, BOOL, VARARGS, PTR, ARRAY, SLICE, FN
+		TUPLE, UNION, IDENT, BOOL, VARARGS, PTR, ARRAY, SLICE, FN
 	};
 	constexpr AstType(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
@@ -88,6 +88,22 @@ struct AstTupleType : AstType {
 	}
 private:
 	Array<Elem> m_elems;
+};
+
+struct AstUnionType : AstType {
+	static inline constexpr auto KIND = Kind::UNION;
+	constexpr AstUnionType(Range range, Array<AstType*>&& types) noexcept
+		: AstType{KIND, range}
+		, m_types{move(types)}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
+	[[nodiscard]] constexpr const Array<AstType*>& types() const noexcept {
+		return m_types;
+	}
+private:
+	Array<AstType*> m_types;
 };
 
 struct AstVarArgsType : AstType {

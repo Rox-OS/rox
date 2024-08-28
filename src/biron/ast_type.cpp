@@ -19,6 +19,15 @@ void AstTupleType::dump(StringBuilder& builder) const noexcept {
 	builder.append(')');
 }
 
+void AstUnionType::dump(StringBuilder& builder) const noexcept {
+	Bool f = true;
+	for (const auto type : m_types) {
+		if (!f) builder.append(" | ");
+		type->dump(builder);
+		f = false;
+	}
+}
+
 void AstIdentType::dump(StringBuilder& builder) const noexcept {
 	builder.append(m_ident);
 }

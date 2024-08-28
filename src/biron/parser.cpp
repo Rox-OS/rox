@@ -587,23 +587,53 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 //	  | ArrayType
 //	  | SliceType
 //	  | FnType
+//	  | UnionType
+// UnionType
+//	::= Type '|' Type ('|' Type)*
 AstType* Parser::parse_type() noexcept {
-	switch (peek().kind) {
-	case Token::Kind::IDENT:
-		return parse_ident_type();
-	case Token::Kind::LPAREN:
-		return parse_tuple_type();
-	case Token::Kind::ELLIPSIS:
-		return parse_varargs_type();
-	case Token::Kind::STAR:
-		return parse_ptr_type();
-	case Token::Kind::LBRACKET:
-		return parse_bracket_type();
-	case Token::Kind::KW_FN:
-		return parse_fn_type();
-	default:
-		ERROR("Unexpected token '%s' in type", peek().name());
-		return nullptr;
+	Array<AstType*> types{m_allocator};
+	for (;;) {
+		AstType* type = nullptr;
+		switch (peek().kind) {
+		case Token::Kind::IDENT:
+			type = parse_ident_type();
+			break;
+		case Token::Kind::LPAREN:
+			type = parse_tuple_type();
+			break;
+		case Token::Kind::ELLIPSIS:
+			type = parse_varargs_type();
+			break;
+		case Token::Kind::STAR:
+			type = parse_ptr_type();
+			break;
+		case Token::Kind::LBRACKET:
+			type = parse_bracket_type();
+			break;
+		case Token::Kind::KW_FN:
+			type = parse_fn_type();
+			break;
+		default:
+			ERROR("Unexpected token '%s' in type", peek().name());
+			return nullptr;
+		}
+		if (!type || !types.push_back(type)) {
+			return nullptr;
+		}
+		if (peek().kind == Token::Kind::BOR) {
+			next(); // Consume '|'
+		} else {
+			break;
+		}
+	}
+	if (types.length() == 1) {
+		return types[0];
+	} else {
+		auto range = types[0]->range();
+		for (auto type : types) {
+			range = range.include(type->range());
+		}
+		return new_node<AstUnionType>(range, move(types));
 	}
 	BIRON_UNREACHABLE();
 }
