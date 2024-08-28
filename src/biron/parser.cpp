@@ -429,14 +429,14 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 		StringView name;
 		Uint64     max;
 	} TABLE[] = {
-		{ 0, "_u8",  "Uint8",  0xff                     },
-		{ 1, "_u16", "Uint16", 0xffff                   },
-		{ 2, "_u32", "Uint32", 0xffff'fffful            },
-		{ 3, "_u64", "Uint64", 0xffff'ffff'ffff'ffffull },
-		{ 4, "_s8",  "Sint8",  0x7f                     },
-		{ 5, "_s16", "Sint16", 0x7fff                   },
-		{ 6, "_s32", "Sint32", 0x7fff'fffful            },
-		{ 7, "_s64", "Sint64", 0x7fff'ffff'ffff'ffffull },
+		{ 0, "_u8",  "Uint8",  0xff_u64                  },
+		{ 1, "_u16", "Uint16", 0xffff_u64                },
+		{ 2, "_u32", "Uint32", 0xffff'ffff_u64           },
+		{ 3, "_u64", "Uint64", 0xffff'ffff'ffff'ffff_u64 },
+		{ 4, "_s8",  "Sint8",  0x7f_u64                  },
+		{ 5, "_s16", "Sint16", 0x7fff_u64                },
+		{ 6, "_s32", "Sint32", 0x7fff'ffff_u64           },
+		{ 7, "_s64", "Sint64", 0x7fff'ffff'ffff'ffff_u64 },
 	};
 	for (const auto& match : TABLE) {
 		if (strncmp(end, match.type.data(), match.type.length()) != 0) {
@@ -461,7 +461,7 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 	}
 
 	// The untyped integer literal is the same as Sint32 like C.
-	if (n > 0x7fff'fffful) {
+	if (n > 0x7fff'ffff_u64) {
 		ERROR("Untyped integer literal is too large. Consider typing it");
 		return nullptr;
 	}
@@ -991,7 +991,7 @@ AstContinueStmt* Parser::parse_continue_stmt() noexcept {
 		ERROR("Expected ';' after continue statement");
 		return nullptr;
 	}
-	next(); // Consyme ';'
+	next(); // Consume ';'
 	return new_node<AstContinueStmt>(token.range);
 }
 

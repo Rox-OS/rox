@@ -112,11 +112,11 @@ private:
 	Bool has_symbol(StringView name) const noexcept;
 
 	template<typename... Ts>
-	void error(Range range, const char* message, Ts&&... args) {
+	void error(Range range, const char* message, Ts&&... args) noexcept {
 		m_diagnostic.error(range, message, forward<Ts>(args)...);
 	}
 	template<typename... Ts>
-	void error(const char *message, Ts&&... args) {
+	void error(const char *message, Ts&&... args) noexcept {
 		error(m_this_token.range, message, forward<Ts>(args)...);
 	}
 

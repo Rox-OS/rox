@@ -15,7 +15,7 @@ struct Array {
 	using Iterator       = SelectIterator<false>;
 	using ConstIterator  = SelectIterator<true>;
 
-	constexpr Array(Allocator& allocator)
+	constexpr Array(Allocator& allocator) noexcept
 		: m_data{nullptr}
 		, m_length{0}
 		, m_capacity{0}
@@ -34,8 +34,8 @@ struct Array {
 		return *new(drop(), Nat{}) Array{move(other)};
 	}
 
-	Array& operator=(const Array&) = delete;
-	constexpr Array(const Array&) = delete;
+	Array& operator=(const Array&) noexcept = delete;
+	constexpr Array(const Array&) noexcept = delete;
 
 	~Array() noexcept { drop(); }
 

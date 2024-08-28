@@ -8,7 +8,7 @@
 
 namespace Biron {
 
-Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::ContextRef context, Ulen capacity) {
+Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::ContextRef context, Ulen capacity) noexcept {
 	Cache cache{allocator, sizeof(CgType), capacity};
 	// We will construct a "bootstrapping" CgTypeCache which will be used to
 	// construct some builtin types which are always expected to exist.
@@ -117,6 +117,16 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 				}
 			}
 			builder.append(')');
+		}
+		break;
+	case Kind::UNION:
+		{
+			for (Ulen l = length(), i = 0; i < l; i++) {
+				at(i)->dump(builder);
+				if (i != l - 1) {
+					builder.append(" | ");
+				}
+			}
 		}
 		break;
 	case Kind::FN:

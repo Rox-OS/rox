@@ -10,8 +10,8 @@ inline constexpr auto is_referencable = __is_referenceable(T);
 #else
 struct _Referencable {
 	struct Fail {};
-	template<typename T> static T& test(int);
-	template<typename T> static Fail test(...);
+	template<typename T> static T& test(int) noexcept;
+	template<typename T> static Fail test(...) noexcept;
 };
 template<typename T>
 inline constexpr auto is_referencable = 

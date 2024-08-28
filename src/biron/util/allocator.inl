@@ -27,7 +27,7 @@ struct InlineAllocator : Allocator {
 			m_offset -= size;
 		}
 	}
-	Bool owns(const void* old, Ulen size) noexcept {
+	[[nodiscard]] Bool owns(const void* old, Ulen size) noexcept {
 		if (!old) return false;
 		const auto data = reinterpret_cast<const Uint8*>(old);
 		return data >= m_data && data + size < &m_data[CAPACITY];
@@ -72,7 +72,7 @@ struct TemporaryAllocator : Allocator {
 			m_tail->offset -= size;
 		}
 	}
-	void clear() {
+	void clear() noexcept {
 		Chunk* chunk = m_tail;
 		while (chunk) {
 			Chunk* prev = chunk->prev;

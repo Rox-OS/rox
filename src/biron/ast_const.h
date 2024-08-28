@@ -30,11 +30,11 @@ struct AstConst {
 	constexpr AstConst(Range range) noexcept
 		: m_range{range}, m_kind{Kind::NONE}, m_as_nat{} {}
 
-	constexpr AstConst(Range range, Kind kind, Uint128 value)
+	constexpr AstConst(Range range, Kind kind, Uint128 value) noexcept
 		: m_range{range}, m_kind{kind}, m_as_uint{value} {}
-	constexpr AstConst(Range range, Kind kind, Sint128 value)
+	constexpr AstConst(Range range, Kind kind, Sint128 value) noexcept
 		: m_range{range}, m_kind{kind}, m_as_sint{value} {}
-	constexpr AstConst(Range range, Kind kind, Bool128 value)
+	constexpr AstConst(Range range, Kind kind, Bool128 value) noexcept
 		: m_range{range}, m_kind{kind}, m_as_bool{value} {}
 
 	constexpr AstConst(Range range, Uint8 value) noexcept
@@ -72,10 +72,10 @@ struct AstConst {
 	constexpr AstConst(Range range, Array<AstConst>&& tuple) noexcept
 		: m_range{range}, m_kind{Kind::TUPLE}, m_as_tuple{move(tuple)} {}
 
-	constexpr AstConst(Range range, StringView string)
+	constexpr AstConst(Range range, StringView string) noexcept
 		: m_range{range}, m_kind{Kind::STRING}, m_as_string{string} {}
 
-	constexpr AstConst(Range range, AstType* base, Array<AstConst>&& array)
+	constexpr AstConst(Range range, AstType* base, Array<AstConst>&& array) noexcept
 		: m_range{range}, m_kind{Kind::ARRAY}, m_as_array{base, move(array)} {}
 
 	AstConst(AstConst&& other) noexcept;
@@ -138,7 +138,7 @@ private:
 		ConstArray      m_as_array;
 	};
 
-	void drop() {
+	void drop() noexcept {
 		if (m_kind == Kind::TUPLE) {
 			m_as_tuple.~Array<AstConst>();
 		} else if (m_kind == Kind::ARRAY) {

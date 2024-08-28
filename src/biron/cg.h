@@ -56,7 +56,7 @@ struct Cg {
 	}
 
 	template<typename... Ts>
-	void error(Range range, const char* message, Ts&&... args) {
+	void error(Range range, const char* message, Ts&&... args) noexcept{
 		diagnostic.error(range, message, forward<Ts>(args)...);
 	}
 

@@ -9,7 +9,7 @@ namespace Biron {
 
 struct Allocator;
 
-inline Bool format_va(char* dst, Ulen *n, const char* fmt, ...) {
+inline Bool format_va(char* dst, Ulen *n, const char* fmt, ...) noexcept {
 	va_list va;
 	va_start(va, fmt);
 	auto l = vsnprintf(dst, *n, fmt, va);
@@ -22,7 +22,7 @@ inline Bool format_va(char* dst, Ulen *n, const char* fmt, ...) {
 }
 
 template<typename... Ts>
-Maybe<Array<char>> format(Allocator& allocator, const char* fmt, Ts&&... args) {
+Maybe<Array<char>> format(Allocator& allocator, const char* fmt, Ts&&... args) noexcept {
 	Ulen n = 0;
 	if (!format_va(nullptr, &n, fmt, forward<Ts>(args)...)) {
 		return None{};

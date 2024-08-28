@@ -162,7 +162,7 @@ private:
 };
 
 struct CgTypeCache {
-	static Maybe<CgTypeCache> make(Allocator& allocator, LLVM& llvm, LLVM::ContextRef context, Ulen capacity);
+	static Maybe<CgTypeCache> make(Allocator& allocator, LLVM& llvm, LLVM::ContextRef context, Ulen capacity) noexcept;
 
 	// Builtin types that are likely used everywhere.
 	constexpr CgType* u8()   const noexcept { return m_builtin[0]; }
@@ -210,7 +210,7 @@ struct CgTypeCache {
 	constexpr CgTypeCache(CgTypeCache&&) noexcept = default;
 
 private:
-	constexpr CgTypeCache(Cache&& cache, LLVM& llvm, LLVM::ContextRef context)
+	constexpr CgTypeCache(Cache&& cache, LLVM& llvm, LLVM::ContextRef context) noexcept
 		: m_cache{move(cache)}
 		, m_llvm{llvm}
 		, m_context{context}
