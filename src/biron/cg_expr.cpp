@@ -334,7 +334,11 @@ Maybe<AstConst> AstAggExpr::eval() const noexcept {
 			return None{};
 		}
 	}
-	return AstConst { range, m_type, move(values) };
+	if (m_type->is_type<AstArrayType>()) {
+		return AstConst { range, m_type, move(values) };
+	} else {
+		return AstConst { range, move(values) };
+	}
 }
 
 Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
