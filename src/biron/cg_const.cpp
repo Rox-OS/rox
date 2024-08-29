@@ -49,24 +49,24 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			Maybe<Array<Maybe<StringView>>> fields;
 			auto& tuple = as_tuple();
 			if (!values.reserve(tuple.values.length())) {
-				return None{};
+				return cg.oom();
 			}
 			Ulen i = 0;
 			for (const auto& elem : tuple.values) {
 				auto value = elem.codegen(cg, type->at(i));
 				if (!value || !values.push_back(move(*value))) {
-					return None{};
+					return cg.oom();
 				}
 				i++;
 			}
 			if (tuple.fields) {
 				auto& dst = fields.emplace(cg.allocator);
 				if (!dst.reserve(tuple.values.length())) {
-					return None{};
+					return cg.oom();
 				}
 				for (const auto& field : *tuple.fields) {
 					if (!dst.push_back(field)) {
-						return None{};
+						return cg.oom();
 					}
 				}
 			}
@@ -79,7 +79,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 				if (field_type->is_padding()) {
 					auto zero = CgValue::zero(field_type, cg);
 					if (!zero || !consts.push_back(zero->ref())) {
-						return None{};
+						return cg.oom();
 					}
 					continue;
 				}
@@ -87,10 +87,10 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 					// Zero initialize everything else not specified in the aggregate.
 					auto zero = CgValue::zero(field_type, cg);
 					if (!zero || !consts.push_back(zero->ref())) {
-						return None{};
+						return cg.oom();
 					}
 				} else if (!consts.push_back(values[j].ref())) {
-					return None{};
+					return cg.oom();
 				}
 				j++;
 			}
@@ -99,7 +99,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			                                          consts.length(),
 			                                          false);
 			if (!value) {
-				return None{};
+				return cg.oom();
 			}
 			return CgValue { type, value };
 		}
@@ -109,35 +109,35 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			// Generate constant CgValues for each array element.
 			Array<CgValue> values{cg.allocator};
 			if (!values.reserve(m_as_array.elems.length())) {
-				return None{};
+				return cg.oom();
 			}
 			auto base = m_as_array.type->codegen(cg);
 			if (!base) {
-				return None{};
+				return cg.oom();
 			}
 			for (const auto& elem : m_as_array.elems) {
 				auto value = elem.codegen(cg, base);
 				if (!value) {
-					return None{};
+					return cg.oom();
 				}
 				if (!values.push_back(move(*value))) {
-					return None{};
+					return cg.oom();
 				}
 			}
 			Array<LLVM::ValueRef> consts{scratch};
 			if (!consts.reserve(values.length())) {
-				return None{};
+				return cg.oom();
 			}
 			for (const auto& value : values) {
 				if (!consts.push_back(value.ref())) {
-					return None{};
+					return cg.oom();
 				}
 			}
 			auto value = cg.llvm.ConstArray2(base->ref(),
 			                                 consts.data(),
 			                                 consts.length());
 			if (!value) {
-				return None{};
+				return cg.oom();
 			}
 
 			return CgValue { base, value };

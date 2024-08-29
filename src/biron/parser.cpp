@@ -272,6 +272,16 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 			return nullptr;
 		}
 		break;
+	case Token::Kind::LBRACE:
+		// We're parsing an aggregate initializer but we have no type so it will need
+		// to be inferred. This can only be a structure or array type.
+		//
+		// This currently does not work since we lack bi-directional type inference,
+		// and only support forward inferencing. So any use of this aggregate will
+		// likely crash the compiler right now.
+		//
+		// TODO(dweiler): Revisit.
+		return parse_agg_expr(nullptr);
 	default:
 		ERROR("Unknown token '%s' in primary expression", peek().name());
 		return nullptr;
@@ -279,12 +289,16 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 	BIRON_UNREACHABLE();
 }
 
-AstExpr* Parser::parse_agg_expr(AstExpr* type) noexcept {
-	if (!type->is_expr<AstTypeExpr>()) {
-		return nullptr;
+AstExpr* Parser::parse_agg_expr(AstExpr* type_expr) noexcept {
+	AstType* type = nullptr;
+	if (type_expr) {
+		if (!type_expr->is_expr<AstTypeExpr>()) {
+			return nullptr;
+		}
+		type = static_cast<AstTypeExpr*>(type_expr)->type();
 	}
 	if (peek().kind != Token::Kind::LBRACE) {
-		return type;
+		return type_expr;
 	}
 	Array<AstExpr*> exprs{m_allocator};
 	next(); // Skip '{'
@@ -305,7 +319,7 @@ AstExpr* Parser::parse_agg_expr(AstExpr* type) noexcept {
 	}
 	auto end_token = next(); // Skip '}'
 	auto range = type->range().include(end_token.range);
-	return new_node<AstAggExpr>(static_cast<AstTypeExpr*>(type)->type(), move(exprs), range);
+	return new_node<AstAggExpr>(type, move(exprs), range);
 }
 
 // TypeExpr

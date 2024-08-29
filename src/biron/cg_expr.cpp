@@ -81,7 +81,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 		}
 		auto dst = cg.emit_alloca(type);
 		if (!dst || !dst->store(cg, *value)) {
-			return None{};
+			return cg.oom();
 		}
 		return dst;
 	}
@@ -93,13 +93,13 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 	for (Ulen l = length(), i = 0; i < l; i++) {
 		auto value = at(i)->gen_value(cg);
 		if (!value || !values.push_back(move(*value))) {
-			return None{};
+			return cg.oom();
 		}
 	}
 
 	auto addr = cg.emit_alloca(type); // *(...)
 	if (!addr) {
-		return None{};
+		return cg.oom();
 	}
 
 	Ulen j = 0;
@@ -110,16 +110,16 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 			auto padding_addr = addr->at(cg, i);
 			auto padding_zero = CgValue::zero(dst_type, cg);
 			if (!padding_addr || !padding_zero) {
-				return None{};
+				return cg.oom();
 			}
 			if (!padding_addr->store(cg, *padding_zero)) {
-				return None{};
+				return cg.oom();
 			}
 		} else {
 			// We use j++ to index as values contains non-padding fields.
 			auto dst = addr->at(cg, i);
 			if (!dst || !dst->store(cg, values[j++])) {
-				return None{};
+				return cg.oom();
 			}
 		}
 	}
@@ -143,11 +143,13 @@ CgType* AstTupleExpr::gen_type(Cg& cg) const noexcept {
 
 	Array<CgType*> types{cg.allocator};
 	if (!types.reserve(length())) {
+		cg.oom();
 		return nullptr;
 	}
 	for (Ulen l = length(), i = 0; i < l; i++) {
 		auto type = at(i)->gen_type(cg);
 		if (!type || !types.push_back(type)) {
+			cg.oom();
 			return nullptr;
 		}
 	}
@@ -163,6 +165,9 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg) const noexcept {
 
 	ScratchAllocator scratch{cg.allocator};
 	Array<LLVM::ValueRef> values{scratch};
+	if (!values.reserve(m_args->length())) {
+		return cg.oom();
+	}
 	for (Ulen l = m_args->length(), i = 0; i < l; i++) {
 		auto value = m_args->at(i)->gen_value(cg);
 		if (!value) {
@@ -180,7 +185,7 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg) const noexcept {
 			ref = value->ref();
 		}
 		if (!values.push_back(ref)) {
-			return None{};
+			return cg.oom();
 		}
 	}
 
@@ -193,7 +198,7 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg) const noexcept {
 	                                "");
 
 	if (!value) {
-		return None{};
+		return cg.oom();
 	}
 
 	// When the rets tuple only contains a single element we detuple it. This
@@ -362,14 +367,12 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	}
 	builder.append('\0');
 	if (!builder.valid()) {
-		cg.fatal(range(), "Out of memory");
-		return None{};
+		return cg.oom();
 	}
 	auto ptr = cg.llvm.BuildGlobalString(cg.builder, builder.data(), "");
 	auto len = cg.llvm.ConstInt(cg.types.u64()->ref(), m_literal.length(), false);
 	if (!ptr || !len) {
-		cg.fatal(range(), "Out of memory");
-		return None{};
+		return cg.oom();
 	}
 	LLVM::ValueRef values[2] = { ptr, len };
 	auto t = gen_type(cg);
@@ -436,8 +439,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 	// likely cannot fit into a regsiter. This means an aggregate has an address.
 	auto addr = cg.emit_alloca(type);
 	if (!addr) {
-		cg.fatal(range(), "Out of memory");
-		return None{};
+		return cg.oom();
 	}
 
 	auto count = type->is_array() ? type->extent() : type->length();
@@ -452,13 +454,13 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 			// We have an expression to initialize it with.
 			auto value = m_exprs[0]->gen_value(cg);
 			if (!value || !addr->store(cg, *value)) {
-				return None{};
+				return cg.oom();
 			}
 		} else {
 			// No expression so zero initialize it.
 			auto zero = CgValue::zero(addr->type()->deref(), cg);
 			if (!zero || !addr->store(cg, *zero)) {
-				return None{};
+				return cg.oom();
 			}
 		}
 		return addr;
@@ -473,7 +475,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 	for (Ulen l = count, i = 0, j = 0; i < l; i++) {
 		auto dst = addr->at(cg, i);
 		if (!dst) {
-			return None{};
+			return cg.oom();
 		}
 		// The 'dst' type will always be a pointer so dereference.
 		auto type = dst->type()->deref();
@@ -481,7 +483,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 			// Write a zeroinitializer into padding at i'th.
 			auto zero = CgValue::zero(type, cg);
 			if (!zero || !dst->store(cg, *zero)) {
-				return None{};
+				return cg.oom();
 			}
 		} else if (auto expr = m_exprs.at(j++)) {
 			// Otherwise take the next expression and store it at i'th.
@@ -492,22 +494,21 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 			if (*value->type() != *type) {
 				StringBuilder b0{scratch};
 				StringBuilder b1{scratch};
-				value->type()->dump(b0);
-				b0.append('\0');
-				type->dump(b1);
-				b1.append('\0');
-				cg.error((*expr)->range(), "Expression has type '%s' but '%s' is required",
-					b0.data(), b1.data());
+				type->dump(b0);
+				value->type()->dump(b1);
+				cg.error((*expr)->range(), "Expected expression of type '%.*s'. Got '%.*s' instead",
+				         Sint32(b0.length()), b0.data(),
+				         Sint32(b1.length()), b1.data());
 				return None{};
 			}
 			if (!dst->store(cg, *value)) {
-				return None{};
+				return cg.oom();
 			}
 		} else {
 			// No expression for that initializer so generate a zeroinitializer
 			auto zero = CgValue::zero(type, cg);
 			if (!zero || !dst->store(cg, *zero)) {
-				return None{};
+				return cg.oom();
 			}
 		}
 	}
@@ -607,7 +608,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 
 	auto lhs = m_lhs->gen_addr(cg);
 	if (!lhs) {
-		cg.error(m_lhs->range(), "Could not generate address");
+		cg.fatal(m_lhs->range(), "Could not generate address");
 		return None{};
 	}
 
@@ -675,8 +676,10 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 	} else {
 		StringBuilder s{cg.allocator};
 		type->dump(s);
-		s.append('\0');
-		cg.error(range(), "Can only index structure and tuple types with '.' operator. Got '%s'", s.data());
+		cg.error(range(),
+		         "Operand to '.' operator must be of tuple type. Got '%s' instead",
+		         Sint32(s.length()),
+		         s.data());
 		return None{};
 	}
 
@@ -700,23 +703,23 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		lhs = m_lhs->gen_value(cg);
 		rhs = m_rhs->gen_value(cg);
 		if (!lhs) {
-			cg.error(m_lhs->range(), "Could not generate LHS (%s) operand", m_lhs->name());
+			cg.fatal(m_lhs->range(), "Could not generate LHS binary (%s) operand", m_lhs->name());
 			return None{};
 		}
 		if (!rhs) {
-			cg.error(m_rhs->range(), "Could not generate RHS (%s) operand", m_rhs->name());
+			cg.fatal(m_rhs->range(), "Could not generate RHS binary (%s) operand", m_rhs->name());
 			return None{};
 		}
 		// Operands to binary operator must be the same type
 		if (*lhs->type() != *rhs->type()) {
 			StringBuilder lhs_to_string{cg.allocator};
 			lhs->type()->dump(lhs_to_string);
-			lhs_to_string.append('\0');
 			StringBuilder rhs_to_string{cg.allocator};
 			rhs->type()->dump(rhs_to_string);
-			rhs_to_string.append('\0');
-			cg.error(range(), "Operands to binary operator must be the same type: Got '%s' and '%s'",
-				lhs_to_string.data(), rhs_to_string.data());
+			cg.error(range(),
+			         "Operands to binary operator must be the same type: Got '%s' and '%s'",
+			         Sint32(lhs_to_string.length()), lhs_to_string.data(),
+			         Sint32(rhs_to_string.length()), rhs_to_string.data());
 			return None{};
 		}
 	}
@@ -726,17 +729,14 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		if (!lhs) {
 			return None{};
 		}
-	
-		// Handle casting operator
-		if (!m_rhs->is_expr<AstTypeExpr>()) {
-			cg.error(m_rhs->range(), "Expected type on right-hand-side of 'as' operator");
+
+		auto rhs = gen_type(cg);
+		if (!rhs) {
 			return None{};
 		}
 
-		auto rhs = static_cast<AstTypeExpr*>(m_rhs)->type()->codegen(cg);
-
-		Bool lhs_is_signed = lhs->type()->is_sint();
-		Bool rhs_is_signed = rhs->is_sint();
+		auto lhs_is_signed = lhs->type()->is_sint();
+		auto rhs_is_signed = rhs->is_sint();
 
 		auto cast_op =
 			cg.llvm.GetCastOpcode(lhs->ref(),
@@ -745,6 +745,9 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			                      rhs_is_signed);
 
 		auto v = cg.llvm.BuildCast(cg.builder, cast_op, lhs->ref(), rhs->ref(), "");
+		if (!v) {
+			return cg.oom();
+		}
 
 		return CgValue { rhs, v };
 	}
@@ -875,7 +878,11 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			};
 			
 			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(), "");
-			cg.llvm.AddIncoming(phi, values, blocks, 3);
+			if (!phi) {
+				return cg.oom();
+			}
+
+			cg.llvm.AddIncoming(phi, values, blocks, countof(blocks));
 
 			return CgValue { cg.types.b32(), phi };
 		}
@@ -954,7 +961,11 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			};
 			
 			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(), "");
-			cg.llvm.AddIncoming(phi, values, blocks, 3);
+			if (!phi) {
+				return cg.oom();
+			}
+
+			cg.llvm.AddIncoming(phi, values, blocks, countof(blocks));
 
 			return CgValue { cg.types.b32(), phi };
 		}
@@ -967,6 +978,12 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
 			return CgValue { lhs->type(), cg.llvm.BuildShl(cg.builder, lhs->ref(), rhs->ref(), "") };
 		} else {
+			StringBuilder s{cg.allocator};
+			lhs->type()->dump(s);
+			cg.error(range(),
+			         "Operands to '<<' must have integer type. Got '%.*s' instead",
+			          Sint32(s.length()),
+			          s.data());
 			return None{};
 		}
 	case Op::RSHIFT:
@@ -975,6 +992,12 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else if (lhs->type()->is_uint()) {
 			return CgValue { lhs->type(), cg.llvm.BuildLShr(cg.builder, lhs->ref(), rhs->ref(), "") };
 		} else {
+			StringBuilder s{cg.allocator};
+			lhs->type()->dump(s);
+			cg.error(range(),
+			         "Operands to '>>' must have integer type. Got '%.*s' instead",
+			         Sint32(s.length()),
+			         s.data());
 			return None{};
 		}
 		break;
@@ -1004,7 +1027,13 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 	case Op::LSHIFT: case Op::RSHIFT:
 		return m_lhs->gen_type(cg);
 	case Op::AS:
-		return static_cast<AstTypeExpr*>(m_rhs)->type()->codegen(cg);
+		if (m_rhs->is_expr<AstTypeExpr>()) {
+			return static_cast<AstTypeExpr*>(m_rhs)->type()->codegen(cg);
+		} else {
+			cg.error(m_rhs->range(), "Expected type expression on right-hand side of 'as' operator");
+			return nullptr;
+		}
+		break;
 	case Op::DOT:
 		{
 			auto lhs_type = m_lhs->gen_type(cg);
@@ -1018,9 +1047,6 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 				auto rhs = static_cast<const AstVarExpr *>(m_rhs);
 				Ulen i = 0;
 				for (const auto& field : lhs_type->fields()) {
-					if (field) {
-						printf("%.*s\n", (int)field->length(), field->data());
-					}
 					if (field && *field == rhs->name()) {
 						return lhs_type->at(i);
 					}
@@ -1066,8 +1092,10 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 			if (!operand->type()->is_pointer()) {
 				StringBuilder builder{cg.allocator};
 				operand->type()->dump(builder);
-				builder.append('\0');
-				cg.error(m_operand->range(), "Operand to '*' must have pointer type. Got '%s' instead", builder.data());
+				cg.error(m_operand->range(),
+				         "Operand to '*' must have pointer type. Got '%.*s' instead",
+				         Sint32(builder.length()),
+				         builder.data());
 				return None{};
 			}
 			return operand->to_addr();
@@ -1136,8 +1164,10 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 	if (!type->is_pointer() && !type->is_array() && !type->is_slice()) {
 		StringBuilder builder{cg.allocator};
 		type->dump(builder);
-		builder.append('\0');
-		cg.error(range(), "Cannot index expression of type '%s'", builder.data());
+		cg.error(range(),
+		         "Cannot index expression of type '%.*s'",
+		         Sint32(builder.length()),
+		         builder.data());
 		return None{};
 	}
 
@@ -1150,10 +1180,11 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 		StringBuilder b0{cg.allocator};
 		StringBuilder b1{cg.allocator};
 		index->type()->dump(b0);
-		b0.append('\0');
 		type->dump(b1);
-		b1.append('\0');
-		cg.error(m_index->range(), "Value of type '%s' cannot be used to index '%s'", b0.data(), b1.data());
+		cg.error(m_index->range(),
+		         "Value of type '%.*s' cannot be used to index '%.*s'",
+		         Sint32(b0.length()), b0.data(),
+		         Sint32(b1.length()), b1.data());
 		return None{};
 	}
 

@@ -79,10 +79,10 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		builder.append("Bool64");
 		break;
 	case Kind::F32:
-		builder.append("Float32");
+		builder.append("Real32");
 		break;
 	case Kind::F64:
-		builder.append("Float64");
+		builder.append("Real64");
 		break;
 	case Kind::STRING:
 		builder.append("String");
@@ -215,8 +215,8 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Bool16")  return cg.types.b16();
 	if (m_ident == "Bool32")  return cg.types.b32();
 	if (m_ident == "Bool64")  return cg.types.b64();
-	if (m_ident == "Float32") return cg.types.f32();
-	if (m_ident == "Float64") return cg.types.f64();
+	if (m_ident == "Real32")  return cg.types.f32();
+	if (m_ident == "Real64")  return cg.types.f64();
 	if (m_ident == "String")  return cg.types.str();
 	if (m_ident == "Address") return cg.types.ptr();
 	for (auto type : cg.typedefs) {

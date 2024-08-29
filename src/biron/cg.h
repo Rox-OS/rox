@@ -56,13 +56,18 @@ struct Cg {
 	}
 
 	template<typename... Ts>
-	void error(Range range, const char* message, Ts&&... args) noexcept{
+	void error(Range range, const char* message, Ts&&... args) const noexcept {
 		diagnostic.error(range, message, forward<Ts>(args)...);
 	}
 
 	template<typename... Ts>
-	void fatal(Range range, const char* message, Ts&&... args) noexcept{
+	void fatal(Range range, const char* message, Ts&&... args) const noexcept {
 		diagnostic.fatal(range, message, forward<Ts>(args)...);
+	}
+
+	None oom() const noexcept {
+		fatal(Range{0, 0}, "Out of memory");
+		return None{};
 	}
 
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;

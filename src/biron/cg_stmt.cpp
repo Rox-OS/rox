@@ -194,6 +194,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	cg.llvm.SetInitializer(dst, src->ref());
 
 	// cg.llvm.SetGlobalConstant(dst, true);
+
 	if (m_attrs) {
 		for (auto it : *m_attrs) {
 			if (it->is_attr<AstAlignAttr>()) {
@@ -229,9 +230,10 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 		StringBuilder b1{cg.allocator};
 		dst->type()->deref()->dump(b0);
 		src->type()->dump(b1);
-		b0.append('\0');
-		b1.append('\0');
-		cg.error(range(), "Cannot assign an rvalue of type '%s' to an lvalue of type '%s'", b1.data(), b0.data());
+		cg.error(range(),
+		         "Cannot assign an rvalue of type '%.*s' to an lvalue of type '%.*s'",
+		         Sint32(b1.length()), b1.data(),
+		         Sint32(b0.length()), b0.data());
 		return false;
 	}
 	return dst->store(cg, *src);
