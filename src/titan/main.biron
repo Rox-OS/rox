@@ -24,7 +24,7 @@ type LimineFramebufferRequest = (
 );
 
 @(used(true), section(".requests"))
-let limine_base_revision = [3]Uint64 {
+let LIMINE_BASE_VERSION = [3]Uint64 {
   0xf9562b2d5c95a6c8_u64,
   0x6a7b384944536bdc_u64,
   2_u64
@@ -57,9 +57,10 @@ let LIMINE_REQUESTS_END_MARKER = [2]Uint64 {
 
 fn kmain() {
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
+  let color = 0xff'ff'ff_u32;
   for let y = 0_u64; y < fb.dimensions.1; y = y + 1_u64 {
-    for let x = y; x < fb.dimensions.0; x = x + 1_u64 {
-      fb.address[y * fb.dimensions.0 + x] = 0xffffff_u32;
+    for let x = 0_u64; x < fb.dimensions.0; x = x + 1_u64 {
+      fb.address[y * fb.dimensions.0 + x] = (x + y) as Uint32;
     }
   }
   for {}

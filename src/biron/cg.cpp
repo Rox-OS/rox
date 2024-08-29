@@ -35,7 +35,7 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, D
 	                                        "",
 	                                        LLVM::CodeGenOptLevel::Aggressive,
 	                                        LLVM::RelocMode::PIC,
-	                                        LLVM::CodeModel::Default);
+	                                        LLVM::CodeModel::Kernel);
 
 	if (!machine) {
 		return None{};
