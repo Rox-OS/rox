@@ -138,15 +138,15 @@ struct Token {
 	Bool eof() const noexcept { return kind == Kind::END; }
 	Sint32 prec() const noexcept {
 		switch (kind) {
-		case Kind::LPAREN:   return 16 - 1;
-		// case Kind::LBRACKET: return 16 - 1;
-		case Kind::DOT:      return 16 - 1;
-		case Kind::KW_AS:    return 16 - 1;
+		case Kind::LPAREN:   return 16 - 1; // ()
+		case Kind::LBRACKET: return 16 - 1; // []
+		case Kind::DOT:      return 16 - 1; // .
+		case Kind::KW_AS:    return 16 - 1; // as
 		// case Kind::LNOT:     return 16 - 2;
 		// case Kind::BNOT:     return 16 - 2;
 		// case Kind::STAR:     return 16 - 2;
-		case Kind::STAR:     return 16 - 3;
-		case Kind::PERCENT:  return 16 - 3;
+		case Kind::STAR:     return 16 - 3; // indirection (dereference)
+		case Kind::PERCENT:  return 16 - 3; 
 		case Kind::PLUS:     return 16 - 4;
 		case Kind::MINUS:    return 16 - 4;
 		case Kind::LSHIFT:   return 16 - 5;

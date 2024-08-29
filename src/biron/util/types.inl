@@ -11,6 +11,14 @@ namespace Biron {
 #define __has_feature(...)
 #endif // !defined(__has_feature)
 
+#if defined(__clang__)
+#define BIRON_COMPILER_CLANG
+#elif defined(__GNUC__) || defined(__GNUG__)
+#define BIRON_COMPILER_GCC
+#elif defined(_MSC_VER)
+#define BIRON_COMPILER_MSVC
+#endif
+
 using Sint8 = signed char;
 using Uint8 = unsigned char;
 using Sint16 = signed short;

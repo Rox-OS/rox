@@ -192,4 +192,17 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	return true;
 }
 
+Bool AstUnit::dump() const noexcept {
+	StringBuilder builder{m_fns.allocator()};
+	for (auto fn : m_fns) {
+		fn->dump(builder, 0);
+	}
+	if (builder.valid()) {
+		fwrite(builder.data(), builder.length(), 1, stderr);
+		fflush(stderr);
+		return true;
+	}
+	return false;
+}
+
 } // namespace Biron

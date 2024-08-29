@@ -8,7 +8,8 @@
 
 namespace Biron {
 
-Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
+Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
+	// TODO(dweiler): Check that type matches the AstConst type.
 	ScratchAllocator scratch{cg.allocator};
 	switch (kind()) {
 	case Kind::NONE:
@@ -45,30 +46,29 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 		{
 			// Generate constant CgValues for each tuple element.
 			Array<CgValue> values{cg.allocator};
-			if (!values.reserve(as_tuple().length())) {
+			Maybe<Array<Maybe<StringView>>> fields;
+			auto& tuple = as_tuple();
+			if (!values.reserve(tuple.values.length())) {
 				return None{};
 			}
-			for (const auto& elem : as_tuple()) {
-				auto value = elem.codegen(cg);
+			Ulen i = 0;
+			for (const auto& elem : tuple.values) {
+				auto value = elem.codegen(cg, type->at(i));
 				if (!value || !values.push_back(move(*value))) {
 					return None{};
 				}
+				i++;
 			}
-			// We generate a type even though ConstStructInContext does not need one,
-			// this is just so we know where to insert padding and zeroinitialize it
-			// and because every CgValue needs a pointer to a CgType.
-			Array<CgType*> types{cg.allocator};
-			if (!types.reserve(values.length())) {
-				return None{};
-			}
-			for (const auto& value : values) {
-				if (!types.push_back(value.type())) {
+			if (tuple.fields) {
+				auto& dst = fields.emplace(cg.allocator);
+				if (!dst.reserve(tuple.values.length())) {
 					return None{};
 				}
-			}
-			auto type = cg.types.make(CgType::TupleInfo { move(types), None{} });
-			if (!type) {
-				return None{};
+				for (const auto& field : *tuple.fields) {
+					if (!dst.push_back(field)) {
+						return None{};
+					}
+				}
 			}
 			// Walk the type declaration to know where to make padding zeroinitializer
 			// and where to put our actual constant values.
@@ -83,9 +83,16 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 					}
 					continue;
 				}
-				if (!consts.push_back(values[j++].ref())) {
+				if (j >= values.length()) {
+					// Zero initialize everything else not specified in the aggregate.
+					auto zero = CgValue::zero(field_type, cg);
+					if (!zero || !consts.push_back(zero->ref())) {
+						return None{};
+					}
+				} else if (!consts.push_back(values[j].ref())) {
 					return None{};
 				}
+				j++;
 			}
 			auto value = cg.llvm.ConstStructInContext(cg.context,
 			                                          consts.data(),
@@ -109,7 +116,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 				return None{};
 			}
 			for (const auto& elem : m_as_array.elems) {
-				auto value = elem.codegen(cg);
+				auto value = elem.codegen(cg, base);
 				if (!value) {
 					return None{};
 				}

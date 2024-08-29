@@ -85,6 +85,7 @@ struct StringBuilder {
 	}
 	constexpr char* data() noexcept { return m_buffer.data(); }
 	constexpr const char *data() const noexcept { return m_buffer.data(); }
+	constexpr Ulen length() const noexcept { return m_buffer.length(); }
 private:
 	Array<char> m_buffer;
 	Bool        m_valid;

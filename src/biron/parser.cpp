@@ -144,20 +144,20 @@ AstExpr* Parser::parse_postfix_expr() noexcept {
 	}
 	for (;;) {
 		switch (peek().kind) {
-		case Token::Kind::LBRACKET:
-			if (!(operand = parse_index_expr(operand))) {
-				return nullptr;
-			}
-			break;
 		case Token::Kind::DOT:
 			{
 				next(); // Consume '.'
-				auto expr = parse_expr();
+				auto expr = parse_primary_expr();
 				if (!expr) {
 					return nullptr;
 				}
 				auto range = operand->range().include(expr->range());
 				operand = new_node<AstBinExpr>(AstBinExpr::Op::DOT, operand, expr, range);
+			}
+			break;
+		case Token::Kind::LBRACKET:
+			if (!(operand = parse_index_expr(operand))) {
+				return nullptr;
 			}
 			break;
 		default:
@@ -356,15 +356,6 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 			return parse_agg_expr(expr);
 		}
 		break;
-	case Token::Kind::LBRACKET: // []
-		{
-			auto name = m_lexer.string(token.range);
-			auto expr = new_node<AstVarExpr>(name, token.range);
-			if (!expr) {
-				return nullptr;
-			}
-			return parse_index_expr(expr);
-		}
 	default:
 		{
 			auto name = m_lexer.string(token.range);

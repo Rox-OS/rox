@@ -40,7 +40,8 @@ int main(int argc, char **argv) {
 
 	Bool bm = false;
 	Bool opt = false;
-	Bool dump = false;
+	Bool dump_ir = false;
+	Bool dump_ast = false;
 	int file = -1;
 	for (int i = 0; i < argc; i++) {
 		if (argv[i][0] != '-' && file == -1) {
@@ -51,7 +52,11 @@ int main(int argc, char **argv) {
 			} else if (argv[i][1] == 'O') {
 				opt = true;
 			} else if (argv[i][1] == 'd') {
-				dump = true;
+				if (argv[i][2] == 'a') {
+					dump_ast = true;
+				} else if (argv[i][2] == 'i') {
+					dump_ir = true;
+				}
 			}
 		}
 	}
@@ -114,6 +119,10 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	if (dump_ast && !unit->dump()) {
+		return 1;
+	}
+
 	if (!unit->codegen(*cg)) {
 		return 1;
 	}
@@ -122,7 +131,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	if (dump) {
+	if (dump_ir) {
 		cg->dump();
 	}
 

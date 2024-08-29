@@ -11,6 +11,7 @@ namespace Biron {
 
 struct Cg;
 struct CgValue;
+struct CgType;
 
 struct AstType;
 
@@ -25,6 +26,29 @@ struct AstConst {
 		TUPLE,             // (...)
 		STRING,            // ".*"
 		ARRAY,             // {}
+	};
+
+	struct ConstArray {
+		constexpr ConstArray(AstType* type, Array<AstConst>&& elems) noexcept
+			: type{type}, elems{move(elems)}
+		{
+		}
+		constexpr ConstArray(ConstArray&&) noexcept = default;
+		AstType*        type;
+		Array<AstConst> elems;
+	};
+
+	struct ConstTuple {
+		constexpr ConstTuple(AstType* type, Array<AstConst>&& values, Maybe<Array<Maybe<StringView>>>&& fields)
+			: type{type}
+			, values{move(values)}
+			, fields{move(fields)}
+		{
+		}
+		constexpr ConstTuple(ConstTuple&&) noexcept = default;
+		AstType*                        type;
+		Array<AstConst>                 values;
+		Maybe<Array<Maybe<StringView>>> fields;
 	};
 
 	constexpr AstConst(Range range) noexcept
@@ -69,14 +93,15 @@ struct AstConst {
 	constexpr AstConst(Range range, Float64 value) noexcept
 		: m_range{range}, m_kind{Kind::F64}, m_as_f64{value} {}
 
-	constexpr AstConst(Range range, Array<AstConst>&& tuple) noexcept
+	constexpr AstConst(Range range, ConstTuple&& tuple) noexcept
 		: m_range{range}, m_kind{Kind::TUPLE}, m_as_tuple{move(tuple)} {}
+
+	constexpr AstConst(Range range, ConstArray&& array) noexcept
+		: m_range{range}, m_kind{Kind::ARRAY}, m_as_array{move(array)} {}
 
 	constexpr AstConst(Range range, StringView string) noexcept
 		: m_range{range}, m_kind{Kind::STRING}, m_as_string{string} {}
 
-	constexpr AstConst(Range range, AstType* base, Array<AstConst>&& array) noexcept
-		: m_range{range}, m_kind{Kind::ARRAY}, m_as_array{base, move(array)} {}
 
 	AstConst(AstConst&& other) noexcept;
 	~AstConst() noexcept { drop(); }
@@ -102,7 +127,8 @@ struct AstConst {
 		return is_uint() || is_sint();
 	}
 
-	[[nodiscard]] constexpr const Array<AstConst>& as_tuple() const noexcept { return m_as_tuple; }
+	[[nodiscard]] constexpr const ConstTuple& as_tuple() const noexcept { return m_as_tuple; }
+	[[nodiscard]] constexpr const ConstArray& as_array() const noexcept { return m_as_array; }
 	[[nodiscard]] constexpr StringView as_string() const noexcept { return m_as_string; }
 
 	Maybe<AstConst> copy() const noexcept;
@@ -110,40 +136,38 @@ struct AstConst {
 	template<typename T>
 	Maybe<T> to() const noexcept;
 
-	Maybe<CgValue> codegen(Cg& cg) const noexcept;
+	Maybe<CgValue> codegen(Cg& cg, CgType* type) const noexcept;
 
 private:
-	struct ConstArray {
-		constexpr ConstArray(AstType* type, Array<AstConst>&& elems) noexcept
-			: type{type}, elems{move(elems)}
-		{
-		}
-		constexpr ConstArray(ConstArray&&) noexcept = default;
-		AstType*        type;
-		Array<AstConst> elems;
-	};
-
 	Range m_range;
 	Kind m_kind;
 
 	union {
-		Nat             m_as_nat;
-		Sint128         m_as_sint;
-		Uint128         m_as_uint;
-		Bool128         m_as_bool;
-		Float32         m_as_f32;
-		Float64         m_as_f64;
-		Array<AstConst> m_as_tuple;
-		StringView      m_as_string;
-		ConstArray      m_as_array;
+		Nat        m_as_nat;
+		Sint128    m_as_sint;
+		Uint128    m_as_uint;
+		Bool128    m_as_bool;
+		Float32    m_as_f32;
+		Float64    m_as_f64;
+		ConstTuple m_as_tuple;
+		ConstArray m_as_array;
+		StringView m_as_string;
 	};
 
 	void drop() noexcept {
+		// GCC is actually quite silly here.
+		#if defined(BIRON_COMPILER_GCC)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+		#endif
 		if (m_kind == Kind::TUPLE) {
-			m_as_tuple.~Array<AstConst>();
+			m_as_tuple.~ConstTuple();
 		} else if (m_kind == Kind::ARRAY) {
-			m_as_array.elems.~Array<AstConst>();
+			m_as_array.~ConstArray();
 		}
+		#if defined(BIRON_COMPILER_GCC)
+		#pragma GCC diagnostic pop
+		#endif
 	}
 };
 

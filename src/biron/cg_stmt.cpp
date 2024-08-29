@@ -170,7 +170,12 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto src = eval->codegen(cg);
+	auto type = m_init->gen_type(cg);
+	if (!type) {
+		return false;
+	}
+
+	auto src = eval->codegen(cg, type);
 	if (!src) {
 		return false;
 	}

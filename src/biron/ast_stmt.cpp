@@ -116,7 +116,9 @@ void AstForStmt::dump(StringBuilder& builder, int depth) const noexcept {
 		builder.pop();
 		builder.append(' ');
 	}
-	m_expr->dump(builder);
+	if (m_expr) {
+		m_expr->dump(builder);
+	}
 	if (m_post) {
 		builder.append(';');
 		builder.append(' ');

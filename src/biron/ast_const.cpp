@@ -28,14 +28,15 @@ AstConst::AstConst(AstConst&& other) noexcept
 		m_as_f64 = exchange(other.m_as_f64, 0.0);
 		break;
 	case Kind::TUPLE: 
-		new (&m_as_tuple, Nat{}) Array<AstConst>{move(other.m_as_tuple)};
+		new (&m_as_tuple, Nat{}) ConstTuple{move(other.m_as_tuple)};
+		other.drop();
+		break;
+	case Kind::ARRAY:
+		new (&m_as_array, Nat{}) ConstArray{move(other.m_as_array)};
 		other.drop();
 		break;
 	case Kind::STRING:
 		new (&m_as_string, Nat{}) StringView{move(other.m_as_string)};
-		break;
-	case Kind::ARRAY:
-		new (&m_as_array, Nat{}) ConstArray{move(other.m_as_array)};
 		break;
 	}
 }
@@ -59,19 +60,32 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 	case Kind::F64:   return AstConst { range(), m_as_f64  };
 	case Kind::TUPLE:
 		{
-			Array<AstConst> values{m_as_tuple.allocator()};
-			if (!values.reserve(m_as_tuple.length())) {
+			Array<AstConst> values{m_as_tuple.values.allocator()};
+			if (!values.reserve(m_as_tuple.values.length())) {
 				return None{};
 			}
-			for (const auto& it : m_as_tuple) {
-				auto value = it.copy();
-				if (!value || !values.push_back(move(*value))) {
+			for (const auto& value : m_as_tuple.values) {
+				auto copy = value.copy();
+				if (!copy || !values.push_back(move(*copy))) {
 					return None{};
 				}
 			}
-			return AstConst { range(), move(values) };
+			Maybe<Array<Maybe<StringView>>> fields;
+			if (m_as_tuple.fields) {
+				auto& dst = fields.emplace(m_as_tuple.fields->allocator());
+				if (!dst.reserve(m_as_tuple.fields->length())) {
+					return None{};
+				}
+				for (const auto& field : *m_as_tuple.fields) {
+					if (!dst.push_back(field)) {
+						return None{};
+					}
+				}
+			}
+			return AstConst { range(), ConstTuple { m_as_tuple.type, move(values), move(fields) } };
 		}
-	case Kind::STRING: return AstConst { range(), as_string() };
+	case Kind::STRING:
+		return AstConst { range(), as_string() };
 	case Kind::ARRAY:
 		{
 			const auto& array = m_as_array.elems;
@@ -85,7 +99,7 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 					return None{};
 				}
 			}
-			return AstConst { range(), m_as_array.type, move(values) };
+			return AstConst { range(), ConstArray { m_as_array.type, move(values) } };
 		}
 	}
 	return None{};

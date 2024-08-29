@@ -120,15 +120,15 @@ private:
 		error(m_this_token.range, message, forward<Ts>(args)...);
 	}
 
-	AstExpr* parse_primary_expr() noexcept;
-	AstExpr* parse_postfix_expr() noexcept;
-	AstExpr* parse_agg_expr(AstExpr* type) noexcept;
-	AstExpr* parse_unary_expr() noexcept;
-	AstExpr* parse_ident_expr() noexcept;
-	AstExpr* parse_type_expr() noexcept;
-	AstExpr* parse_index_expr(AstExpr* operand) noexcept;
-	AstExpr* parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept;
-	AstType* parse_bracket_type() noexcept;
+	[[nodiscard]] AstExpr* parse_primary_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_postfix_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_agg_expr(AstExpr* type) noexcept;
+	[[nodiscard]] AstExpr* parse_unary_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_ident_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
+	[[nodiscard]] AstExpr* parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept;
+	[[nodiscard]] AstType* parse_bracket_type() noexcept;
 	Token next() noexcept {
 		m_last_token = m_this_token;
 		if (m_peek_token) {

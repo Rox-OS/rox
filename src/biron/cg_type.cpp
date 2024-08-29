@@ -89,8 +89,8 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		break;
 	case Kind::POINTER:
 		builder.append('*');
-		if (auto base = at(0)) {
-			base->dump(builder);
+		if (m_types && m_types->length()) {
+			at(0)->dump(builder);
 		}
 		break;
 	case Kind::SLICE:
