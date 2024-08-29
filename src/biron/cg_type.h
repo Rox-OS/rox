@@ -30,16 +30,24 @@ struct CgType {
 		VA,                // ...
 	};
 
+	using Field = Maybe<StringView>;
+
 	void dump(StringBuilder& builder) const noexcept;
 
 	CgType* addrof(Cg& cg) noexcept;
 
 	[[nodiscard]] CgType* deref() const noexcept { return at(0); }
-	[[nodiscard]] CgType* at(Ulen i) const noexcept { return types()[i]; }
+	[[nodiscard]] CgType* at(Ulen i) const noexcept {
+		return types()[i];
+	}
 
 	[[nodiscard]] constexpr const Array<CgType*>& types() const noexcept {
 		BIRON_ASSERT(m_types && "No nested types");
 		return (*m_types);
+	}
+	[[nodiscard]] constexpr const Array<Field>& fields() const noexcept {
+		BIRON_ASSERT(m_fields && "No nested fields");
+		return (*m_fields);
 	}
 
 	[[nodiscard]] constexpr Ulen size() const noexcept { return m_size; }
@@ -64,7 +72,6 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
 
 	[[nodiscard]] constexpr LLVM::TypeRef ref() const noexcept { return m_ref; }
-	[[nodiscard]] constexpr const AstType* ast() const noexcept { return m_ast; }
 
 	Bool operator==(const CgType& other) const noexcept {
 		if (other.m_kind   != m_kind)   return false;
@@ -78,52 +85,45 @@ struct CgType {
 
 	// Custom make tags for the type cache
 	struct IntInfo {
-		Ulen           size;
-		Ulen           align;
-		Bool           sign;
-		const AstType* ast;
+		Ulen size;
+		Ulen align;
+		Bool sign;
 	};
 
 	struct FltInfo {
-		Ulen           size;
-		Ulen           align;
-		const AstType* ast;
+		Ulen size;
+		Ulen align;
 	};
 
 	struct PtrInfo {
-		CgType*        base;
-		Ulen           size;
-		Ulen           align;
-		const AstType* ast;
+		CgType* base;
+		Ulen    size;
+		Ulen    align;
 	};
 
 	struct BoolInfo {
-		Ulen           size;
-		Ulen           align;
-		const AstType* ast;
+		Ulen size;
+		Ulen align;
 	};
 
 	struct StringInfo {};
 
 	struct TupleInfo {
-		Array<CgType*> types;
-		const AstType* ast;
+		Array<CgType*>                  types;
+		Maybe<Array<Maybe<StringView>>> fields;
 	};
 
 	struct UnionInfo {
 		Array<CgType*> types;
-		const AstType* ast;
 	};
 
 	struct ArrayInfo {
-		CgType*        base;
-		Uint64         extent;
-		const AstType* ast;
+		CgType* base;
+		Uint64  extent;
 	};
 
 	struct SliceInfo {
-		CgType*        base;
-		const AstType* ast;
+		CgType* base;
 	};
 
 	struct PaddingInfo {
@@ -131,9 +131,8 @@ struct CgType {
 	};
 
 	struct FnInfo {
-		CgType*        args;
-		CgType*        rets;
-		const AstType* ast;
+		CgType* args;
+		CgType* rets;
 	};
 
 	struct VaInfo { };
@@ -141,13 +140,13 @@ struct CgType {
 private:
 	friend struct CgTypeCache;
 
-	CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types, const AstType* ast, LLVM::TypeRef ref) noexcept
+	CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types, Maybe<Array<Field>>&& fields, LLVM::TypeRef ref) noexcept
 		: m_kind{kind}
 		, m_size{size}
 		, m_align{align}
 		, m_extent{extent}
 		, m_types{move(types)}
-		, m_ast{ast}
+		, m_fields{move(fields)}
 		, m_ref{ref}
 	{
 	}
@@ -157,7 +156,7 @@ private:
 	Ulen m_align;
 	Ulen m_extent;
 	Maybe<Array<CgType*>> m_types;
-	const AstType* m_ast;
+	Maybe<Array<Field>> m_fields;
 	LLVM::TypeRef m_ref;
 };
 

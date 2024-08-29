@@ -66,7 +66,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg) const noexcept {
 					return None{};
 				}
 			}
-			auto type = cg.types.make(CgType::TupleInfo { move(types), nullptr });
+			auto type = cg.types.make(CgType::TupleInfo { move(types), None{} });
 			if (!type) {
 				return None{};
 			}

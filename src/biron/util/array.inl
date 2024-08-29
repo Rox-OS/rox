@@ -84,8 +84,8 @@ struct Array {
 	[[nodiscard]] constexpr T& last() noexcept { return m_data[m_length - 1]; }
 	[[nodiscard]] constexpr const T& last() const noexcept { return m_data[m_length - 1]; }
 
-	[[nodiscard]] constexpr T& operator[](Ulen i) noexcept { return m_data[i]; }
-	[[nodiscard]] constexpr const T& operator[](Ulen i) const noexcept { return m_data[i]; }
+	[[nodiscard]] constexpr T& operator[](Ulen i) noexcept { BIRON_ASSERT(i < m_length); return m_data[i]; }
+	[[nodiscard]] constexpr const T& operator[](Ulen i) const noexcept { BIRON_ASSERT(i < m_length); return m_data[i]; }
 	[[nodiscard]] constexpr T* at(Ulen i) noexcept { return i < m_length ? m_data + i : nullptr; }
 	[[nodiscard]] constexpr const T* at(Ulen i) const noexcept { return i < m_length ? m_data + i : nullptr; }
 

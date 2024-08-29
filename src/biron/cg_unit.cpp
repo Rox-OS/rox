@@ -27,7 +27,7 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t, nullptr });
+	auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
 	if (!fn_t) {
 		return false;
 	}
@@ -37,7 +37,7 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 	                                m_name.terminated(scratch),
 	                                fn_t->ref());
 
-	if (!cg.fns.emplace_back(m_name, CgAddr{fn_t->addrof(cg), fn_v})) {
+	if (!cg.fns.emplace_back(m_name, CgAddr { fn_t->addrof(cg), fn_v })) {
 		return false;
 	}
 
@@ -143,13 +143,13 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!rets.push_back(cg.types.s32())) {
 			return false;
 		}
-		auto args_t = cg.types.make(CgType::TupleInfo { move(args), nullptr });
-		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), nullptr });
+		auto args_t = cg.types.make(CgType::TupleInfo { move(args), None{} });
+		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), None{} });
 		if (!args_t || !rets_t) {
 			return false;
 		}
 
-		auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t, nullptr });
+		auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
 		if (!fn_t) {
 			return false;
 		}

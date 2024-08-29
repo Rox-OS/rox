@@ -87,7 +87,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 			return None{};
 		}
 	}
-	auto type = cg.types.make(CgType::TupleInfo { move(types), nullptr });
+	auto type = cg.types.make(CgType::TupleInfo { move(types), None{} });
 	if (!type) {
 		return None{};
 	}
@@ -538,29 +538,19 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 			// When the right hand side is an AstVarExpr it means we're indexing the
 			// tuple by field name.
 			if (m_rhs->is_expr<AstVarExpr>()) {
-				auto expr = static_cast<const AstVarExpr*>(m_rhs);
-				// Work out the index of the tuple element
-				auto ast = static_cast<const AstTupleType*>(type->ast());
-				Maybe<Ulen> n;
-				Ulen i = 0;
-				for (const auto& elem : ast->elems()) {
-					if (type->at(i)->is_padding()) {
-						i++;
+				const auto expr = static_cast<const AstVarExpr *>(m_rhs);
+				const auto& fields = type->fields();
+				for (Ulen l = fields.length(), i = 0; i < l; i++) {
+					const auto& field = fields[i];
+					if (field && *field == expr->name()) {
+						return lhs->at(cg, i);
 					}
-					if (elem.name() == expr->name()) {
-						n.emplace(i);
-						break;
-					}
-					i++;
 				}
-				if (!n) {
-					cg.error(m_rhs->range(), "Undeclared field '%.*s'", Sint32(expr->name().length()), expr->name().data());
-					return None{};
-				}
-				return lhs->at(cg, *n);
+				cg.error(m_rhs->range(), "Undeclared field '%.*s'", Sint32(expr->name().length()), expr->name().data());
+				return None{};
 			}
 
-			// Otherwis it's a compile-time integer constant expression.
+			// Otherwise it's a compile-time integer constant expression.
 			auto rhs = m_rhs->eval();
 			if (!rhs) {
 				cg.error(rhs->range(), "Expected constant expression");

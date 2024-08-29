@@ -90,7 +90,7 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	                             m_ref,
 	                             indices,
 	                             countof(indices),
-	                             "at");
+	                             "");
 	if (!gep) {
 		return None{};
 	}
