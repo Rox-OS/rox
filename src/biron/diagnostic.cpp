@@ -5,7 +5,7 @@
 
 namespace Biron {
 
-void Diagnostic::diagnostic(Range range, const char *message) noexcept {
+void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcept {
 	// Work out the column and line from the token offset.
 	Ulen line_number = 1;
 	Ulen this_column = 1;
@@ -28,11 +28,12 @@ void Diagnostic::diagnostic(Range range, const char *message) noexcept {
 		line_number--;
 		this_column = last_column;
 	}
-	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31merror:\033[0m %s\n",
+	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31m%s:\033[0m %s\n",
 	        (int)m_lexer.name().length(),
 	        m_lexer.name().data(),
 	        line_number,
 	        this_column,
+	        kind == Kind::FATAL ? "fatal" : "error",
 	        message);
 
 	// Print the offending line.

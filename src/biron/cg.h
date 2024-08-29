@@ -60,6 +60,11 @@ struct Cg {
 		diagnostic.error(range, message, forward<Ts>(args)...);
 	}
 
+	template<typename... Ts>
+	void fatal(Range range, const char* message, Ts&&... args) noexcept{
+		diagnostic.fatal(range, message, forward<Ts>(args)...);
+	}
+
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
 
 	Allocator&             allocator;

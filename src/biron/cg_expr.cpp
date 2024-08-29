@@ -11,17 +11,17 @@
 namespace Biron {
 
 Maybe<CgAddr> AstExpr::gen_addr(Cg& cg) const noexcept {
-	cg.error(range(), "Unsupported gen_addr for %s", name());
+	cg.fatal(range(), "Unsupported gen_addr for %s", name());
 	return None{};
 }
 
 Maybe<CgValue> AstExpr::gen_value(Cg& cg) const noexcept {
-	cg.error(range(), "Unsupported gen_value for %s", name());
+	cg.fatal(range(), "Unsupported gen_value for %s", name());
 	return None{};
 }
 
 CgType* AstExpr::gen_type(Cg& cg) const noexcept {
-	cg.error(range(), "Unsupported gen_type for %s", name());
+	cg.fatal(range(), "Unsupported gen_type for %s", name());
 	return nullptr;
 }
 
@@ -68,6 +68,7 @@ Maybe<AstConst> AstTupleExpr::eval() const noexcept {
 Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 	auto type = gen_type(cg);
 	if (!type) {
+		cg.fatal(range(), "Could not generate type");
 		return None{};
 	}
 
@@ -129,6 +130,7 @@ Maybe<CgValue> AstTupleExpr::gen_value(Cg& cg) const noexcept {
 	if (auto addr = gen_addr(cg)) {
 		return addr->load(cg);
 	}
+	cg.fatal(range(), "Could not generate address");
 	return None{};
 }
 
@@ -226,7 +228,9 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 			return global.addr();
 		}
 	}
+
 	cg.error(range(), "Could not find symbol '%.*s'", Sint32(m_name.length()), m_name.data());
+
 	return None{};
 }
 
@@ -234,12 +238,14 @@ Maybe<CgValue> AstVarExpr::gen_value(Cg& cg) const noexcept {
 	if (auto addr = gen_addr(cg)) {
 		return addr->load(cg);
 	}
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
 CgType* AstVarExpr::gen_type(Cg& cg) const noexcept {
 	auto addr = gen_addr(cg);
 	if (!addr) {
+		cg.fatal(range(), "Could not generate type");
 		return nullptr;
 	}
 	return addr->type()->deref();
@@ -278,6 +284,7 @@ Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
 	if (v) {
 		return CgValue { type, v };
 	}
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
@@ -320,6 +327,7 @@ Maybe<CgValue> AstFltExpr::gen_value(Cg& cg) const noexcept {
 	if (v) {
 		return CgValue { type, v };
 	}
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
@@ -354,11 +362,13 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	}
 	builder.append('\0');
 	if (!builder.valid()) {
+		cg.fatal(range(), "Out of memory");
 		return None{};
 	}
 	auto ptr = cg.llvm.BuildGlobalString(cg.builder, builder.data(), "");
 	auto len = cg.llvm.ConstInt(cg.types.u64()->ref(), m_literal.length(), false);
 	if (!ptr || !len) {
+		cg.fatal(range(), "Out of memory");
 		return None{};
 	}
 	LLVM::ValueRef values[2] = { ptr, len };
@@ -426,6 +436,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 	// likely cannot fit into a regsiter. This means an aggregate has an address.
 	auto addr = cg.emit_alloca(type);
 	if (!addr) {
+		cg.fatal(range(), "Out of memory");
 		return None{};
 	}
 
@@ -507,6 +518,7 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg) const noexcept {
 	if (auto addr = gen_addr(cg)) {
 		return addr->load(cg);
 	}
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
@@ -595,6 +607,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 
 	auto lhs = m_lhs->gen_addr(cg);
 	if (!lhs) {
+		cg.error(m_lhs->range(), "Could not generate address");
 		return None{};
 	}
 
@@ -673,11 +686,9 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		if (auto load = lhs->load(cg)) {
 			return load->to_addr().at(cg, 0);
 		}
-	} else {
-		return lhs->at(cg, 0);
 	}
 
-	return None{};
+	return lhs->at(cg, 0);
 }
 
 Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
@@ -688,7 +699,12 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS) {
 		lhs = m_lhs->gen_value(cg);
 		rhs = m_rhs->gen_value(cg);
-		if (!lhs || !rhs) {
+		if (!lhs) {
+			cg.error(m_lhs->range(), "Could not generate LHS (%s) operand", m_lhs->name());
+			return None{};
+		}
+		if (!rhs) {
+			cg.error(m_rhs->range(), "Could not generate RHS (%s) operand", m_rhs->name());
 			return None{};
 		}
 		// Operands to binary operator must be the same type
@@ -948,12 +964,18 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	case Op::BAND:
 		return CgValue { lhs->type(), cg.llvm.BuildAnd(cg.builder, lhs->ref(), rhs->ref(), "") };
 	case Op::LSHIFT:
-		return CgValue { lhs->type(), cg.llvm.BuildShl(cg.builder, lhs->ref(), rhs->ref(), "") };
+		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildShl(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			return None{};
+		}
 	case Op::RSHIFT:
 		if (lhs->type()->is_sint()) {
 			return CgValue { lhs->type(), cg.llvm.BuildAShr(cg.builder, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_uint()) {
 			return CgValue { lhs->type(), cg.llvm.BuildLShr(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			return None{};
 		}
 		break;
 	case Op::DOT:
@@ -964,6 +986,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	default:
 		break;
 	}
+
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
@@ -987,14 +1011,22 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 			if (!lhs_type) {
 				return nullptr;
 			}
+			if (lhs_type->is_pointer()) {
+				lhs_type = lhs_type->deref();
+			}
 			if (m_rhs->is_expr<AstVarExpr>()) {
 				auto rhs = static_cast<const AstVarExpr *>(m_rhs);
 				Ulen i = 0;
 				for (const auto& field : lhs_type->fields()) {
+					if (field) {
+						printf("%.*s\n", (int)field->length(), field->data());
+					}
 					if (field && *field == rhs->name()) {
 						return lhs_type->at(i);
 					}
+					i++;
 				}
+				cg.error(m_rhs->range(), "Undeclared field '%.*s'", Sint32(rhs->name().length()), rhs->name().data());
 			} else if (m_rhs->is_expr<AstIntExpr>()) {
 				auto i = m_rhs->eval();
 				if (!i) {
@@ -1011,6 +1043,7 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 		}
 		break;
 	}
+	cg.fatal(range(), "Could not generate type");
 	return nullptr;
 }
 
@@ -1044,7 +1077,7 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 		cg.error(range(), "Cannot take the address of an rvalue");
 		break;
 	}
-	return None{};
+	BIRON_UNREACHABLE();
 }
 
 Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg) const noexcept {
@@ -1071,9 +1104,9 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg) const noexcept {
 		if (auto operand = m_operand->gen_addr(cg)) {
 			return CgValue { operand->type(), operand->ref() };
 		}
-		return None{};
+		break;
 	}
-
+	cg.fatal(m_operand->range(), "Could not generate value");
 	return None{};
 }
 
@@ -1128,6 +1161,7 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 		return addr;
 	}
 
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
@@ -1135,6 +1169,7 @@ Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg) const noexcept {
 	if (auto addr = gen_addr(cg)) {
 		return addr->load(cg);
 	}
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
