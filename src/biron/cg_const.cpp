@@ -93,10 +93,17 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 				}
 				j++;
 			}
-			auto value = cg.llvm.ConstStructInContext(cg.context,
-			                                          consts.data(),
-			                                          consts.length(),
-			                                          false);
+			LLVM::ValueRef value = nullptr;
+			if (cg.llvm.IsLiteralStruct(type->ref())) {
+				value = cg.llvm.ConstStructInContext(cg.context,
+				                                     consts.data(),
+				                                     consts.length(),
+				                                     false);
+			} else {
+				value = cg.llvm.ConstNamedStruct(type->ref(),
+				                                 consts.data(),
+				                                 consts.length());
+			}
 			if (!value) {
 				return cg.oom();
 			}

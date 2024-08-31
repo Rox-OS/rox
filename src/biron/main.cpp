@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
 	}
 
 	Bool bm = false;
-	Bool opt = false;
+	Ulen opt = 0;
 	Bool dump_ir = false;
 	Bool dump_ast = false;
 	int file = -1;
@@ -50,7 +50,15 @@ int main(int argc, char **argv) {
 			if (argv[i][1] == 'b' && argv[i][2] == 'm') {
 				bm = true;
 			} else if (argv[i][1] == 'O') {
-				opt = true;
+				switch (argv[i][2]) {
+				case '0': opt = 0; break;
+				case '1': opt = 1; break;
+				case '2': opt = 2; break;
+				case '3': opt = 3; break;
+				default:
+					fprintf(stderr, "Unknown option %s\n", argv[i]);
+					return 1;
+				}
 			} else if (argv[i][1] == 'd') {
 				if (argv[i][2] == 'a') {
 					dump_ast = true;
@@ -80,9 +88,14 @@ int main(int argc, char **argv) {
 	}
 
 	fseek(fp, 0, SEEK_END);
-	Ulen n = ftell(fp);
+	long tell = ftell(fp);
+	if (tell <= 0) {
+		fclose(fp);
+		return 1;
+	}
 	fseek(fp, 0, SEEK_SET);
 
+	Ulen n = Ulen(tell);
 	Array<char> src{mallocator};
 	if (!src.resize(n)) {
 		fprintf(stderr, "Out of memory\n");
@@ -119,20 +132,27 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	if (dump_ast && !unit->dump()) {
-		return 1;
+	if (dump_ast) {
+		StringBuilder builder{mallocator};
+		unit->dump(builder);
+		if (builder.valid()) {
+			fwrite(builder.data(), builder.length(), 1, stderr);
+			fflush(stderr);
+		} else {
+			return 1;
+		}
 	}
 
 	if (!unit->codegen(*cg)) {
 		return 1;
 	}
 
-	if (opt && !cg->optimize()) {
+	if (!cg->optimize(opt)) {
 		return 1;
 	}
 
-	if (dump_ir) {
-		cg->dump();
+	if (dump_ir && !cg->dump()) {
+		return 1;
 	}
 
 	// Strip everything up to including '.'
@@ -148,7 +168,11 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	cg->emit(obj.view());
+	if (auto name = obj.view(); !cg->emit(name)) {
+		fprintf(stderr, "Could not write object file: '%.*s'\n",
+			Sint32(name.length()), name.data());
+		return 1;
+	}
 
 	if (!bm) {
 		// Build "gcc name.o -o name"

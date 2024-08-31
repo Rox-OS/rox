@@ -3,8 +3,6 @@
 #include <biron/util/types.inl>
 #include <biron/util/exchange.inl>
 
-#include <stdio.h>
-
 namespace Biron {
 
 struct Allocator {

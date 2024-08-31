@@ -74,7 +74,7 @@ struct AstUnit {
 		return m_types.push_back(type);
 	}
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
-	[[nodiscard]] Bool dump() const noexcept;
+	void dump(StringBuilder& builder) const noexcept;
 private:
 	Array<AstTopFn*> m_fns;
 	Array<AstTopType*> m_types;

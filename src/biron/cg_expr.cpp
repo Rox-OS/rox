@@ -545,7 +545,6 @@ CgType* AstAggExpr::gen_type(Cg& cg) const noexcept {
 Maybe<AstConst> AstBinExpr::eval() const noexcept {
 	if (m_op == Op::DOT) {
 		// TODO(dweiler): See if we can work out constant tuple indexing
-		fprintf(stderr, "Cannot index tuple constantly!\n");
 		return None{};
 	}
 

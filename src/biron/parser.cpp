@@ -374,7 +374,7 @@ AstExpr* Parser::parse_ident_expr(Bool simple) noexcept {
 			}
 			return parse_agg_expr(expr);
 		}
-		// fallthrough
+		[[fallthrough]];
 	default:
 		{
 			auto name = m_lexer.string(token.range);
@@ -467,6 +467,8 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 		case 5: return new_node<AstIntExpr>(Sint16(n), token.range);
 		case 6: return new_node<AstIntExpr>(Sint32(n), token.range);
 		case 7: return new_node<AstIntExpr>(Sint64(n), token.range);
+		default:
+			BIRON_UNREACHABLE();
 		}
 	}
 
@@ -977,7 +979,7 @@ AstDeferStmt* Parser::parse_defer_stmt() noexcept {
 	}
 	m_in_defer = false;
 	return new_node<AstDeferStmt>(stmt, beg_token.range.include(stmt->range()));
-};
+}
 
 // BreakStmt
 //	::= 'break'
@@ -1098,7 +1100,7 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	auto token = next();
 	auto name = m_lexer.string(token.range);
 	if (has_symbol(name)) {
-		ERROR("Duplicate symbol '%.*s'", (int)name.length(), name.data());
+		ERROR("Duplicate symbol '%.*s'", Sint32(name.length()), name.data());
 		return nullptr;
 	}
 	AstExpr* init = nullptr;
@@ -1340,7 +1342,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		} else if (name == "inline") {
 		} else if (name == "aliasable") {
 		} else {
-			ERROR("Unknown attribute: '%.*s'", (int)name.length(), name.data());
+			ERROR("Unknown attribute: '%.*s'", Sint32(name.length()), name.data());
 			return None{};
 		}
 		auto args = parse_tuple_expr();

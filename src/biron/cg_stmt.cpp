@@ -181,7 +181,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	}
 
 	auto dst = cg.llvm.AddGlobal(cg.module,
-	                             src->type()->ref(),
+	                             type->ref(),
 	                             m_name.terminated(*cg.scratch));
 
 	auto addr = CgAddr { src->type()->addrof(cg), dst };

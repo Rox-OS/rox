@@ -12,7 +12,7 @@ fn in_range(value: Sint32, min: Sint32, max: Sint32) -> Bool32 {
   return value >= min && value <= max;
 }
 
-fn(lhs: *Rect, rhs: *Rect) collide() -> Bool32 {
+fn(lhs: @(aliasable(false)) *Rect, rhs: @(aliasable(false)) *Rect) collide() -> Bool32 {
   let x_overlap = in_range(lhs.x, rhs.x, rhs.x + rhs.w) ||
                   in_range(rhs.x, lhs.x, lhs.x + lhs.w);
   let y_overlap = in_range(lhs.y, rhs.y, rhs.y + rhs.h) ||

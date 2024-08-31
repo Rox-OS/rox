@@ -6,8 +6,10 @@
 namespace Biron {
 
 struct LLVM {
-	LLVM();
-	~LLVM();
+	LLVM() noexcept;
+	LLVM(LLVM&&) noexcept = default;
+	LLVM(const LLVM&) noexcept = delete;
+	~LLVM() noexcept;
 
 	struct OpaqueContext;
 	struct OpaqueModule;
@@ -95,6 +97,7 @@ struct LLVM {
 	void (*InitializeX86AsmPrinter)(void);
 	void (*InitializeX86AsmParser)(void);
 	void (*DisposeMessage)(char *);
+	void (*ConsumeError)(ErrorRef);
 
 	void (*Shutdown)(void);
 
@@ -118,6 +121,7 @@ struct LLVM {
 	TypeRef (*ArrayType2)(TypeRef, Uint64); // [N]T
 	TypeRef (*StructGetTypeAtIndex)(TypeRef, unsigned); // ...?
 	TypeRef (*FunctionType)(TypeRef, TypeRef*, unsigned, Bool);
+	Bool (*IsLiteralStruct)(TypeRef);
 
 	BasicBlockRef (*CreateBasicBlockInContext)(ContextRef, const char *);
 

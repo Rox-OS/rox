@@ -75,15 +75,31 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, D
 	};
 }
 
-Bool Cg::optimize() noexcept {
+Bool Cg::optimize(Ulen level) noexcept {
 	if (!verify()) {
 		return false;
 	}
 	auto options = llvm.CreatePassBuilderOptions();
-	if (llvm.RunPasses(module, "default<O3>", machine, options)) {
-		return false;
+	LLVM::ErrorRef result = nullptr;
+	switch (level) {
+	case 0:
+		result = llvm.RunPasses(module, "default<O0>", machine, options);
+		break;
+	case 1:
+		result = llvm.RunPasses(module, "default<O1>", machine, options);
+		break;
+	case 2:
+		result = llvm.RunPasses(module, "default<O2>", machine, options);
+		break;
+	case 3:
+		result = llvm.RunPasses(module, "default<O3>", machine, options);
+		break;
 	}
 	llvm.DisposePassBuilderOptions(options);
+	if (result) {
+		llvm.ConsumeError(result);
+		return false;
+	}
 	return verify();
 }
 
@@ -101,8 +117,9 @@ Bool Cg::verify() noexcept {
 	return true;
 }
 
-void Cg::dump() noexcept {
+Bool Cg::dump() noexcept {
 	llvm.DumpModule(module);
+	return true;
 }
 
 Bool Cg::emit(StringView name) noexcept {

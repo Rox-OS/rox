@@ -1,3 +1,5 @@
+#if __cplusplus >= 202002L
+#include <biron/util/allocator.cpp>
 #include <biron/util/pool.cpp>
 #include <biron/util/string.cpp>
 #include <biron/ast_attr.cpp>
@@ -19,3 +21,6 @@
 #include <biron/llvm.cpp>
 #include <biron/main.cpp>
 #include <biron/parser.cpp>
+#else
+#error C++20 compiler is required to build Biron
+#endif

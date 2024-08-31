@@ -26,7 +26,7 @@ static bool link(void *lib, T*& p, const char *name) {
 	} while (0)
 
 
-LLVM::LLVM() {
+LLVM::LLVM() noexcept {
 	// This structure only stores function pointers and a local library handle. We
 	// start off with everything zeroed so any load errors along the way will at
 	// least leave things null so that ~LLVM() can safely call Shutdown if opened
@@ -34,7 +34,7 @@ LLVM::LLVM() {
 	memset(this, 0, sizeof *this);
 }
 
-LLVM::~LLVM() {
+LLVM::~LLVM() noexcept {
 	if (Shutdown) {
 		Shutdown();
 	}
@@ -60,6 +60,7 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(InitializeX86AsmPrinter);
 	LINK(InitializeX86AsmParser);
 	LINK(DisposeMessage);
+	LINK(ConsumeError);
 	LINK(Shutdown);
 	LINK(ContextCreate);
 	LINK(ContextDispose);
@@ -78,6 +79,7 @@ Maybe<LLVM> LLVM::load() noexcept {
 	LINK(StructSetBody);
 	LINK(ArrayType2);
 	LINK(FunctionType);
+	LINK(IsLiteralStruct);
 	LINK(CreateBasicBlockInContext);
 	LINK(GetBasicBlockParent);
 	LINK(GetBasicBlockTerminator);

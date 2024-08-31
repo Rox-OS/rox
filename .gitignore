@@ -1,4 +1,6 @@
 .*
 *.o
 *.iso
+src/biron/bironc
+src/titan/titan
 !/.gitignore

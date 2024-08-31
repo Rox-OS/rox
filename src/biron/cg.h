@@ -40,10 +40,10 @@ struct Cg {
 
 	static Maybe<Cg> make(Allocator& allocator, LLVM& llvm, StringView triple, Diagnostic& diagnostic) noexcept;
 
-	Bool optimize() noexcept;
-	Bool verify() noexcept;
-	void dump() noexcept;
-	Bool emit(StringView name) noexcept;
+	[[nodiscard]] Bool optimize(Ulen level) noexcept;
+	[[nodiscard]] Bool verify() noexcept;
+	[[nodiscard]] Bool dump() noexcept;
+	[[nodiscard]] Bool emit(StringView name) noexcept;
 
 	// Searches for the lexically closest loop
 	const Loop* loop() const noexcept {
