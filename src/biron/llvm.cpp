@@ -7,7 +7,7 @@
 namespace Biron {
 
 template<typename T>
-static bool link(void *lib, T*& p, const char *name) {
+static Bool link(void *lib, T*& p, const char *name) noexcept {
 	void *sym = dlsym(lib, name);
 	if (!sym) {
 		fprintf(stderr, "Could not find symbol: %s\n", name);
@@ -37,11 +37,12 @@ LLVM::~LLVM() noexcept {
 Maybe<LLVM> LLVM::load() noexcept {
 	LLVM llvm;
 
-	// We only support LLVM-18 and LLVM-17
-	if (!(llvm.m_lib = dlopen("libLLVM-18.so", RTLD_NOW))) {
-		// Try libLLVM-17.so as well
-		if (!(llvm.m_lib = dlopen("libLLVM-17.so", RTLD_NOW))) {
-			return None{};
+	// We only support LLVM-19, LLVM-18, and LLVM-17
+	if (!(llvm.m_lib = dlopen("libLLVM-19.so", RTLD_NOW))) {
+		if (!(llvm.m_lib = dlopen("libLLVM-18.so", RTLD_NOW))) {
+			if (!(llvm.m_lib = dlopen("libLLVM-17.so", RTLD_NOW))) {
+				return None{};
+			}
 		}
 	}
 

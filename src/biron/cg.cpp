@@ -30,7 +30,7 @@ Maybe<CgMachine> CgMachine::make(LLVM& llvm, StringView target_triple) noexcept 
 	                                        "generic",
 	                                        "",
 	                                        LLVM::CodeGenOptLevel::Aggressive,
-	                                        LLVM::RelocMode::Static,
+	                                        LLVM::RelocMode::PIC,
 	                                        LLVM::CodeModel::Kernel);
 
 	if (!machine) {

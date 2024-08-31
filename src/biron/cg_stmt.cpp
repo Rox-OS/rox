@@ -217,9 +217,13 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 }
 
 Bool AstExprStmt::codegen(Cg& cg) const noexcept {
-	// TODO(dweiler): Optimization to omit the value
-	auto value = m_expr->gen_value(cg);
-	return value.is_some();
+	if (m_expr->is_expr<AstTupleExpr>()) {
+		auto expr = static_cast<const AstTupleExpr*>(m_expr);
+		if (expr->length() == 0) {
+			return true;
+		}
+	}
+	return m_expr->gen_value(cg);
 }
 
 Bool AstAssignStmt::codegen(Cg& cg) const noexcept {

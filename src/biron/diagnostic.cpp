@@ -9,7 +9,6 @@ void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcep
 	// Work out the column and line from the token offset.
 	Ulen line_number = 1;
 	Ulen this_column = 1;
-	Ulen last_column = 1;
 	// We just count newlines from the beginning of the lexer stream up to but not
 	// including where the token starts itself. We also keep track of the previous
 	// lines length (last_column) to handle the case where a parse error happens
@@ -17,16 +16,15 @@ void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcep
 	for (Ulen i = 0; i < range.offset; i++) {
 		if (m_lexer[i] == '\n') {
 			line_number++;
-			last_column = this_column;
 			this_column = 0;
 		}
 		this_column++;
 	}
 	// When the error is right at the end of the line, the above counting logic
 	// will report an error on the first column of the next line.
-	if (this_column == 1 && line_number > 1) {
+	if (range.offset && m_lexer[range.offset - 1] == '\n') {
 		line_number--;
-		this_column = last_column;
+		range.offset--;
 	}
 	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31m%s:\033[0m %s\n",
 	        (int)m_lexer.name().length(),
