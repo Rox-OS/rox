@@ -47,6 +47,7 @@ struct LLVM {
 	enum class CodeGenFileType       : int { Assembly, Object };
 	enum class VerifierFailureAction : int { AbortProcess, PrintMessage, ReturnStatus };
 	enum class IntPredicate          : int { EQ = 32, NE, UGT, UGE, ULT, ULE, SGT, SGE, SLT, SLE };
+	enum class RealPredicate         : int { False, OEQ, OGT, OGE, OLT, OLE, ONE, ORD, UNO, UEQ, UGT, UGE, ULT, ULE, UNE, True };
 
 	#define FN(RETURN, NAME, ...) \
 		RETURN (*NAME)(__VA_ARGS__);

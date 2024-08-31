@@ -8,130 +8,20 @@ namespace Biron {
 
 struct Token {
 	enum class Kind : Uint8 {
-		END,
-		AT,          // '@'
-		COMMA,       // ','
-		COLON,       // ':'
-		SEMI,        // ';'
-		LPAREN,      // '('
-		RPAREN,      // ')'
-		LBRACKET,    // '['
-		RBRACKET,    // ']'
-		LBRACE,      // '{'
-		RBRACE,      // '}'
-		PLUS,        // '+'
-		MINUS,       // '-'
-		STAR,        // '*'
-		PERCENT,     // '%'
-		NOT,         // '!'
-		DOLLAR,      // '$'
-		BOR,         // '|'
-		LOR,         // '||'
-		BAND,        // '&'
-		LAND,        // '&&'
-		DOT,         // '.'
-		SEQUENCE,    // '..'
-		ELLIPSIS,    // '...'
-		EQ,          // '='
-		EQEQ,        // '=='
-		NEQ,         // '!='
-		LT,          // '<'
-		LTE,         // '<='
-		LSHIFT,      // '<<'
-		GT,          // '>'
-		GTE,         // '>='
-		RSHIFT,      // '>>'
-		ARROW,       // '->'
-		IDENT,       // [a-z][A-Z]([a-z][A-Z][0-9]_)+
-
-		KW_TRUE,     // true
-		KW_FALSE,    // false
-
-		KW_FN,       // 'fn'
-		KW_IF,       // 'if'
-		KW_AS,       // 'as'
-		KW_LET,      // 'let'
-		KW_FOR,      // 'for'
-		KW_ELSE,     // 'else'
-		KW_TYPE,     // 'type'
-		KW_DEFER,    // 'defer'
-		KW_UNION,    // 'union'
-		KW_BREAK,    // 'break'
-		KW_RETURN,   // 'return'
-		KW_CONTINUE, // 'continue'
-
-		LIT_INT,     // 0b[01]+(_(u|s){8,16,32,64})?
-		             // 0x([0-9][a-f])+(_(u|s){8,16,32,64})?
-		             // [1-9][0-9]+(_(u|s){8,16,32,64})?
-		LIT_FLT,     // \d+\.?\d+
-		LIT_STR,     // ".*"
-		LIT_CHR,     // '.*'
-
-		COMMENT,
-		UNKNOWN,
+		#define KIND(NAME) NAME,
+		#include <biron/lexer.inl>
+		#undef KIND
 	};
 	constexpr Token(Kind kind = Kind::END, Range range = {0, 0}) noexcept
 		: kind{kind}
 		, range{range}
 	{
 	}
-	const char *name() const noexcept {
+	constexpr const char *name() const noexcept {
 		switch (kind) {
-		case Kind::END:         return "EOF";
-		case Kind::AT:          return "AT";
-		case Kind::COMMA:       return "COMMA";
-		case Kind::COLON:       return "COLON";
-		case Kind::SEMI:        return "SEMI";
-		case Kind::LPAREN:      return "LPAREN";
-		case Kind::RPAREN:      return "RPAREN";
-		case Kind::LBRACKET:    return "LBRACKET";
-		case Kind::RBRACKET:    return "RBRACKET";
-		case Kind::LBRACE:      return "LBRACE";
-		case Kind::RBRACE:      return "RBRACE";
-		case Kind::DOT:         return "DOT";      // '.'
-		case Kind::SEQUENCE:    return "SEQUENCE"; // '..'
-		case Kind::ELLIPSIS:    return "ELLIPSIS"; // '...'
-		case Kind::EQ:          return "EQ";
-		case Kind::EQEQ:        return "EQEQ";
-		case Kind::NEQ:         return "NEQ";
-		case Kind::MINUS:       return "MINUS";
-		case Kind::STAR:        return "STAR";
-		case Kind::PERCENT:     return "PERCENT";
-		case Kind::NOT:         return "NOT";
-		case Kind::DOLLAR:      return "DOLLAR";
-		case Kind::BOR:         return "BOR";
-		case Kind::LOR:         return "LOR";
-		case Kind::BAND:        return "BAND";
-		case Kind::LAND:        return "LAND";
-		case Kind::PLUS:        return "PLUS";
-		case Kind::LT:          return "LT";
-		case Kind::LTE:         return "LTE";
-		case Kind::LSHIFT:      return "LSHIFT";
-		case Kind::GT:          return "GT";
-		case Kind::GTE:         return "GTE";
-		case Kind::RSHIFT:      return "RSHIFT";
-		case Kind::ARROW:       return "ARROW";
-		case Kind::IDENT:       return "IDENT";
-		case Kind::KW_TRUE:     return "TRUE";
-		case Kind::KW_FALSE:    return "FALSE";
-		case Kind::KW_FN:       return "FN";
-		case Kind::KW_IF:       return "IF";
-		case Kind::KW_AS:       return "AS";
-		case Kind::KW_LET:      return "LET";
-		case Kind::KW_FOR:      return "FOR";
-		case Kind::KW_ELSE:     return "ELSE";
-		case Kind::KW_TYPE:     return "TYPE";
-		case Kind::KW_DEFER:    return "DEFER";
-		case Kind::KW_UNION:    return "UNION";
-		case Kind::KW_BREAK:    return "BREAK";
-		case Kind::KW_RETURN:   return "RETURN";
-		case Kind::KW_CONTINUE: return "CONTINUE";
-		case Kind::LIT_INT:     return "INT";
-		case Kind::LIT_FLT:     return "FLT";
-		case Kind::LIT_STR:     return "STR";
-		case Kind::LIT_CHR:     return "CHR";
-		case Kind::COMMENT:     return "COMMENT";
-		case Kind::UNKNOWN:     return "UNKNOWN";
+		#define KIND(NAME) case Kind::NAME: return #NAME;
+		#include <biron/lexer.inl>
+		#undef KIND
 		}
 		return "";
 	}

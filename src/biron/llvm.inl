@@ -132,6 +132,7 @@ FN(ValueRef,              BuildCast,                     BuilderRef, Opcode, Val
 FN(Opcode,                GetCastOpcode,                 ValueRef, Bool, TypeRef, Bool)
 /// Comparisons
 FN(ValueRef,              BuildICmp,                     BuilderRef, IntPredicate, ValueRef, ValueRef, const char*)
+FN(ValueRef,              BuildFCmp,                     BuilderRef, RealPredicate, ValueRef, ValueRef, const char*)
 /// Miscellaneous
 FN(ValueRef,              BuildPhi,                      BuilderRef, TypeRef, const char*)
 FN(ValueRef,              BuildCall2,                    BuilderRef, TypeRef, ValueRef, ValueRef*, unsigned, const char*)
