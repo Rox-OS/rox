@@ -113,7 +113,7 @@ struct Array {
 			}
 			// When growing we must default construct the new elements.
 			for (Ulen i = m_length; i < size; i++) {
-				new (m_data + i, Nat{}) T;
+				new (m_data + i, Nat{}) T{};
 			}
 		}
 		m_length = size;

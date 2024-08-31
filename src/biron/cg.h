@@ -12,7 +12,7 @@ namespace Biron {
 struct Allocator;
 struct Diagnostic;
 
-struct AstTopFn;
+struct AstUnit;
 struct AstStmt;
 
 // We keep track of the loop post and exit BBs for "continue" and "break"
@@ -108,6 +108,7 @@ struct Cg {
 	Array<CgVar>      globals;
 	Array<CgScope>    scopes;
 	Array<CgTypeDef>  typedefs;
+	const AstUnit*    unit;
 	Diagnostic&       diagnostic;
 
 	constexpr Cg(Cg&& other) noexcept
@@ -122,6 +123,7 @@ struct Cg {
 		, globals{move(other.globals)}
 		, scopes{move(other.scopes)}
 		, typedefs{move(other.typedefs)}
+		, unit{nullptr}
 		, diagnostic{other.diagnostic}
 	{
 	}
@@ -148,6 +150,7 @@ private:
 		, globals{allocator}
 		, scopes{allocator}
 		, typedefs{allocator}
+		, unit{nullptr}
 		, diagnostic{diagnostic}
 	{
 	}

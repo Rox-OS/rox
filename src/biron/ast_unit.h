@@ -46,13 +46,16 @@ struct AstTopType : AstNode {
 		, m_name{name}
 		, m_type{type}
 		, m_attrs{move(attrs)}
+		, m_generated{false}
 	{
 	}
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
+	StringView name() const noexcept { return m_name; }
 private:
 	StringView             m_name;
 	AstType*               m_type;
 	Maybe<Array<AstAttr*>> m_attrs;
+	mutable Bool           m_generated;
 };
 
 struct AstLetStmt;
@@ -76,6 +79,7 @@ struct AstUnit {
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 	void dump(StringBuilder& builder) const noexcept;
 private:
+	friend struct AstIdentType;
 	Array<AstTopFn*> m_fns;
 	Array<AstTopType*> m_types;
 	Array<AstLetStmt*> m_lets;

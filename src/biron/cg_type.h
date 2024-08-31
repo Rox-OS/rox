@@ -212,7 +212,7 @@ struct CgTypeCache {
 
 private:
 	CgType* ensure_padding(Ulen padding) noexcept {
-		if (auto find = m_padding_cache.at(padding)) {
+		if (auto find = m_padding_cache.at(padding); find && *find) {
 			return *find;
 		}
 		if (!m_padding_cache.resize(padding + 1)) {

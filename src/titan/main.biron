@@ -12,15 +12,26 @@ type LimineFramebuffer = (
   modes:      (Uint64, Address)
 );
 
+type LimineFramebufferRequest = (
+  id:       [4]Uint64,
+  revision: Uint64,
+  response: *LimineFramebufferResponse
+);
+
 type LimineFramebufferResponse = (
   revision:     Uint64,
   framebuffers: (Uint64, **LimineFramebuffer)
 );
 
-type LimineFramebufferRequest = (
+type LimineHHDMRequest = (
   id:       [4]Uint64,
   revision: Uint64,
-  response: *LimineFramebufferResponse
+  response: *LimineHHDMResponse
+);
+
+type LimineHHDMResponse = (
+  revision: Uint64,
+  offset:   Uint64
 );
 
 @(used(true), section(".requests"))
@@ -49,11 +60,28 @@ let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
   0_u64
 };
 
+@(used(true), section(".requests"))
+let LIMNE_HHDM_REQUEST = LimineHHDMRequest {
+  [4]Uint64 {
+    0xc7b1dd30df4c8b88_u64,
+    0x0a82e883a194f07b_u64,
+    0x48dcf1cb8ad2b852_u64,
+    0x63984e959a98244b_u64,
+  },
+  0_u64
+};
+
 @(used(true), section(".requests_end_marker"))
 let LIMINE_REQUESTS_END_MARKER = [2]Uint64 {
   0xadc0e0531bb10d03_u64,
   0x9572709f31764c62_u64
 };
+
+fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32 {
+  return (r << fb.r_mask.shift as Uint32) |
+         (g << fb.g_mask.shift as Uint32) |
+         (b << fb.b_mask.shift as Uint32);
+}
 
 // When in the kernel we do not want the Redzone and we want Biron to always
 // setup the stack so it's 16-byte aligned. This behavior is required by SysV
@@ -61,11 +89,12 @@ let LIMINE_REQUESTS_END_MARKER = [2]Uint64 {
 @(redzone(false), alignstack(16))
 fn kmain() {
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
-  let color = 0xff'ff'ff_u32;
-  for let y = 0_u64; y < fb.dimensions.1; y = y + 1_u64 {
-    for let x = 0_u64; x < fb.dimensions.0; x = x + 1_u64 {
-      fb.address[y * fb.dimensions.0 + x] = (x + y) as Uint32;
+  let color = (0xff_u32, 0_u32, 0_u32);
+  for {
+    for let y = 0_u64; y < fb.dimensions.1; y = y + 1_u64 {
+      for let x = 0_u64; x < fb.dimensions.0; x = x + 1_u64 {
+        fb.address[y * fb.dimensions.0 + x] = make_color(fb, ...color);
+      }
     }
   }
-  for {}
 }

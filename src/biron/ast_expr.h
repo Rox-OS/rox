@@ -300,6 +300,7 @@ struct AstExplodeExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
 private:
 	AstExpr* m_operand;
 };

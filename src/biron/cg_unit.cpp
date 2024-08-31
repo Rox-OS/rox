@@ -71,11 +71,18 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 }
 
 Bool AstTopType::codegen(Cg& cg) const noexcept {
+	if (m_generated) {
+		return true;
+	}
 	auto type = m_type->codegen_named(cg, m_name);
 	if (!type) {
 		return false;
 	}
-	return cg.typedefs.emplace_back(m_name, type);
+	if (!cg.typedefs.emplace_back(m_name, type)) {
+		return false;
+	}
+	m_generated = true;
+	return true;
 }
 
 Bool AstTopFn::codegen(Cg& cg) const noexcept {
@@ -181,6 +188,8 @@ Bool AstTopFn::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstUnit::codegen(Cg& cg) const noexcept {
+	cg.unit = this;
+	
 	// Register a "printf" function for debugging purposes
 	{
 		Array<CgType*> args{cg.allocator};
@@ -209,8 +218,6 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 
 	// Emit types
 	for (auto type : m_types) {
-		cg.scratch->clear();
-
 		if (!type->codegen(cg)) {
 			return false;
 		}

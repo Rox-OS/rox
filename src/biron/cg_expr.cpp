@@ -188,7 +188,22 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		}
 	}
 	for (Ulen l = m_args->length(), i = 0; i < l; i++) {
-		auto value = m_args->at(i)->gen_value(cg);
+		auto arg = m_args->at(i);
+		if (arg->is_expr<AstExplodeExpr>()) {
+			auto expr = static_cast<const AstExplodeExpr*>(arg);
+			auto args = expr->gen_value(cg);
+			if (!args) {
+				return None{};
+			}
+			for (Ulen l = args->type()->length(), i = 0; i < l; i++) {
+				auto value = cg.llvm.BuildExtractValue(cg.builder, args->ref(), i, "");
+				if (!value || !values.push_back(value)) {
+					return None{};
+				}
+			}
+			continue;
+		} 
+		auto value = arg->gen_value(cg);
 		if (!value) {
 			return None{};
 		}
@@ -824,7 +839,6 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			if (!rhs || !rhs->type()->is_bool()) {
 				return None{};
 			}
-			// on_lhs_false = cg.llvm.GetInsertBlock(cg.builder);
 			cg.llvm.BuildCondBr(cg.builder, rhs->ref(), on_rhs_true, on_rhs_false);
 
 			// on_rhs_true
@@ -1028,7 +1042,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 					} else {
 						for (Ulen l = objs_type->length(), i = 0; i < l; i++) {
 							auto type = objs_type->at(i);
-							auto addr = objs->at(cg, i);//->load(cg);
+							auto addr = objs->at(cg, i);
 							if (type->is_pointer()) {
 								// Reciever wants it passed as pointer.
 								if (!values.emplace_back(type, addr->ref())) {
@@ -1288,6 +1302,10 @@ Maybe<AstConst> AstIndexExpr::eval() const noexcept {
 		}
 	}
 	return None{};
+}
+
+Maybe<CgValue> AstExplodeExpr::gen_value(Cg& cg) const noexcept {
+	return m_operand->gen_value(cg);
 }
 
 } // namespace Biron

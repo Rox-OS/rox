@@ -2,6 +2,7 @@
 #include <biron/ast_type.h>
 #include <biron/ast_expr.h>
 #include <biron/ast_const.h>
+#include <biron/ast_unit.h>
 
 #include <biron/util/string.inl>
 #include <biron/util/unreachable.inl>
@@ -257,6 +258,15 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	for (auto type : cg.typedefs) {
 		if (type.name() == m_ident) {
 			return type.type();
+		}
+	}
+	// Check the unit for non-generated types and generate them here. This will
+	// basically perform an implicit dependency sort of the types for us for free.
+	for (const auto& type : cg.unit->m_types) {
+		if (type->name() == m_ident) {
+			if (type->codegen(cg)) {
+				return codegen(cg);
+			}
 		}
 	}
 	cg.error(range(), "Undeclared type '%.*s'", Sint32(m_ident.length()), m_ident.data());

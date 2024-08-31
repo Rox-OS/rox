@@ -229,6 +229,7 @@ Token Lexer::read() noexcept {
 					break;
 				case '.':
 					// 0.\d+
+					fwd(); // Consume '.'
 					k = Kind::LIT_FLT;
 					d = 1;
 					goto L_dec;
