@@ -42,4 +42,15 @@ void AstInlineAttr::dump(StringBuilder& builder) const noexcept {
 	builder.append(')');
 }
 
+void AstAliasableAttr::dump(StringBuilder& builder) const noexcept {
+	builder.append("aliasable");
+	builder.append('(');
+	if (m_value) {
+		builder.append("true");
+	} else {
+		builder.append("false");
+	}
+	builder.append(')');
+}
+
 } // namespace Biron

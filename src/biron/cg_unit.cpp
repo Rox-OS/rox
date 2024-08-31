@@ -52,7 +52,7 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 }
 
 Bool AstTopType::codegen(Cg& cg) const noexcept {
-	auto type = m_type->codegen(cg);
+	auto type = m_type->codegen_named(cg, m_name);
 	if (!type) {
 		return false;
 	}
@@ -172,8 +172,8 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!rets.push_back(cg.types.s32())) {
 			return false;
 		}
-		auto args_t = cg.types.make(CgType::TupleInfo { move(args), None{} });
-		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), None{} });
+		auto args_t = cg.types.make(CgType::TupleInfo { move(args), None{}, None{} });
+		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), None{}, None{} });
 		if (!args_t || !rets_t) {
 			return false;
 		}

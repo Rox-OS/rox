@@ -85,33 +85,32 @@ struct CgType {
 	}
 
 	// Custom make tags for the type cache
-	struct IntInfo {
+	struct Info {
 		Ulen size;
 		Ulen align;
+	};
+
+	struct IntInfo : Info {
 		Bool sign;
 	};
 
-	struct FltInfo {
-		Ulen size;
-		Ulen align;
+	struct RealInfo : Info {
 	};
 
-	struct PtrInfo {
+	struct PtrInfo : Info {
 		CgType* base;
-		Ulen    size;
-		Ulen    align;
 	};
 
-	struct BoolInfo {
-		Ulen size;
-		Ulen align;
+	struct BoolInfo : Info {
 	};
 
-	struct StringInfo {};
+	struct StringInfo : Info {
+	};
 
 	struct TupleInfo {
 		Array<CgType*>                  types;
 		Maybe<Array<Maybe<StringView>>> fields;
+		Maybe<StringView>               named;
 	};
 
 	struct UnionInfo {
@@ -191,7 +190,7 @@ struct CgTypeCache {
 	constexpr CgType* va()   const noexcept { return m_builtin[17]; }
 
 	CgType* make(CgType::IntInfo info) noexcept;
-	CgType* make(CgType::FltInfo info) noexcept;
+	CgType* make(CgType::RealInfo info) noexcept;
 	CgType* make(CgType::PtrInfo info) noexcept;
 	CgType* make(CgType::BoolInfo info) noexcept;
 	CgType* make(CgType::StringInfo info) noexcept;

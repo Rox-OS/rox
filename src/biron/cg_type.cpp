@@ -26,11 +26,11 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::Con
 	builtin[9]  = bootstrap.make(CgType::BoolInfo   { 2, 2 });
 	builtin[10] = bootstrap.make(CgType::BoolInfo   { 4, 4 });
 	builtin[11] = bootstrap.make(CgType::BoolInfo   { 8, 8 });
-	builtin[12] = bootstrap.make(CgType::FltInfo    { 4, 4 }),
-	builtin[13] = bootstrap.make(CgType::FltInfo    { 8, 8 }),
-	builtin[14] = bootstrap.make(CgType::PtrInfo    { nullptr, 8, 8 });
-	builtin[15] = bootstrap.make(CgType::StringInfo { });
-	builtin[16] = bootstrap.make(CgType::TupleInfo  { { allocator }, None {} } );
+	builtin[12] = bootstrap.make(CgType::RealInfo   { 4, 4 }),
+	builtin[13] = bootstrap.make(CgType::RealInfo   { 8, 8 }),
+	builtin[14] = bootstrap.make(CgType::PtrInfo    { 8, 8, nullptr });
+	builtin[15] = bootstrap.make(CgType::StringInfo { 16, 8 });
+	builtin[16] = bootstrap.make(CgType::TupleInfo  { { allocator }, None {}, StringView { ".Unit" } } );
 	builtin[17] = bootstrap.make(CgType::VaInfo     { });
 	for (Ulen i = 0; i < countof(builtin); i++) {
 		if (!builtin[i]) {
@@ -173,7 +173,12 @@ StringView CgType::to_string(Allocator& allocator) const noexcept {
 }
 
 CgType* CgType::addrof(Cg& cg) noexcept {
-	return cg.types.make(CgType::PtrInfo { this, 8, 8 });
+	return cg.types.make(CgType::PtrInfo { 8, 8, this });
+}
+
+CgType* AstType::codegen_named(Cg& cg, StringView) const noexcept {
+	cg.fatal(range(), "Unimplemented codegen_named");
+	return nullptr;
 }
 
 CgType* AstTupleType::codegen(Cg& cg) const noexcept {
@@ -194,7 +199,28 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 			return nullptr;
 		}
 	}
-	return cg.types.make(CgType::TupleInfo { move(types), move(fields) });
+	return cg.types.make(CgType::TupleInfo { move(types), move(fields), None{} });
+}
+
+CgType* AstTupleType::codegen_named(Cg& cg, StringView name) const noexcept {
+	Array<CgType*> types{cg.allocator};
+	if (!types.reserve(m_elems.length())) {
+		return nullptr;
+	}
+	Array<Maybe<StringView>> fields{cg.allocator};
+	if (!fields.reserve(m_elems.length())) {
+		return nullptr;
+	}
+	for (auto& elem : m_elems) {
+		auto type = elem.type()->codegen(cg);
+		if (!type || !types.push_back(type)) {
+			return nullptr;
+		}
+		if (!fields.push_back(elem.name())) {
+			return nullptr;
+		}
+	}
+	return cg.types.make(CgType::TupleInfo { move(types), move(fields), name });
 }
 
 CgType* AstUnionType::codegen(Cg& cg) const noexcept {
@@ -246,7 +272,7 @@ CgType* AstPtrType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::PtrInfo { base, 8, 8 });
+	return cg.types.make(CgType::PtrInfo { 8, 8, base });
 }
 
 CgType* AstArrayType::codegen(Cg& cg) const noexcept {
@@ -321,7 +347,7 @@ CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
 	);
 }
 
-CgType* CgTypeCache::make(CgType::FltInfo info) noexcept {
+CgType* CgTypeCache::make(CgType::RealInfo info) noexcept {
 	LLVM::TypeRef ref = nullptr;
 	CgType::Kind kind;
 	switch (info.size) {
@@ -508,10 +534,12 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 				return nullptr;
 			}
 		}
-		ref = m_llvm.StructTypeInContext(m_context,
-		                                 types.data(),
-		                                 types.length(),
-		                                 false);
+		if (info.named) {
+			ref = m_llvm.StructCreateNamed(m_context, info.named->terminated(scratch));
+			m_llvm.StructSetBody(ref, types.data(), types.length(), false);
+		} else {
+			ref = m_llvm.StructTypeInContext(m_context, types.data(), types.length(), false);
+		}
 	}
 	if (!ref) {
 		return nullptr;

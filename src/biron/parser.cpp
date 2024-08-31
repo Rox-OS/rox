@@ -364,7 +364,7 @@ AstExpr* Parser::parse_ident_expr(Bool simple) noexcept {
 	case Token::Kind::LBRACE: // {}
 		if (!simple) {
 			auto name = m_lexer.string(token.range);
-			auto type = new_node<AstIdentType>(name, token.range);
+			auto type = new_node<AstIdentType>(name, None{}, token.range);
 			if (!type) {
 				return nullptr;
 			}
@@ -602,26 +602,33 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 //	::= Type '|' Type ('|' Type)*
 AstType* Parser::parse_type() noexcept {
 	Array<AstType*> types{m_allocator};
+	Maybe<Array<AstAttr*>> attrs;
 	for (;;) {
+		if (peek().kind == Token::Kind::AT) {
+			attrs = parse_attrs();
+			if (!attrs) {
+				return nullptr;
+			}
+		}
 		AstType* type = nullptr;
 		switch (peek().kind) {
 		case Token::Kind::IDENT:
-			type = parse_ident_type();
+			type = parse_ident_type(move(attrs));
 			break;
 		case Token::Kind::LPAREN:
-			type = parse_tuple_type();
+			type = parse_tuple_type(move(attrs));
 			break;
 		case Token::Kind::ELLIPSIS:
-			type = parse_varargs_type();
+			type = parse_varargs_type(move(attrs));
 			break;
 		case Token::Kind::STAR:
-			type = parse_ptr_type();
+			type = parse_ptr_type(move(attrs));
 			break;
 		case Token::Kind::LBRACKET:
-			type = parse_bracket_type();
+			type = parse_bracket_type(move(attrs));
 			break;
 		case Token::Kind::KW_FN:
-			type = parse_fn_type();
+			type = parse_fn_type(move(attrs));
 			break;
 		default:
 			ERROR("Unexpected token '%s' in type", peek().name());
@@ -643,21 +650,21 @@ AstType* Parser::parse_type() noexcept {
 		for (auto type : types) {
 			range = range.include(type->range());
 		}
-		return new_node<AstUnionType>(range, move(types));
+		return new_node<AstUnionType>(move(types), move(attrs), range);
 	}
 	BIRON_UNREACHABLE();
 }
 
 // IdentType
 //	::= Ident
-AstIdentType* Parser::parse_ident_type() noexcept {
+AstIdentType* Parser::parse_ident_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::IDENT) {
 		ERROR("Expected identifier");
 		return nullptr;
 	}
 	auto token = next();
 	auto name = m_lexer.string(token.range);
-	return new_node<AstIdentType>(name, token.range);
+	return new_node<AstIdentType>(name, move(attrs), token.range);
 }
 
 // TupleType
@@ -665,7 +672,7 @@ AstIdentType* Parser::parse_ident_type() noexcept {
 //	  | '(' TupleElem (',' TupleElem)* ')'
 // TupleElem
 //	::= (Ident ':')? Type
-AstTupleType* Parser::parse_tuple_type() noexcept {
+AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::LPAREN) {
 		ERROR("Expected '('");
 		return nullptr;
@@ -675,7 +682,7 @@ AstTupleType* Parser::parse_tuple_type() noexcept {
 	while (peek().kind != Token::Kind::RPAREN) {
 		// When we have LPAREN we have a nested tuple.
 		if (peek().kind == Token::Kind::LPAREN) {
-			auto nested = parse_tuple_type();
+			auto nested = parse_tuple_type(None{});
 			if (!nested) {
 				return nullptr;
 			}
@@ -711,7 +718,7 @@ AstTupleType* Parser::parse_tuple_type() noexcept {
 			AstType* type = nullptr;
 			if (token) {
 				auto name = m_lexer.string(token->range);
-				type = new_node<AstIdentType>(name, token->range);
+				type = new_node<AstIdentType>(name, None{}, token->range);
 			} else {
 				type = parse_type();
 				if (!type) {
@@ -738,23 +745,23 @@ AstTupleType* Parser::parse_tuple_type() noexcept {
 		return nullptr;
 	}
 	auto end_token = next(); // Consume ')'
-	return new_node<AstTupleType>(move(elems), beg_token.range.include(end_token.range));
+	return new_node<AstTupleType>(move(elems), move(attrs), beg_token.range.include(end_token.range));
 }
 
 // VarArgsType
 //	::= '...'
-AstVarArgsType* Parser::parse_varargs_type() noexcept {
+AstVarArgsType* Parser::parse_varargs_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::ELLIPSIS) {
 		ERROR("Expected '...'");
 		return nullptr;
 	}
 	auto token = next(); // Consume '...'
-	return new_node<AstVarArgsType>(token.range);
+	return new_node<AstVarArgsType>(move(attrs), token.range);
 }
 
 // PtrType
 //	::= '*' Type
-AstPtrType* Parser::parse_ptr_type() noexcept {
+AstPtrType* Parser::parse_ptr_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::STAR) {
 		ERROR("Expected '*'");
 		return nullptr;
@@ -764,7 +771,7 @@ AstPtrType* Parser::parse_ptr_type() noexcept {
 	if (!type) {
 		return nullptr;
 	}
-	return new_node<AstPtrType>(type, token.range.include(type->range()));
+	return new_node<AstPtrType>(type, move(attrs), token.range.include(type->range()));
 }
 
 // BracketType
@@ -774,7 +781,7 @@ AstPtrType* Parser::parse_ptr_type() noexcept {
 //	::= '[' Expr ']' Type
 // SliceType
 //	::= '[' ']'
-AstType* Parser::parse_bracket_type() noexcept {
+AstType* Parser::parse_bracket_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::LBRACKET) {
 		ERROR("Expected '['");
 		return nullptr;
@@ -798,22 +805,22 @@ AstType* Parser::parse_bracket_type() noexcept {
 	// range = ('[' ... ']' Type)
 	auto range = beg_token.range.include(type->range());
 	if (expr) {
-		return new_node<AstArrayType>(type, expr, range);
+		return new_node<AstArrayType>(type, expr, move(attrs), range);
 	} else {
-		return new_node<AstSliceType>(type, range);
+		return new_node<AstSliceType>(type, move(attrs), range);
 	}
 	BIRON_UNREACHABLE();
 }
 
 // FnType
 //	::= 'fn' TupleType ('->' TupleType)?
-AstFnType* Parser::parse_fn_type() noexcept {
+AstFnType* Parser::parse_fn_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
 		return nullptr;
 	}
 	auto beg_token = next(); // Consume 'fn'
-	auto args = parse_tuple_type();
+	auto args = parse_tuple_type(None{});
 	if (!args) {
 		return nullptr;
 	}
@@ -830,21 +837,20 @@ AstFnType* Parser::parse_fn_type() noexcept {
 			if (!elems.emplace_back(None{}, rets)) {
 				return nullptr;
 			}
-			rets = new_node<AstTupleType>(move(elems), Range{0, 0});
+			rets = new_node<AstTupleType>(move(elems), None{}, rets->range());
 			if (!rets) {
 				return nullptr;
 			}
 		}
 	} else {
-		// TODO(dweiler): AstTupleType elems Maybe
 		Array<AstTupleType::Elem> elems{m_allocator};
-		rets = new_node<AstTupleType>(move(elems), Range{0, 0});
+		rets = new_node<AstTupleType>(move(elems), None{}, Range{0, 0});
 		if (!rets) {
 			return nullptr;
 		}
 	}
 	auto range = beg_token.range.include(rets->range());
-	return new_node<AstFnType>(args, static_cast<AstTupleType*>(rets), range);
+	return new_node<AstFnType>(args, static_cast<AstTupleType*>(rets), move(attrs), range);
 }
 
 // Stmt
@@ -1213,7 +1219,7 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	auto beg_token = next(); // Consume 'fn'
 	AstTupleType* selfs = nullptr;
 	if (peek().kind == Token::Kind::LPAREN) {
-		if (!(selfs = parse_tuple_type())) {
+		if (!(selfs = parse_tuple_type(None{}))) {
 			return nullptr;
 		}
 	}
@@ -1224,7 +1230,7 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	auto token = next();
 	auto name = m_lexer.string(token.range); // Consume Ident
 
-	auto args = parse_tuple_type();
+	auto args = parse_tuple_type(None{});
 	if (!args) {
 		ERROR("Could not parse argument list");
 		return nullptr;
@@ -1236,7 +1242,7 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		rets = parse_type();
 	} else {
 		// When there are no return types we return the "empty tuple"
-		rets = new_node<AstTupleType>(m_allocator, Range{0, 0});
+		rets = new_node<AstTupleType>(m_allocator, None{}, Range{0, 0});
 	}
 	if (!rets) {
 		ERROR("Could not parse result list");
@@ -1251,7 +1257,7 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 			ERROR("Out of memory");
 			return nullptr;
 		}
-		rets = new_node<AstTupleType>(move(elems), rets->range());
+		rets = new_node<AstTupleType>(move(elems), None{}, rets->range());
 	}
 
 	AstBlockStmt* body = parse_block_stmt();
@@ -1332,6 +1338,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		} else if (name == "align") {
 		} else if (name == "used") {
 		} else if (name == "inline") {
+		} else if (name == "aliasable") {
 		} else {
 			ERROR("Unknown attribute: '%.*s'", (int)name.length(), name.data());
 			return None{};
@@ -1394,6 +1401,17 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
+		} else if (name == "aliasable") {
+			auto expr = args->at(0);
+			auto value = expr->eval();
+			if (!value || !value->is_bool()) {
+				ERROR("Expected constant boolean expression for 'aliasable' attribute");
+				return None{};
+			}
+			auto attr = new_node<AstAliasableAttr>(*value->to<Bool32>(), expr->range());
+			if (!attr || !attrs.push_back(attr)) {
+				return None{};
+			}
 		}
 		if (peek().kind != Token::Kind::COMMA) {
 			break;
@@ -1414,7 +1432,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 	AstUnit unit{m_allocator};
 	Scope scope{m_allocator, nullptr};
 	m_scope = &scope;
-	Maybe<Array<AstAttr*>> attrs{m_allocator};
+	Maybe<Array<AstAttr*>> attrs;
 	for (;;) switch (peek().kind) {
 	case Token::Kind::AT:
 		attrs = parse_attrs();

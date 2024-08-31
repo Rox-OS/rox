@@ -154,7 +154,7 @@ CgType* AstTupleExpr::gen_type(Cg& cg) const noexcept {
 		}
 	}
 
-	return cg.types.make(CgType::TupleInfo { move(types), None{} });
+	return cg.types.make(CgType::TupleInfo { move(types), None{}, None{} });
 }
 
 CgType* AstCallExpr::gen_type(Cg& cg) const noexcept {
