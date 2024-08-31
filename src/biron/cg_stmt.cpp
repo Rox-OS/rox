@@ -28,7 +28,13 @@ Bool AstBlockStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
-	// Generate all the defer statements in reverse order here before the return.
+	auto value = m_expr->gen_value(cg);
+	if (!value) {
+		return false;
+	}
+
+	// Generate all the defer statements in reverse order here before the return
+	// but after we have generated the return value.
 	for (Ulen l = cg.scopes.length(), i = l - 1; i < l; i--) {
 		if (!cg.scopes[i].emit_defers(cg)) {
 			return false;
@@ -38,11 +44,6 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 	if (!m_expr) {
 		cg.llvm.BuildRetVoid(cg.builder);
 		return true;
-	}
-
-	auto value = m_expr->gen_value(cg);
-	if (!value) {
-		return false;
 	}
 
 	cg.llvm.BuildRet(cg.builder, value->ref());

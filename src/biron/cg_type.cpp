@@ -14,22 +14,22 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::Con
 	// construct some builtin types which are always expected to exist.
 	CgTypeCache bootstrap{move(cache), llvm, context};
 	CgType* (&builtin)[countof(bootstrap.m_builtin)] = bootstrap.m_builtin;
-	builtin[0]  = bootstrap.make(CgType::IntInfo    { 1, 1, false });
-	builtin[1]  = bootstrap.make(CgType::IntInfo    { 2, 2, false });
-	builtin[2]  = bootstrap.make(CgType::IntInfo    { 4, 4, false });
-	builtin[3]  = bootstrap.make(CgType::IntInfo    { 8, 8, false });
-	builtin[4]  = bootstrap.make(CgType::IntInfo    { 1, 1, true });
-	builtin[5]  = bootstrap.make(CgType::IntInfo    { 2, 2, true });
-	builtin[6]  = bootstrap.make(CgType::IntInfo    { 4, 4, true });
-	builtin[7]  = bootstrap.make(CgType::IntInfo    { 8, 8, true });
-	builtin[8]  = bootstrap.make(CgType::BoolInfo   { 1, 1 });
-	builtin[9]  = bootstrap.make(CgType::BoolInfo   { 2, 2 });
-	builtin[10] = bootstrap.make(CgType::BoolInfo   { 4, 4 });
-	builtin[11] = bootstrap.make(CgType::BoolInfo   { 8, 8 });
-	builtin[12] = bootstrap.make(CgType::RealInfo   { 4, 4 }),
-	builtin[13] = bootstrap.make(CgType::RealInfo   { 8, 8 }),
-	builtin[14] = bootstrap.make(CgType::PtrInfo    { 8, 8, nullptr });
-	builtin[15] = bootstrap.make(CgType::StringInfo { 16, 8 });
+	builtin[0]  = bootstrap.make(CgType::IntInfo    { { 1, 1 }, false });
+	builtin[1]  = bootstrap.make(CgType::IntInfo    { { 2, 2 }, false });
+	builtin[2]  = bootstrap.make(CgType::IntInfo    { { 4, 4 }, false });
+	builtin[3]  = bootstrap.make(CgType::IntInfo    { { 8, 8 }, false });
+	builtin[4]  = bootstrap.make(CgType::IntInfo    { { 1, 1 }, true });
+	builtin[5]  = bootstrap.make(CgType::IntInfo    { { 2, 2 }, true });
+	builtin[6]  = bootstrap.make(CgType::IntInfo    { { 4, 4 }, true });
+	builtin[7]  = bootstrap.make(CgType::IntInfo    { { 8, 8 }, true });
+	builtin[8]  = bootstrap.make(CgType::BoolInfo   { { 1, 1 } });
+	builtin[9]  = bootstrap.make(CgType::BoolInfo   { { 2, 2 } });
+	builtin[10] = bootstrap.make(CgType::BoolInfo   { { 4, 4 } });
+	builtin[11] = bootstrap.make(CgType::BoolInfo   { { 8, 8 } });
+	builtin[12] = bootstrap.make(CgType::RealInfo   { { 4, 4 } }),
+	builtin[13] = bootstrap.make(CgType::RealInfo   { { 8, 8 } }),
+	builtin[14] = bootstrap.make(CgType::PtrInfo    { { 8, 8 }, nullptr });
+	builtin[15] = bootstrap.make(CgType::StringInfo { { 16, 8 } });
 	builtin[16] = bootstrap.make(CgType::TupleInfo  { { allocator }, None {}, StringView { ".Unit" } } );
 	builtin[17] = bootstrap.make(CgType::VaInfo     { });
 	for (Ulen i = 0; i < countof(builtin); i++) {
@@ -173,7 +173,7 @@ StringView CgType::to_string(Allocator& allocator) const noexcept {
 }
 
 CgType* CgType::addrof(Cg& cg) noexcept {
-	return cg.types.make(CgType::PtrInfo { 8, 8, this });
+	return cg.types.make(CgType::PtrInfo { { 8, 8 }, this });
 }
 
 CgType* AstType::codegen_named(Cg& cg, StringView) const noexcept {
@@ -259,6 +259,7 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 			return type.type();
 		}
 	}
+	cg.error(range(), "Undeclared type '%.*s'", Sint32(m_ident.length()), m_ident.data());
 	return nullptr;
 }
 
@@ -272,7 +273,7 @@ CgType* AstPtrType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::PtrInfo { 8, 8, base });
+	return cg.types.make(CgType::PtrInfo { { 8, 8 }, base });
 }
 
 CgType* AstArrayType::codegen(Cg& cg) const noexcept {
@@ -459,21 +460,6 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 }
 
 CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
-	auto ensure_padding = [this](Ulen padding) -> CgType* {
-		if (auto find = m_padding_cache.at(padding)) {
-			return *find;
-		}
-		if (!m_padding_cache.resize(padding + 1)) {
-			return nullptr;
-		}
-		auto pad = make(CgType::PaddingInfo { padding });
-		if (!pad) {
-			return nullptr;
-		}
-		m_padding_cache[padding] = pad;
-		return pad;
-	};
-
 	Array<CgType*> padded{m_cache.allocator()};
 	Array<Maybe<StringView>> fields{m_cache.allocator()};
 	if (!padded.reserve(info.types.length())) {
@@ -536,13 +522,16 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 		}
 		if (info.named) {
 			ref = m_llvm.StructCreateNamed(m_context, info.named->terminated(scratch));
-			m_llvm.StructSetBody(ref, types.data(), types.length(), false);
+			if (!ref) {
+				return nullptr;
+			}
+			m_llvm.StructSetBody(ref, types.data(), types.length(), true);
 		} else {
-			ref = m_llvm.StructTypeInContext(m_context, types.data(), types.length(), false);
+			ref = m_llvm.StructTypeInContext(m_context, types.data(), types.length(), true);
+			if (!ref) {
+				return nullptr;
+			}
 		}
-	}
-	if (!ref) {
-		return nullptr;
 	}
 	return m_cache.make<CgType>(
 		CgType::Kind::TUPLE,
@@ -562,21 +551,55 @@ CgType* CgTypeCache::make(CgType::UnionInfo info) noexcept {
 		size = max(size, type->size());
 		align = max(size, type->align());
 	}
-	// struct alignas(align) Union {
-	//   Uint8 data[size];
-	//   Uint8 tag;
-	//   Uint8 padding[];
-	// };
-	auto ref = m_llvm.ArrayType2(u8()->ref(), size);
-	if (!ref) {
+
+	auto array = make(CgType::ArrayInfo { u8(), size });
+	if (!array) {
 		return nullptr;
 	}
+
+	Array<CgType*> padded{m_cache.allocator()};
+	if (!padded.push_back(array)) {
+		return nullptr;
+	}
+
+	if (!padded.push_back(u8())) {
+		return nullptr;
+	}
+
+	// We always use a u8 type tag but we still need to work out how many bytes
+	// of padding we need to add after the tag so that an array of the union type
+	// will be correctly aligned.
+	Ulen offset = size + 1;
+	const auto align_mask = align - 1;
+	const auto aligned_offset = (offset + align_mask) & ~align_mask;
+	if (auto padding = aligned_offset - offset) {
+		// Shove padding on the end of the structure.
+		auto pad = ensure_padding(padding);
+		if (!pad || !padded.push_back(pad)) {
+			return nullptr;
+		}
+	}
+
+	InlineAllocator<sizeof(LLVM::TypeRef[16])> scratch;
+	Array<LLVM::TypeRef> types{scratch};
+	if (!types.resize(padded.length())) {
+		return nullptr;
+	}
+	for (Ulen l = padded.length(), i = 0; i < l; i++) {
+		types[i] = padded[i]->ref();
+	}
+
+	auto ref = m_llvm.StructTypeInContext(m_context,
+	                                      types.data(),
+	                                      types.length(),
+	                                      true);
+	
 	return m_cache.make<CgType>(
 		CgType::Kind::UNION,
 		size,
 		align,
 		0_ulen,
-		move(info.types),
+		move(padded),
 		None{},
 		ref
 	);

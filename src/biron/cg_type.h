@@ -211,6 +211,21 @@ struct CgTypeCache {
 	constexpr CgTypeCache(CgTypeCache&&) noexcept = default;
 
 private:
+	CgType* ensure_padding(Ulen padding) noexcept {
+		if (auto find = m_padding_cache.at(padding)) {
+			return *find;
+		}
+		if (!m_padding_cache.resize(padding + 1)) {
+			return nullptr;
+		}
+		auto pad = make(CgType::PaddingInfo { padding });
+		if (!pad) {
+			return nullptr;
+		}
+		m_padding_cache[padding] = pad;
+		return pad;
+	};
+
 	constexpr CgTypeCache(Cache&& cache, LLVM& llvm, LLVM::ContextRef context) noexcept
 		: m_cache{move(cache)}
 		, m_llvm{llvm}

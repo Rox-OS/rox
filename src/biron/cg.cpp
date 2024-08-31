@@ -106,7 +106,7 @@ Bool Cg::optimize(Ulen level) noexcept {
 Bool Cg::verify() noexcept {
 	char* error = nullptr;
 	if (llvm.VerifyModule(module,
-	                      LLVM::VerifierFailureAction::PrintMessage,
+	                      LLVM::VerifierFailureAction::ReturnStatus,
 	                      &error) != 0)
 	{
 		fprintf(stderr, "Could not verify module: %s\n", error);
