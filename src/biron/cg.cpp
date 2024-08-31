@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdio.h> // fprintf, stderr
 
 #include <biron/cg.h>
 #include <biron/cg_value.h>

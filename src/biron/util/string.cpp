@@ -1,6 +1,6 @@
-#include <string.h>
-#include <stdio.h> // snprintf
-#include <float.h>
+#include <string.h> // memcpy
+#include <stdio.h>  // snprintf
+#include <float.h>  // FLT_MANT_DIG, FLT_DECIMAL_DIG DBL_MANT_DIG, DBL_DECIMAL_DIG
 
 #include <biron/util/string.inl>
 
