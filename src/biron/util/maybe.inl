@@ -27,20 +27,20 @@ struct Maybe {
 	}
 	~Maybe() noexcept { drop(); }
 	constexpr Maybe& operator=(T&& value) noexcept {
-		return *new(drop(), Nat{}) Maybe{move(value)};
+		return *new (drop(), Nat{}) Maybe{move(value)};
 	}
 	constexpr Maybe& operator=(Maybe&& other) noexcept {
-		return *new(drop(), Nat{}) Maybe{move(other)};
+		return *new (drop(), Nat{}) Maybe{move(other)};
 	}
 	constexpr Maybe& operator=(const T& value) noexcept
 		requires CopyConstructible<T>
 	{
-		return *new(drop(), Nat{}) Maybe{value};
+		return *new (drop(), Nat{}) Maybe{value};
 	}
 	constexpr Maybe& operator=(const Maybe& other) noexcept
 		requires CopyConstructible<T>
 	{
-		return *new(drop(), Nat{}) Maybe{other};
+		return *new (drop(), Nat{}) Maybe{other};
 	}
 	[[nodiscard]] constexpr T& some() noexcept { return m_either.lhs(); }
 	[[nodiscard]] constexpr const T& some() const noexcept { return m_either.lhs(); }

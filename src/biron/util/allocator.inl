@@ -1,18 +1,32 @@
 #ifndef BIRON_ALLOCATOR_INL
 #define BIRON_ALLOCATOR_INL
 #include <biron/util/types.inl>
+#include <biron/util/exchange.inl>
+
+#include <stdio.h>
 
 namespace Biron {
 
 struct Allocator {
 	virtual void* allocate(Ulen size) noexcept = 0;
 	virtual void deallocate(void* old, Ulen size) noexcept = 0;
+
+	template<typename T, typename... Ts>
+	[[nodiscard]] T* make(Ts&&... args) noexcept {
+		if (auto addr = allocate(sizeof(T))) {
+			return new (addr, Nat{}) T{forward<Ts>(args)...};
+		}
+		return nullptr;
+	}
 };
 
 template<Ulen E>
 struct InlineAllocator : Allocator {
 	static inline constexpr const Ulen ALIGN = 16;
 	static inline constexpr const Ulen CAPACITY = ((E + ALIGN - 1) / ALIGN) * ALIGN;
+	constexpr InlineAllocator() noexcept : m_nat{}, m_offset{0} {}
+	constexpr InlineAllocator(const InlineAllocator&) noexcept = delete;
+	constexpr InlineAllocator(InlineAllocator&&) noexcept = delete;
 	virtual void* allocate(Ulen size) noexcept override {
 		const Ulen bytes = ((size + ALIGN - 1) / ALIGN) * ALIGN;
 		if (m_offset + bytes >= CAPACITY) {
@@ -32,8 +46,14 @@ struct InlineAllocator : Allocator {
 		const auto data = reinterpret_cast<const Uint8*>(old);
 		return data >= m_data && data + size < &m_data[CAPACITY];
 	}
+	constexpr void clear() noexcept {
+		m_offset = 0;
+	}
 private:
-	alignas(16) Uint8 m_data[CAPACITY];
+	union {
+		Nat m_nat;
+		alignas(16) Uint8 m_data[CAPACITY];
+	};
 	Ulen m_offset = 0;
 };
 
@@ -45,41 +65,17 @@ struct TemporaryAllocator : Allocator {
 		, m_allocator{allocator}
 	{
 	}
+	TemporaryAllocator(TemporaryAllocator&& other) noexcept
+		: m_tail{exchange(other.m_tail, nullptr)}
+		, m_allocator{other.m_allocator}
+	{
+	}
 	~TemporaryAllocator() noexcept {
 		clear();
 	}
-	virtual void* allocate(Ulen size) noexcept override {
-		const Ulen bytes = ((size + ALIGN - 1) / ALIGN) * ALIGN;
-		if (m_tail && m_tail->offset + bytes < m_tail->capacity) {
-			void *const result = &m_tail->data[m_tail->offset];
-			m_tail->offset += bytes;
-			return result;
-		}
-		const auto capacity = bytes > MIN_CHUNK_SIZE ? bytes : MIN_CHUNK_SIZE;
-		const auto chunk = static_cast<Chunk*>(m_allocator.allocate(sizeof(Chunk) + capacity));
-		if (!chunk) {
-			return nullptr;
-		}
-		chunk->capacity = capacity;
-		chunk->offset = 0;
-		chunk->prev = m_tail;
-		chunk->next = nullptr;
-		m_tail = chunk;
-		return allocate(size);
-	}
-	virtual void deallocate(void* old, Ulen size) noexcept override {
-		if (old && &m_tail->data[m_tail->offset] == old) {
-			m_tail->offset -= size;
-		}
-	}
-	void clear() noexcept {
-		Chunk* chunk = m_tail;
-		while (chunk) {
-			Chunk* prev = chunk->prev;
-			m_allocator.deallocate(chunk, sizeof(Chunk) + chunk->capacity);
-			chunk = prev;
-		}
-	}
+	virtual void* allocate(Ulen size) noexcept override;
+	virtual void deallocate(void* old, Ulen size) noexcept override;
+	void clear() noexcept;
 private:
 	struct alignas(ALIGN) Chunk {
 		Ulen   capacity;
@@ -98,19 +94,9 @@ struct ScratchAllocator : Allocator {
 		: m_temporary{allocator}
 	{
 	}
-	virtual void* allocate(Ulen size) noexcept override {
-		if (auto result = m_inline.allocate(size)) {
-			return result;
-		}
-		return m_temporary.allocate(size);
-	}
-	virtual void deallocate(void* old, Ulen size) noexcept override {
-		if (m_inline.owns(old, size)) {
-			m_inline.deallocate(old, size);
-		} else {
-			m_temporary.deallocate(old, size);
-		}
-	}
+	virtual void* allocate(Ulen size) noexcept override;
+	virtual void deallocate(void* old, Ulen size) noexcept override;
+	void clear() noexcept;
 private:
 	InlineAllocator<INSITU> m_inline;
 	TemporaryAllocator m_temporary;

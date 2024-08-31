@@ -67,7 +67,7 @@ AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
 	}
 	auto beg_token = peek();
 	next(); // Consume '['
-	auto index = parse_expr();
+	auto index = parse_expr(false);
 	if (!index) {
 		return nullptr;
 	}
@@ -93,7 +93,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		if (kind == Token::Kind::KW_AS) {
 			rhs = parse_type_expr();
 		} else {
-			rhs = parse_unary_expr();
+			rhs = parse_unary_expr(false);
 		}
 		if (!rhs) {
 			return nullptr;
@@ -137,8 +137,8 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 // PostfixExpr
 //	::= IndexExpr
 //	  | DotExpr
-AstExpr* Parser::parse_postfix_expr() noexcept {
-	auto operand = parse_primary_expr();
+AstExpr* Parser::parse_postfix_expr(Bool simple) noexcept {
+	auto operand = parse_primary_expr(simple);
 	if (!operand) {
 		return nullptr;
 	}
@@ -147,7 +147,7 @@ AstExpr* Parser::parse_postfix_expr() noexcept {
 		case Token::Kind::DOT:
 			{
 				next(); // Consume '.'
-				auto expr = parse_primary_expr();
+				auto expr = parse_primary_expr(false);
 				if (!expr) {
 					return nullptr;
 				}
@@ -175,46 +175,46 @@ AstExpr* Parser::parse_postfix_expr() noexcept {
 //	  | '*' UnaryExpr
 //	  | '&' UnaryExpr
 //	  | '...' UnaryExpr
-AstExpr* Parser::parse_unary_expr() noexcept {
+AstExpr* Parser::parse_unary_expr(Bool simple) noexcept {
 	using Op = AstUnaryExpr::Op;
 	AstExpr* operand = nullptr;
 	auto token = peek();
 	switch (token.kind) {
 	case Token::Kind::NOT:
 		next(); // Consume '!'
-		if (!(operand = parse_expr())) {
+		if (!(operand = parse_expr(simple))) {
 			return nullptr;
 		}
 		return new_node<AstUnaryExpr>(Op::NOT, operand, token.range.include(operand->range()));
 	case Token::Kind::MINUS:
 		next(); // Consume '-'
-		if (!(operand = parse_expr())) {
+		if (!(operand = parse_expr(simple))) {
 			return nullptr;
 		}
 		return new_node<AstUnaryExpr>(Op::NEG, operand, token.range.include(operand->range()));
 	case Token::Kind::PLUS:
 		next(); // Consume '+'
-		return parse_expr();
+		return parse_expr(simple);
 	case Token::Kind::STAR:
 		next(); // Consume '*'
-		if (!(operand = parse_expr())) {
+		if (!(operand = parse_expr(simple))) {
 			return nullptr;
 		}
 		return new_node<AstUnaryExpr>(Op::DEREF, operand, token.range.include(operand->range()));
 	case Token::Kind::BAND:
 		next(); // Consume '&'
-		if (!(operand = parse_expr())) {
+		if (!(operand = parse_expr(simple))) {
 			return nullptr;
 		}
 		return new_node<AstUnaryExpr>(Op::ADDROF, operand, token.range.include(operand->range()));
 	case Token::Kind::ELLIPSIS:
 		next();
-		if (!(operand = parse_expr())) {
+		if (!(operand = parse_expr(simple))) {
 			return nullptr;
 		}
 		return new_node<AstExplodeExpr>(operand, token.range.include(operand->range()));
 	default:
-		return parse_postfix_expr();
+		return parse_postfix_expr(simple);
 	}
 	BIRON_UNREACHABLE();
 }
@@ -222,8 +222,8 @@ AstExpr* Parser::parse_unary_expr() noexcept {
 // Expr
 //	::= PrimaryExpr BinOpRHS
 //	  | PrimaryExpr IndexExpr
-AstExpr* Parser::parse_expr() noexcept {
-	auto lhs = parse_unary_expr();
+AstExpr* Parser::parse_expr(Bool simple) noexcept {
+	auto lhs = parse_unary_expr(simple);
 	if (!lhs) {
 		return nullptr;
 	}
@@ -238,16 +238,40 @@ AstExpr* Parser::parse_expr() noexcept {
 //	  | TupleExpr
 //	  | TypeExpr
 //	  | AggExpr
-AstExpr* Parser::parse_primary_expr() noexcept {
+AstExpr* Parser::parse_primary_expr(Bool simple) noexcept {
 	switch (peek().kind) {
 	case Token::Kind::IDENT:
 		{
-			auto ident = parse_ident_expr();
-			if (ident->is_expr<AstTypeExpr>()) {
+			auto ident = parse_ident_expr(simple);
+			if (!simple && ident->is_expr<AstTypeExpr>()) {
 				return parse_agg_expr(ident);
 			} else {
 				return ident;
 			}
+		}
+		break;
+	case Token::Kind::LBRACKET:
+		if (!simple) {
+			// Can be either an AstTypeExpr as in [N]T
+			// Or can be an AstArrayExpr as in [N]T { ... }
+			if (auto type = parse_type_expr()) {
+				return parse_agg_expr(type);
+			} else {
+				return nullptr;
+			}
+		}
+		break;
+	case Token::Kind::LBRACE:
+		if (!simple) {
+			// We're parsing an aggregate initializer but we have no type so it will need
+			// to be inferred. This can only be a structure or array type.
+			//
+			// This currently does not work since we lack bi-directional type inference,
+			// and only support forward inferencing. So any use of this aggregate will
+			// likely crash the compiler right now.
+			//
+			// TODO(dweiler): Revisit.
+			return parse_agg_expr(nullptr);
 		}
 		break;
 	case Token::Kind::KW_TRUE:
@@ -263,30 +287,11 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 		return parse_tuple_expr();
 	case Token::Kind::STAR:
 		return parse_type_expr();
-	case Token::Kind::LBRACKET:
-		// Can be either an AstTypeExpr as in [N]T
-		// Or can be an AstArrayExpr as in [N]T { ... }
-		if (auto type = parse_type_expr()) {
-			return parse_agg_expr(type);
-		} else {
-			return nullptr;
-		}
-		break;
-	case Token::Kind::LBRACE:
-		// We're parsing an aggregate initializer but we have no type so it will need
-		// to be inferred. This can only be a structure or array type.
-		//
-		// This currently does not work since we lack bi-directional type inference,
-		// and only support forward inferencing. So any use of this aggregate will
-		// likely crash the compiler right now.
-		//
-		// TODO(dweiler): Revisit.
-		return parse_agg_expr(nullptr);
 	default:
-		ERROR("Unknown token '%s' in primary expression", peek().name());
-		return nullptr;
+		break;
 	}
-	BIRON_UNREACHABLE();
+	ERROR("Unknown token '%s' in primary expression", peek().name());
+	return nullptr;
 }
 
 AstExpr* Parser::parse_agg_expr(AstExpr* type_expr) noexcept {
@@ -303,7 +308,7 @@ AstExpr* Parser::parse_agg_expr(AstExpr* type_expr) noexcept {
 	Array<AstExpr*> exprs{m_allocator};
 	next(); // Skip '{'
 	while (peek().kind != Token::Kind::RBRACE) {
-		auto expr = parse_expr();
+		auto expr = parse_expr(false);
 		if (!expr || !exprs.push_back(expr)) {
 			return nullptr;
 		}
@@ -334,10 +339,10 @@ AstExpr* Parser::parse_type_expr() noexcept {
 
 // IdentExpr
 //	::= CallExpr
-//    | TypeExpr
+//    | AggExpr
 // CallExpr
 //	::= Ident TupleExpr?
-AstExpr* Parser::parse_ident_expr() noexcept {
+AstExpr* Parser::parse_ident_expr(Bool simple) noexcept {
 	if (peek().kind != Token::Kind::IDENT) {
 		ERROR("Expected identifier");
 		return nullptr;
@@ -357,7 +362,7 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 		}
 		break;
 	case Token::Kind::LBRACE: // {}
-		{
+		if (!simple) {
 			auto name = m_lexer.string(token.range);
 			auto type = new_node<AstIdentType>(name, token.range);
 			if (!type) {
@@ -369,7 +374,7 @@ AstExpr* Parser::parse_ident_expr() noexcept {
 			}
 			return parse_agg_expr(expr);
 		}
-		break;
+		// fallthrough
 	default:
 		{
 			auto name = m_lexer.string(token.range);
@@ -556,7 +561,7 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 	next(); // Consume '('
 	Array<AstExpr*> exprs{m_allocator};
 	while (peek().kind != Token::Kind::RPAREN) {
-		auto expr = parse_expr();
+		auto expr = parse_expr(false);
 		if (!expr) {
 			return nullptr;
 		}
@@ -777,7 +782,7 @@ AstType* Parser::parse_bracket_type() noexcept {
 	auto beg_token = next(); // Consume '['
 	AstExpr* expr = nullptr;
 	if (peek().kind != Token::Kind::RBRACKET) {
-		if (!(expr = parse_expr())) {
+		if (!(expr = parse_expr(false))) {
 			return nullptr;
 		}
 	}
@@ -934,7 +939,7 @@ AstReturnStmt* Parser::parse_return_stmt() noexcept {
 	auto beg_token = next(); // Consume 'return'
 	AstExpr* expr = nullptr;
 	if (peek().kind != Token::Kind::SEMI) {
-		expr = parse_expr();
+		expr = parse_expr(false);
 		if (!expr) {
 			return nullptr;
 		}
@@ -1036,7 +1041,8 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 			return nullptr;
 		}
 	}
-	auto expr = parse_expr();
+	// When inside an 'if' statement we do not parse any expression. We only parse
+	auto expr = parse_expr(true);
 	if (!expr) {
 		return nullptr;
 	}
@@ -1095,7 +1101,7 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		return nullptr;
 	}
 	next(); // Consume '='
-	init = parse_expr();
+	init = parse_expr(false);
 	if (!init) {
 		return nullptr;
 	}
@@ -1135,7 +1141,7 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 		}
 	}
 	if (peek().kind != Token::Kind::LBRACE) {
-		if (!(expr = parse_expr())) {
+		if (!(expr = parse_expr(false))) {
 			return nullptr;
 		}
 	}
@@ -1167,7 +1173,7 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 //	::= Expr ';'
 //	  | Expr '=' Expr ';'
 AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
-	auto expr = parse_expr();
+	auto expr = parse_expr(false);
 	if (!expr) {
 		return nullptr;
 	}
@@ -1175,7 +1181,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 	AstAssignStmt* assignment = nullptr; 
 	if (peek().kind == Token::Kind::EQ) {
 		next(); // Consume '='
-		auto value = parse_expr();
+		auto value = parse_expr(false);
 		if (!value) {
 			return nullptr;
 		}
@@ -1205,6 +1211,12 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		return nullptr;
 	}
 	auto beg_token = next(); // Consume 'fn'
+	AstTupleType* selfs = nullptr;
+	if (peek().kind == Token::Kind::LPAREN) {
+		if (!(selfs = parse_tuple_type())) {
+			return nullptr;
+		}
+	}
 	if (peek().kind != Token::Kind::IDENT) {
 		ERROR("Expected name for 'fn'");
 		return nullptr;
@@ -1248,7 +1260,7 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		return nullptr;
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstTopFn>(name, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
+	auto node = new_node<AstTopFn>(name, selfs, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
 	if (!node) {
 		ERROR("Out of memory");
 		return nullptr;

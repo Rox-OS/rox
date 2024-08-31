@@ -163,6 +163,15 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 	}
 }
 
+StringView CgType::to_string(Allocator& allocator) const noexcept {
+	StringBuilder builder{allocator};
+	dump(builder);
+	if (builder.valid()) {
+		return builder.view();
+	}
+	return "Out of memory";
+}
+
 CgType* CgType::addrof(Cg& cg) noexcept {
 	return cg.types.make(CgType::PtrInfo { this, 8, 8 });
 }
@@ -275,7 +284,7 @@ CgType* AstFnType::codegen(Cg& cg) const noexcept {
 	if (!rets) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::FnInfo { args, rets });
+	return cg.types.make(CgType::FnInfo { nullptr, args, rets });
 }
 
 CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
@@ -301,19 +310,15 @@ CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
 	if (!ref) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		kind,
 		info.size,
 		info.align,
-		0,
+		0_ulen,
 		None{},
 		None{},
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::FltInfo info) noexcept {
@@ -332,19 +337,15 @@ CgType* CgTypeCache::make(CgType::FltInfo info) noexcept {
 	if (!ref) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		kind,
 		info.size,
 		info.align,
-		0,
+		0_ulen,
 		None{},
 		None{},
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::PtrInfo info) noexcept {
@@ -356,28 +357,20 @@ CgType* CgTypeCache::make(CgType::PtrInfo info) noexcept {
 	if (!ref) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::POINTER,
 		info.size,
 		info.align,
-		0,
+		0_ulen,
 		move(types),
 		None{},
-		ref,
-	};
+		ref
+	);
 }
 
 CgType* CgTypeCache::make(CgType::BoolInfo info) noexcept {
 	auto ref = m_llvm.Int1TypeInContext(m_context);
 	if (!ref) {
-		return nullptr;
-	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
 		return nullptr;
 	}
 	CgType::Kind kind;
@@ -397,15 +390,15 @@ CgType* CgTypeCache::make(CgType::BoolInfo info) noexcept {
 	default:
 		return nullptr;
 	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		kind,
 		info.size,
 		info.align,
-		0,
+		0_ulen,
 		None{},
 		None{},
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
@@ -428,19 +421,15 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 	}
 	types[0] = ptr();
 	types[1] = u64();
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::STRING,
 		sum(ptr()->size(), u64()->size()),
 		max(ptr()->align(), u64()->align()),
-		0,
+		0_ulen,
 		move(types),
 		None{},
-		ref,
-	};
+		ref
+	);
 }
 
 CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
@@ -527,19 +516,15 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 	if (!ref) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::TUPLE,
 		offset,
 		alignment,
-		0,
+		0_ulen,
 		move(padded),
 		move(fields),
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::UnionInfo info) noexcept {
@@ -558,19 +543,15 @@ CgType* CgTypeCache::make(CgType::UnionInfo info) noexcept {
 	if (!ref) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new (dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::UNION,
 		size,
 		align,
-		0,
+		0_ulen,
 		move(info.types),
 		None{},
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::ArrayInfo info) noexcept {
@@ -582,11 +563,7 @@ CgType* CgTypeCache::make(CgType::ArrayInfo info) noexcept {
 	if (!ref) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::ARRAY,
 		info.base->size() * info.extent,
 		info.base->align(),
@@ -594,7 +571,7 @@ CgType* CgTypeCache::make(CgType::ArrayInfo info) noexcept {
 		move(types),
 		None{},
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::SliceInfo info) noexcept {
@@ -617,19 +594,15 @@ CgType* CgTypeCache::make(CgType::SliceInfo info) noexcept {
 	}
 	types[0] = info.base;
 	types[1] = u64();
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::SLICE,
 		sum(ptr()->size(), u64()->size()),
 		max(ptr()->align(), u64()->align()),
-		0,
+		0_ulen,
 		move(types),
 		None{},
-		ref,
-	};
+		ref
+	);
 }
 
 CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
@@ -660,31 +633,43 @@ CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
 	if (!types.push_back(array)) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::PADDING,
 		info.padding,
-		1,
-		0,
+		1_ulen,
+		0_ulen,
 		move(types),
 		None{},
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	Array<CgType*> types{m_cache.allocator()};
-	if (!types.resize(2)) {
+	if (!types.resize(3)) {
 		return nullptr;
 	}
-	types[0] = info.args;
-	types[1] = info.rets;
+	types[0] = info.selfs;
+	types[1] = info.args;
+	types[2] = info.rets;
 	ScratchAllocator scratch{m_cache.allocator()};
 	Array<LLVM::TypeRef> args{scratch};
 	Bool has_va = false;
+
+	// Emit all self arguments first
+	if (info.selfs) {
+		for (Ulen l = info.selfs->length(), i = 0; i < l; i++) {
+			auto arg = info.selfs->at(i);
+			if (arg->is_padding()) {
+				continue;
+			}
+			if (!args.push_back(arg->ref())) {
+				return nullptr;
+			}
+		}
+	}
+
+	// Then emit the non-selfs after
 	for (Ulen l = info.args->length(), i = 0; i < l; i++) {
 		auto arg = info.args->at(i);
 		if (arg->is_padding()) {
@@ -707,35 +692,27 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	if (!ref) {
 		return nullptr;
 	}
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::FN,
-		0,
-		0,
-		0,
+		0_ulen,
+		0_ulen,
+		0_ulen,
 		move(types),
 		None{},
 		ref
-	};
+	);
 }
 
 CgType* CgTypeCache::make(CgType::VaInfo) noexcept {
-	auto dst = m_cache.allocate();
-	if (!dst) {
-		return nullptr;
-	}
-	return new(dst, Nat{}) CgType {
+	return m_cache.make<CgType>(
 		CgType::Kind::VA,
-		0,
-		0,
-		0,
+		0_ulen,
+		0_ulen,
+		0_ulen,
 		None{},
 		None{},
 		nullptr
-	};
+	);
 }
 
 } // namespace Biron

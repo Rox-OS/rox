@@ -6,6 +6,9 @@ namespace Biron {
 
 void AstTopFn::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.append("fn");
+	if (m_selfs) {
+		m_selfs->dump(builder);
+	}
 	builder.append(' ');
 	builder.append(m_name);
 	if (m_args) {

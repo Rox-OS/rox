@@ -56,6 +56,15 @@ struct AstTupleExpr : AstExpr {
 		BIRON_ASSERT(i < m_exprs.length() && "Out of bounds");
 		return m_exprs[i];
 	}
+	[[nodiscard]] Bool prepend(Array<AstExpr*>&& exprs) noexcept {
+		for (auto expr : m_exprs) {
+			if (!exprs.push_back(expr)) {
+				return false;
+			}
+		}
+		m_exprs = move(exprs);
+		return true;
+	}
 private:
 	Array<AstExpr*> m_exprs;
 };
@@ -71,6 +80,8 @@ struct AstCallExpr : AstExpr {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg) const noexcept override;
+	[[nodiscard]] Maybe<CgValue> gen_value(const Maybe<Array<CgValue>>& prepend, Cg& cg) const noexcept;
 private:
 	AstExpr*      m_callee;
 	AstTupleExpr* m_args;

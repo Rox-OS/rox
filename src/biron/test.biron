@@ -1,10 +1,33 @@
-fn main() -> Uint32 {
-  let x = 10;
-  let y = x + 1;
-  let z = &y;
-  for let i = 0; i < *z; i = i + 1 {
-    printf("%d\n", i);
+type Rect = (w: Sint32, h: Sint32, x: Sint32, y: Sint32);
+
+fn(self: *Rect) area() -> Sint32 {
+  return self.w * self.h;
+}
+
+fn(self: *Rect) print(label: String) {
+  printf("%s: w = %d, h = %d, x = %d, y = %d\n", label, self.w, self.h, self.x, self.y);
+}
+
+fn in_range(value: Sint32, min: Sint32, max: Sint32) -> Bool32 {
+  return value >= min && value <= max;
+}
+
+fn(lhs: *Rect, rhs: *Rect) collide() -> Bool32 {
+  let x_overlap = in_range(lhs.x, rhs.x, rhs.x + rhs.w) ||
+                  in_range(rhs.x, lhs.x, lhs.x + lhs.w);
+  let y_overlap = in_range(lhs.y, rhs.y, rhs.y + rhs.h) ||
+                  in_range(rhs.y, lhs.y, lhs.y + lhs.h);
+  return x_overlap && y_overlap;
+}
+
+fn main() -> Sint32 {
+  let lhs = &Rect{10, 10, 0, 10};
+  let rhs = &Rect{10, 10, 0,  0};
+  lhs.print("lhs");
+  rhs.print("rhs");
+  if (lhs, rhs).collide() {
+    printf("overlap\n");
   }
-  let q = (x, y, &z);
-  printf("%d\n", **q.2);
+  printf("lhs area = %d\n", lhs.area());
+  printf("rhs area = %d\n", rhs.area());
 }

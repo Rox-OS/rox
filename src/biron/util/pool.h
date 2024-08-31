@@ -148,6 +148,14 @@ struct Cache {
 	[[nodiscard]] constexpr ConstIterator begin() const noexcept { return { m_pools, m_pools.begin() }; }
 	[[nodiscard]] constexpr ConstIterator end() const noexcept { return { m_pools, m_pools.end() }; }
 
+	template<typename T, typename... Ts>
+	[[nodiscard]] T* make(Ts&&... args) noexcept {
+		if (auto addr = allocate()) {
+			return new (addr, Nat{}) T{forward<Ts>(args)...};
+		}
+		return nullptr;
+	}
+
 private:
 	Array<Pool> m_pools;
 	Ulen        m_object_size;

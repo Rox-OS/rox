@@ -18,8 +18,8 @@ static LLVM::TargetRef target_from_triple(LLVM& llvm, const char* triple) noexce
 
 Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, Diagnostic& diagnostic) noexcept {
 	// The target triple cannot be that long so use an inline allocator here for it.
-	InlineAllocator<1024> scratch;
-	auto triple = target_triple.terminated(scratch);
+	InlineAllocator<1024> temporary;
+	auto triple = target_triple.terminated(temporary);
 	if (!triple) {
 		return None{};
 	}
@@ -57,9 +57,15 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, D
 		return None{};
 	}
 
+	auto scratch = allocator.make<ScratchAllocator>(allocator);
+	if (!scratch) {
+		return None{};
+	}
+
 	return Cg {
 		allocator,
 		llvm,
+		scratch,
 		context,
 		builder,
 		module,
@@ -134,10 +140,21 @@ Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
 }
 
 Cg::~Cg() noexcept {
-	llvm.DisposeTargetMachine(machine);
-	llvm.DisposeModule(module);
-	llvm.DisposeBuilder(builder);
-	llvm.ContextDispose(context);
+	if (scratch) {
+		allocator.deallocate(scratch, sizeof *scratch);
+	}
+	if (machine) {
+		llvm.DisposeTargetMachine(machine);
+	}
+	if (module) {
+		llvm.DisposeModule(module);
+	}
+	if (builder) {
+		llvm.DisposeBuilder(builder);
+	}
+	if (context) {
+		llvm.ContextDispose(context);
+	}
 }
 
 } // namespace Biron

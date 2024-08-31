@@ -15,9 +15,10 @@ struct Cg;
 
 struct AstTopFn : AstNode {
 	static inline constexpr auto KIND = Kind::FN;
-	constexpr AstTopFn(StringView name, AstTupleType* args, AstTupleType* rets, AstStmt* body, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstTopFn(StringView name, AstTupleType* selfs, AstTupleType* args, AstTupleType* rets, AstStmt* body, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_name{name}
+		, m_selfs{selfs}
 		, m_args{args}
 		, m_rets{rets}
 		, m_body{body}
@@ -31,6 +32,7 @@ struct AstTopFn : AstNode {
 	[[nodiscard]] constexpr const AstTupleType* args() const noexcept { return m_args; }
 private:
 	StringView             m_name;
+	AstTupleType*          m_selfs;
 	AstTupleType*          m_args;
 	AstTupleType*          m_rets;
 	AstStmt*               m_body;

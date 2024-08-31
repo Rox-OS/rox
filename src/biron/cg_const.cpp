@@ -10,7 +10,6 @@ namespace Biron {
 
 Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 	// TODO(dweiler): Check that type matches the AstConst type.
-	ScratchAllocator scratch{cg.allocator};
 	switch (kind()) {
 	case Kind::NONE:
 		return None{};
@@ -45,7 +44,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 	case Kind::TUPLE:
 		{
 			// Generate constant CgValues for each tuple element.
-			Array<CgValue> values{cg.allocator};
+			Array<CgValue> values{*cg.scratch};
 			Maybe<Array<Maybe<StringView>>> fields;
 			auto& tuple = as_tuple();
 			if (!values.reserve(tuple.values.length())) {
@@ -60,7 +59,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 				i++;
 			}
 			if (tuple.fields) {
-				auto& dst = fields.emplace(cg.allocator);
+				auto& dst = fields.emplace(*cg.scratch);
 				if (!dst.reserve(tuple.values.length())) {
 					return cg.oom();
 				}
@@ -72,7 +71,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			}
 			// Walk the type declaration to know where to make padding zeroinitializer
 			// and where to put our actual constant values.
-			Array<LLVM::ValueRef> consts{scratch};
+			Array<LLVM::ValueRef> consts{*cg.scratch};
 			Ulen j = 0;
 			for (Ulen l = type->length(), i = 0; i < l; i++) {
 				auto field_type = type->at(i);
@@ -107,7 +106,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 	case Kind::ARRAY:
 		{
 			// Generate constant CgValues for each array element.
-			Array<CgValue> values{cg.allocator};
+			Array<CgValue> values{*cg.scratch};
 			if (!values.reserve(m_as_array.elems.length())) {
 				return cg.oom();
 			}
@@ -124,7 +123,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 					return cg.oom();
 				}
 			}
-			Array<LLVM::ValueRef> consts{scratch};
+			Array<LLVM::ValueRef> consts{*cg.scratch};
 			if (!consts.reserve(values.length())) {
 				return cg.oom();
 			}

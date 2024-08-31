@@ -33,6 +33,7 @@ struct CgType {
 	using Field = Maybe<StringView>;
 
 	void dump(StringBuilder& builder) const noexcept;
+	StringView to_string(Allocator& allocator) const noexcept;
 
 	CgType* addrof(Cg& cg) noexcept;
 
@@ -119,7 +120,7 @@ struct CgType {
 
 	struct ArrayInfo {
 		CgType* base;
-		Uint64  extent;
+		Ulen    extent;
 	};
 
 	struct SliceInfo {
@@ -127,10 +128,11 @@ struct CgType {
 	};
 
 	struct PaddingInfo {
-		Uint64 padding;
+		Ulen    padding;
 	};
 
 	struct FnInfo {
+		CgType* selfs;
 		CgType* args;
 		CgType* rets;
 	};
@@ -139,6 +141,7 @@ struct CgType {
 
 private:
 	friend struct CgTypeCache;
+	friend struct Cache;
 
 	CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types, Maybe<Array<Field>>&& fields, LLVM::TypeRef ref) noexcept
 		: m_kind{kind}

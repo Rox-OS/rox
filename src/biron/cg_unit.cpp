@@ -27,14 +27,21 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
+	CgType* selfs_t = nullptr;
+	if (m_selfs) {
+		selfs_t = m_selfs->codegen(cg);
+		if (!selfs_t) {
+			return false;
+		}
+	}
+
+	auto fn_t = cg.types.make(CgType::FnInfo { selfs_t, args_t, rets_t });
 	if (!fn_t) {
 		return false;
 	}
 
-	ScratchAllocator scratch{cg.allocator};
 	auto fn_v = cg.llvm.AddFunction(cg.module,
-	                                m_name.terminated(scratch),
+	                                m_name.terminated(*cg.scratch),
 	                                fn_t->ref());
 
 	if (!cg.fns.emplace_back(m_name, CgAddr { fn_t->addrof(cg), fn_v })) {
@@ -54,7 +61,7 @@ Bool AstTopType::codegen(Cg& cg) const noexcept {
 
 Bool AstTopFn::codegen(Cg& cg) const noexcept {
 	// When starting a new function we expect cg.scopes is empty
-	BIRON_ASSERT(cg.scopes.empty());
+	cg.scopes.clear();
 	if (!cg.scopes.emplace_back(cg.allocator)) {
 		return false;
 	}
@@ -73,7 +80,7 @@ Bool AstTopFn::codegen(Cg& cg) const noexcept {
 	}
 
 	auto type = addr->type()->deref();
-	auto rets = type->at(1);
+	auto rets = type->at(2);
 
 	// Construct the entry basic-block, append it to the function and position
 	// the IR builder at the end of the basic-block.
@@ -87,11 +94,33 @@ Bool AstTopFn::codegen(Cg& cg) const noexcept {
 	// On entry to the function we will make a copy of all named parameters and
 	// populate cg.vars with the addresses of those copies.
 	Ulen i = 0;
+	if (m_selfs) {
+		for (const auto& elem : m_selfs->elems()) {
+			if (auto name = elem.name()) {
+				auto type = elem.type()->codegen(cg);
+				if (!type) {
+					return false;
+				}
+				auto dst = cg.emit_alloca(type);
+				auto src = cg.llvm.GetParam(addr->ref(), i);
+				dst->store(cg, CgValue { type, src });
+				if (!cg.scopes.last().vars.emplace_back(*name, move(*dst))) {
+					return false;
+				}
+			}
+			i++;
+		}
+	}
+
 	for (const auto& elem : m_args->elems()) {
 		if (auto name = elem.name()) {
-			auto dst = cg.emit_alloca(elem.type()->codegen(cg));
+			auto type = elem.type()->codegen(cg);
+			if (!type) {
+				return false;
+			}
+			auto dst = cg.emit_alloca(type);
 			auto src = cg.llvm.GetParam(addr->ref(), i);
-			dst->store(cg, CgValue { elem.type()->codegen(cg), src });
+			dst->store(cg, CgValue { type, src });
 			if (!cg.scopes.last().vars.emplace_back(*name, move(*dst))) {
 				return false;
 			}
@@ -149,7 +178,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 
-		auto fn_t = cg.types.make(CgType::FnInfo { args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { nullptr, args_t, rets_t });
 		if (!fn_t) {
 			return false;
 		}
@@ -161,6 +190,8 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 
 	// Emit types
 	for (auto type : m_types) {
+		cg.scratch->clear();
+
 		if (!type->codegen(cg)) {
 			return false;
 		}
@@ -168,6 +199,8 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 
 	// Emit all the global constants
 	for (auto let : m_lets) {
+		cg.scratch->clear();
+
 		if (!let->codegen_global(cg)) {
 			return false;
 		}
@@ -177,6 +210,8 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// have values generated for them so that we do not need function prototypes
 	// in our language.
 	for (auto fn : m_fns) {
+		cg.scratch->clear();
+
 		if (!fn->prepass(cg)) {
 			return false;
 		}
@@ -184,6 +219,8 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 
 	// We can then codegen in any order we so desire.
 	for (auto fn : m_fns) {
+		cg.scratch->clear();
+
 		if (!fn->codegen(cg)) {
 			return false;
 		}

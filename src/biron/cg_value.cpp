@@ -102,7 +102,6 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 }
 
 Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
-	ScratchAllocator scratch{cg.allocator};
 	auto& llvm = cg.llvm;
 	switch (type->kind()) {
 	case CgType::Kind::U8:  case CgType::Kind::S8:
@@ -164,7 +163,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 		break;
 	case CgType::Kind::ARRAY:
 		{
-			Array<LLVM::ValueRef> zeros{scratch};
+			Array<LLVM::ValueRef> zeros{*cg.scratch};
 			auto zero_elem = zero(type->deref(), cg);
 			if (!zero_elem) {
 				return None{};
@@ -200,7 +199,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 		}
 	case CgType::Kind::TUPLE:
 		{
-			Array<LLVM::ValueRef> zeros{scratch};
+			Array<LLVM::ValueRef> zeros{*cg.scratch};
 			if (!zeros.reserve(type->length())) {
 				return None{};
 			}

@@ -41,6 +41,7 @@ consteval Sint8 operator""_s8(Uint64 value) noexcept { return value; }
 consteval Sint16 operator""_s16(Uint64 value) noexcept { return value; }
 consteval Sint32 operator""_s32(Uint64 value) noexcept { return value; }
 consteval Sint64 operator""_s64(Uint64 value) noexcept { return value; }
+consteval Ulen operator""_ulen(Uint64 value) noexcept { return value; }
 
 typedef struct {} Nat;
 

@@ -31,7 +31,7 @@ struct Array {
 	{
 	}
 	Array& operator=(Array&& other) noexcept {
-		return *new(drop(), Nat{}) Array{move(other)};
+		return *new (drop(), Nat{}) Array{move(other)};
 	}
 
 	Array& operator=(const Array&) noexcept = delete;

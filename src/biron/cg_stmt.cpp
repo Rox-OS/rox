@@ -180,14 +180,13 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 		return false;
 	}
 
-	ScratchAllocator scratch{cg.allocator};
-
 	auto dst = cg.llvm.AddGlobal(cg.module,
 	                             src->type()->ref(),
-	                             m_name.terminated(scratch));
+	                             m_name.terminated(*cg.scratch));
 
 	auto addr = CgAddr { src->type()->addrof(cg), dst };
 	if (!cg.globals.emplace_back(m_name, move(addr))) {
+		cg.oom();
 		return false;
 	}
 
@@ -202,7 +201,13 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 				cg.llvm.SetAlignment(dst, attr->value());
 			} else if (it->is_attr<AstSectionAttr>()) {
 				auto attr = static_cast<const AstSectionAttr*>(it);
-				cg.llvm.SetSection(dst, attr->value().terminated(scratch));
+				auto name = attr->value().terminated(*cg.scratch);
+				if (name) {
+					cg.llvm.SetSection(dst, name);
+				} else {
+					cg.oom();
+					return false;
+				}
 			}
 		}
 	}
@@ -226,10 +231,8 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 	if (*dst->type()->deref() != *src->type()) {
-		StringBuilder b0{cg.allocator};
-		StringBuilder b1{cg.allocator};
-		dst->type()->deref()->dump(b0);
-		src->type()->dump(b1);
+		auto b0 = dst->type()->deref()->to_string(*cg.scratch);
+		auto b1 = src->type()->to_string(*cg.scratch);
 		cg.error(range(),
 		         "Cannot assign an rvalue of type '%.*s' to an lvalue of type '%.*s'",
 		         Sint32(b1.length()), b1.data(),

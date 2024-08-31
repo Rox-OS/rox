@@ -72,22 +72,24 @@ struct Cg {
 
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
 
-	Allocator&             allocator;
-	LLVM&                  llvm;
-	ContextRef             context;
-	BuilderRef             builder;
-	ModuleRef              module;
-	TargetMachineRef       machine;
-	CgTypeCache            types;
-	Array<CgVar>           fns;
-	Array<CgVar>           globals;
-	Array<CgScope>         scopes;
-	Array<CgTypeDef>       typedefs;
-	Diagnostic&            diagnostic;
+	Allocator&        allocator;
+	LLVM&             llvm;
+	ScratchAllocator* scratch;
+	ContextRef        context;
+	BuilderRef        builder;
+	ModuleRef         module;
+	TargetMachineRef  machine;
+	CgTypeCache       types;
+	Array<CgVar>      fns;
+	Array<CgVar>      globals;
+	Array<CgScope>    scopes;
+	Array<CgTypeDef>  typedefs;
+	Diagnostic&       diagnostic;
 
 	constexpr Cg(Cg&& other) noexcept
 		: allocator{other.allocator}
 		, llvm{other.llvm}
+		, scratch{exchange(other.scratch, nullptr)}
 		, context{exchange(other.context, nullptr)}
 		, builder{exchange(other.builder, nullptr)}
 		, module{exchange(other.module, nullptr)}
@@ -112,16 +114,18 @@ private:
 	friend struct AstDeferStmt;
 	friend struct AstReturnStmt;
 
-	constexpr Cg(Allocator&       allocator,
-	             LLVM&            llvm,
-	             ContextRef       context,
-	             BuilderRef       builder,
-	             ModuleRef        module,
-	             TargetMachineRef machine,
-	             CgTypeCache&&    types,
-	             Diagnostic&      diagnostic) noexcept
+	constexpr Cg(Allocator&        allocator,
+	             LLVM&             llvm,
+	             ScratchAllocator* scratch,
+	             ContextRef        context,
+	             BuilderRef        builder,
+	             ModuleRef         module,
+	             TargetMachineRef  machine,
+	             CgTypeCache&&     types,
+	             Diagnostic&       diagnostic) noexcept
 		: allocator{allocator}
 		, llvm{llvm}
+		, scratch{scratch}
 		, context{context}
 		, builder{builder}
 		, module{module}

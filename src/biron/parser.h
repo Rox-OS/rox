@@ -72,7 +72,7 @@ struct Parser {
 	~Parser() noexcept;
 
 	// Biron Expression
-	[[nodiscard]] AstExpr*         parse_expr() noexcept;
+	[[nodiscard]] AstExpr*         parse_expr(Bool simple) noexcept;
 	[[nodiscard]] AstTupleExpr*    parse_tuple_expr() noexcept;
 	[[nodiscard]] AstIntExpr*      parse_int_expr() noexcept;
 	[[nodiscard]] AstFltExpr*      parse_flt_expr() noexcept;
@@ -120,11 +120,11 @@ private:
 		error(m_this_token.range, message, forward<Ts>(args)...);
 	}
 
-	[[nodiscard]] AstExpr* parse_primary_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_postfix_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_primary_expr(Bool simple) noexcept;
+	[[nodiscard]] AstExpr* parse_postfix_expr(Bool simple) noexcept;
+	[[nodiscard]] AstExpr* parse_unary_expr(Bool simple) noexcept;
+	[[nodiscard]] AstExpr* parse_ident_expr(Bool simple) noexcept;
 	[[nodiscard]] AstExpr* parse_agg_expr(AstExpr* type) noexcept;
-	[[nodiscard]] AstExpr* parse_unary_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_ident_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
 	[[nodiscard]] AstExpr* parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept;
@@ -153,12 +153,7 @@ private:
 			if (cache.object_size() != sizeof(T)) {
 				continue;
 			}
-			if (auto addr = cache.allocate()) {
-				auto node = new (addr, Nat{}) T{forward<Ts>(args)...};
-				return node;
-			} else {
-				return nullptr;
-			}
+			return cache.make<T>(forward<Ts>(args)...);
 		}
 		if (!m_caches.emplace_back(m_allocator, sizeof(T), Ulen(1024))) {
 			return nullptr;
