@@ -1,15 +1,12 @@
+#include <stdio.h> // fprintf, fopen, fclose, fseek, ftell, fread, stderr
+#include <string.h> // strlen
+#include <stdlib.h> // malloc, free, system
+
 #include <biron/util/allocator.inl>
 
 #include <biron/parser.h>
 #include <biron/llvm.h>
-#include <biron/util/pool.h>
-#include <biron/ast.h>
 #include <biron/cg.h>
-#include <biron/cg_value.h>
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 using namespace Biron;
 
@@ -126,7 +123,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	auto cg = Cg::make(mallocator, *llvm, "x86_64-linux-pc-unknown", diagnostic);
+	auto cg = Cg::make(mallocator, *llvm, diagnostic);
 	if (!cg) {
 		fprintf(stderr, "Could not initialize code generator\n");
 		return 1;
@@ -147,7 +144,12 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	if (!cg->optimize(opt)) {
+	auto machine = CgMachine::make(*llvm, "x86_64-linux-pc-unknown");
+	if (!machine) {
+		return 1;
+	}
+
+	if (!cg->optimize(*machine, opt)) {
 		return 1;
 	}
 
@@ -168,7 +170,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	if (auto name = obj.view(); !cg->emit(name)) {
+	if (auto name = obj.view(); !cg->emit(*machine, name)) {
 		fprintf(stderr, "Could not write object file: '%.*s'\n",
 			Sint32(name.length()), name.data());
 		return 1;

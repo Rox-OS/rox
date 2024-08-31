@@ -5,6 +5,7 @@
 
 namespace Biron {
 
+// [CgMachine]
 static LLVM::TargetRef target_from_triple(LLVM& llvm, const char* triple) noexcept {
 	LLVM::TargetRef target;
 	char* error = nullptr;
@@ -16,14 +17,9 @@ static LLVM::TargetRef target_from_triple(LLVM& llvm, const char* triple) noexce
 	return target;
 }
 
-Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, Diagnostic& diagnostic) noexcept {
-	// The target triple cannot be that long so use an inline allocator here for it.
-	InlineAllocator<1024> temporary;
-	auto triple = target_triple.terminated(temporary);
-	if (!triple) {
-		return None{};
-	}
-
+Maybe<CgMachine> CgMachine::make(LLVM& llvm, StringView target_triple) noexcept {
+	InlineAllocator<1024> scratch;
+	auto triple = target_triple.terminated(scratch);
 	auto target = target_from_triple(llvm, triple);
 	if (!target) {
 		return None{};
@@ -41,6 +37,17 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, D
 		return None{};
 	}
 
+	return CgMachine { llvm, machine };
+}
+
+CgMachine::~CgMachine() noexcept {
+	if (m_machine) {
+		m_llvm.DisposeTargetMachine(m_machine);
+	}
+}
+
+// [Cg]
+Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept {
 	auto context = llvm.ContextCreate();
 	auto builder = llvm.CreateBuilderInContext(context);
 	auto module  = llvm.ModuleCreateWithNameInContext("Biron", context);
@@ -69,13 +76,12 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, StringView target_triple, D
 		context,
 		builder,
 		module,
-		machine,
 		move(*types),
 		diagnostic
 	};
 }
 
-Bool Cg::optimize(Ulen level) noexcept {
+Bool Cg::optimize(CgMachine& machine, Ulen level) noexcept {
 	if (!verify()) {
 		return false;
 	}
@@ -83,16 +89,16 @@ Bool Cg::optimize(Ulen level) noexcept {
 	LLVM::ErrorRef result = nullptr;
 	switch (level) {
 	case 0:
-		result = llvm.RunPasses(module, "default<O0>", machine, options);
+		result = llvm.RunPasses(module, "default<O0>", machine.ref(), options);
 		break;
 	case 1:
-		result = llvm.RunPasses(module, "default<O1>", machine, options);
+		result = llvm.RunPasses(module, "default<O1>", machine.ref(), options);
 		break;
 	case 2:
-		result = llvm.RunPasses(module, "default<O2>", machine, options);
+		result = llvm.RunPasses(module, "default<O2>", machine.ref(), options);
 		break;
 	case 3:
-		result = llvm.RunPasses(module, "default<O3>", machine, options);
+		result = llvm.RunPasses(module, "default<O3>", machine.ref(), options);
 		break;
 	}
 	llvm.DisposePassBuilderOptions(options);
@@ -122,18 +128,17 @@ Bool Cg::dump() noexcept {
 	return true;
 }
 
-Bool Cg::emit(StringView name) noexcept {
+Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	char* error = nullptr;
 	if (!verify()) {
 		return false;
 	}
-	InlineAllocator<FILENAME_MAX + 1> scratch;
-	auto terminated = name.terminated(scratch);
+	auto terminated = name.terminated(*scratch);
 	if (!terminated) {
 		fprintf(stderr, "Out of memory\n");
 		return false;
 	}
-	if (llvm.TargetMachineEmitToFile(machine,
+	if (llvm.TargetMachineEmitToFile(machine.ref(),
 	                                 module,
 	                                 terminated,
 	                                 LLVM::CodeGenFileType::Object,
@@ -159,9 +164,6 @@ Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
 Cg::~Cg() noexcept {
 	if (scratch) {
 		allocator.deallocate(scratch, sizeof *scratch);
-	}
-	if (machine) {
-		llvm.DisposeTargetMachine(machine);
 	}
 	if (module) {
 		llvm.DisposeModule(module);

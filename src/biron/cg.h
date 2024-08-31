@@ -32,18 +32,43 @@ struct CgScope {
 	Maybe<Loop> loop;
 };
 
-struct Cg {
-	using ContextRef       = LLVM::ContextRef;
-	using BuilderRef       = LLVM::BuilderRef;
-	using ModuleRef        = LLVM::ModuleRef;
+struct CgMachine {
+	constexpr CgMachine() noexcept = delete;
+	~CgMachine() noexcept;
+
+	CgMachine(CgMachine&& other) noexcept
+		: m_llvm{other.m_llvm}
+		, m_machine{exchange(other.m_machine, nullptr)}
+	{
+	}
+
 	using TargetMachineRef = LLVM::TargetMachineRef;
 
-	static Maybe<Cg> make(Allocator& allocator, LLVM& llvm, StringView triple, Diagnostic& diagnostic) noexcept;
+	static Maybe<CgMachine> make(LLVM& llvm, StringView triple) noexcept;
 
-	[[nodiscard]] Bool optimize(Ulen level) noexcept;
+	TargetMachineRef ref() const noexcept { return m_machine; }
+
+private:
+	constexpr CgMachine(LLVM& llvm, TargetMachineRef machine) noexcept
+		: m_llvm{llvm}
+		, m_machine{machine}
+	{
+	}
+	LLVM&            m_llvm;
+	TargetMachineRef m_machine;
+};
+
+struct Cg {
+	using ContextRef = LLVM::ContextRef;
+	using BuilderRef = LLVM::BuilderRef;
+	using ModuleRef  = LLVM::ModuleRef;
+
+	static Maybe<Cg> make(Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept;
+
+	[[nodiscard]] Bool optimize(CgMachine& machine, Ulen level) noexcept;
 	[[nodiscard]] Bool verify() noexcept;
 	[[nodiscard]] Bool dump() noexcept;
-	[[nodiscard]] Bool emit(StringView name) noexcept;
+	[[nodiscard]] Bool emit(CgMachine& machine, StringView name) noexcept;
 
 	// Searches for the lexically closest loop
 	const Loop* loop() const noexcept {
@@ -78,7 +103,6 @@ struct Cg {
 	ContextRef        context;
 	BuilderRef        builder;
 	ModuleRef         module;
-	TargetMachineRef  machine;
 	CgTypeCache       types;
 	Array<CgVar>      fns;
 	Array<CgVar>      globals;
@@ -93,7 +117,6 @@ struct Cg {
 		, context{exchange(other.context, nullptr)}
 		, builder{exchange(other.builder, nullptr)}
 		, module{exchange(other.module, nullptr)}
-		, machine{exchange(other.machine, nullptr)}
 		, types{move(other.types)}
 		, fns{move(other.fns)}
 		, globals{move(other.globals)}
@@ -106,21 +129,12 @@ struct Cg {
 	~Cg() noexcept;
 
 private:
-	friend struct AstForStmt;
-	friend struct AstTopFn;
-	friend struct AstVarExpr;
-	friend struct AstBreakStmt;
-	friend struct AstContinueStmt;
-	friend struct AstDeferStmt;
-	friend struct AstReturnStmt;
-
 	constexpr Cg(Allocator&        allocator,
 	             LLVM&             llvm,
 	             ScratchAllocator* scratch,
 	             ContextRef        context,
 	             BuilderRef        builder,
 	             ModuleRef         module,
-	             TargetMachineRef  machine,
 	             CgTypeCache&&     types,
 	             Diagnostic&       diagnostic) noexcept
 		: allocator{allocator}
@@ -129,7 +143,6 @@ private:
 		, context{context}
 		, builder{builder}
 		, module{module}
-		, machine{machine}
 		, types{move(types)}
 		, fns{allocator}
 		, globals{allocator}
