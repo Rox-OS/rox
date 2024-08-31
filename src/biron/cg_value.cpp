@@ -7,11 +7,19 @@ namespace Biron {
 Maybe<CgValue> CgAddr::load(Cg& cg) const noexcept {
 	auto type = m_type->deref();
 	auto load = cg.llvm.BuildLoad2(cg.builder, type->ref(), m_ref, "");
+	if (!load) {
+		return None{};
+	}
+	cg.llvm.SetAlignment(load, type->align());
 	return CgValue { type, load };
 }
 
 Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
-	cg.llvm.BuildStore(cg.builder, value.ref(), m_ref);
+	auto store = cg.llvm.BuildStore(cg.builder, value.ref(), m_ref);
+	if (!store) {
+		return false;
+	}
+	cg.llvm.SetAlignment(store, value.type()->align());
 	return true;
 }
 

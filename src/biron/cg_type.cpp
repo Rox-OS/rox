@@ -14,14 +14,14 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::Con
 	// construct some builtin types which are always expected to exist.
 	CgTypeCache bootstrap{move(cache), llvm, context};
 	CgType* (&builtin)[countof(bootstrap.m_builtin)] = bootstrap.m_builtin;
-	builtin[0]  = bootstrap.make(CgType::IntInfo    { { 1, 1 }, false });
-	builtin[1]  = bootstrap.make(CgType::IntInfo    { { 2, 2 }, false });
-	builtin[2]  = bootstrap.make(CgType::IntInfo    { { 4, 4 }, false });
-	builtin[3]  = bootstrap.make(CgType::IntInfo    { { 8, 8 }, false });
-	builtin[4]  = bootstrap.make(CgType::IntInfo    { { 1, 1 }, true });
-	builtin[5]  = bootstrap.make(CgType::IntInfo    { { 2, 2 }, true });
-	builtin[6]  = bootstrap.make(CgType::IntInfo    { { 4, 4 }, true });
-	builtin[7]  = bootstrap.make(CgType::IntInfo    { { 8, 8 }, true });
+	builtin[0]  = bootstrap.make(CgType::IntInfo    { { 1, 1 }, false }); // U8
+	builtin[1]  = bootstrap.make(CgType::IntInfo    { { 2, 2 }, false }); // U16
+	builtin[2]  = bootstrap.make(CgType::IntInfo    { { 4, 4 }, false }); // U32
+	builtin[3]  = bootstrap.make(CgType::IntInfo    { { 8, 8 }, false }); // U64
+	builtin[4]  = bootstrap.make(CgType::IntInfo    { { 1, 1 }, true });  // S8
+	builtin[5]  = bootstrap.make(CgType::IntInfo    { { 2, 2 }, true });  // S16
+	builtin[6]  = bootstrap.make(CgType::IntInfo    { { 4, 4 }, true });  // S32
+	builtin[7]  = bootstrap.make(CgType::IntInfo    { { 8, 8 }, true });  // S64
 	builtin[8]  = bootstrap.make(CgType::BoolInfo   { { 1, 1 } });
 	builtin[9]  = bootstrap.make(CgType::BoolInfo   { { 2, 2 } });
 	builtin[10] = bootstrap.make(CgType::BoolInfo   { { 4, 4 } });

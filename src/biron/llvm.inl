@@ -29,6 +29,8 @@ FN(void,                  DisposeMessage,                char*)
 FN(ContextRef,            ContextCreate,                 void)
 FN(void,                  ContextDispose,                ContextRef)
 FN(TypeRef,               GetTypeByName2,                ContextRef, const char*)
+FN(unsigned,              GetEnumAttributeKindForName,   const char*, Ulen)
+FN(AttributeRef,          CreateEnumAttribute,           ContextRef, unsigned, Uint64)
 // Modules
 FN(ModuleRef,             ModuleCreateWithNameInContext, const char*, ContextRef)
 FN(void,                  DisposeModule,                 ModuleRef)
@@ -76,6 +78,8 @@ FN(void,                  SetAlignment,                  ValueRef, unsigned)
 /// Global Variables
 FN(ValueRef,              AddGlobal,                     ModuleRef, TypeRef, const char*)
 FN(void,                  SetInitializer,                ValueRef, ValueRef)
+/// Function Values
+FN(void,                  AddAttributeAtIndex,           ValueRef, AttributeIndex, AttributeRef)
 /// Function Parameters
 FN(ValueRef,              GetParam,                      ValueRef, unsigned)
 // Basic Block

@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	auto machine = CgMachine::make(*llvm, "x86_64-linux-pc-unknown");
+	auto machine = CgMachine::make(*llvm, "x86_64-unknown-none");
 	if (!machine) {
 		return 1;
 	}

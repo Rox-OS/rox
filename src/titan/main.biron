@@ -55,6 +55,10 @@ let LIMINE_REQUESTS_END_MARKER = [2]Uint64 {
   0x9572709f31764c62_u64
 };
 
+// When in the kernel we do not want the Redzone and we want Biron to always
+// setup the stack so it's 16-byte aligned. This behavior is required by SysV
+// and will be true of all other functions but not necessarily the entry point.
+@(redzone(false), alignstack(16))
 fn kmain() {
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
   let color = 0xff'ff'ff_u32;

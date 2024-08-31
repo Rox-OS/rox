@@ -1341,6 +1341,8 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		} else if (name == "used") {
 		} else if (name == "inline") {
 		} else if (name == "aliasable") {
+		} else if (name == "redzone") {
+		} else if (name == "alignstack") {
 		} else {
 			ERROR("Unknown attribute: '%.*s'", Sint32(name.length()), name.data());
 			return None{};
@@ -1360,7 +1362,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
-		} else if (name == "align") {
+		} else if (name == "align" || name == "alignstack") {
 			auto expr = args->at(0);
 			auto value = expr->eval();
 			if (!value || !value->is_integral()) {
@@ -1411,6 +1413,17 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 				return None{};
 			}
 			auto attr = new_node<AstAliasableAttr>(*value->to<Bool32>(), expr->range());
+			if (!attr || !attrs.push_back(attr)) {
+				return None{};
+			}
+		} else if (name == "redzone") {
+			auto expr = args->at(0);
+			auto value = expr->eval();
+			if (!value || !value->is_bool()) {
+				ERROR("Expected constant boolean expression for 'redzone' attribute");
+				return None{};
+			}
+			auto attr = new_node<AstRedzoneAttr>(*value->to<Bool32>(), expr->range());
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}

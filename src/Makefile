@@ -37,8 +37,16 @@ rox.iso: .limine/limine titan
 titan:
 	$(MAKE) -C titan
 
+QFLAGS := -M q35
+QFLAGS += -m 2G
+QFLAGS += -cdrom rox.iso
+QFLAGS += -boot d
+QFLAGS += -no-reboot
+QFLAGS += -d int
+QFLAGS += -D log.txt
+
 run: rox.iso
-	qemu-system-x86_64 -M q35 -m 2G -cdrom rox.iso -boot d
+	qemu-system-x86_64 $(QFLAGS)
 
 clean:
 	$(MAKE) -C titan clean

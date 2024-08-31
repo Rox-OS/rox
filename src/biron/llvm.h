@@ -22,6 +22,7 @@ struct LLVM {
 	struct OpaqueTarget;
 	struct OpaquePassBuilderOptions;
 	struct OpaqueError;
+	struct OpaqueAttribute;
 
 	using ContextRef              = OpaqueContext*;
 	using ModuleRef               = OpaqueModule*;
@@ -34,9 +35,11 @@ struct LLVM {
 	using TargetRef               = OpaqueTarget*;
 	using PassBuilderOptionsRef   = OpaquePassBuilderOptions*;
 	using ErrorRef                = OpaqueError*;
+	using AttributeRef            = OpaqueAttribute*;
 	using Bool                    = int;
 	using Ulen                    = decltype(sizeof 0);
-	using Opcode = int;
+	using Opcode                  = int;
+	using AttributeIndex          = unsigned;
 
 	enum class CodeGenOptLevel       : int { None, Less, Default, Aggressive };
 	enum class RelocMode             : int { Default, Static, PIC, DynamicNoPic, ROPI, RWPI, ROPI_RWPI };

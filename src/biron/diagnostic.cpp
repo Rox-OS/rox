@@ -42,7 +42,7 @@ void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcep
 	while (line_beg && m_lexer[line_beg - 1] != '\n') {
 		line_beg--;
 	}
-	while (m_lexer[line_end + 1] != '\n') {
+	while (m_lexer[line_end] != '\n') {
 		line_end++;
 	}
 	const auto line_len = line_end - line_beg;

@@ -1,6 +1,7 @@
 #include <biron/ast_unit.h>
 #include <biron/ast_type.h>
 #include <biron/ast_stmt.h>
+#include <biron/ast_attr.h>
 
 #include <biron/cg.h>
 #include <biron/cg_value.h>
@@ -43,6 +44,24 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 	auto fn_v = cg.llvm.AddFunction(cg.module,
 	                                m_name.terminated(*cg.scratch),
 	                                fn_t->ref());
+
+	if (m_attrs) for (auto base : *m_attrs) {
+		if (base->is_attr<AstRedzoneAttr>()) {
+			auto attr = static_cast<const AstRedzoneAttr*>(base);
+			if (attr->value()) continue; // The default is redzone
+			StringView name = "noredzone";
+			auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
+			auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, 0);
+			cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+		} else if (base->is_attr<AstAlignAttr>()) {
+			// This is alignstack
+			auto attr = static_cast<const AstAlignAttr*>(base);
+			StringView name = "alignstack";
+			auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
+			auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, attr->value());
+			cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+		}
+	}
 
 	if (!cg.fns.emplace_back(m_name, CgAddr { fn_t->addrof(cg), fn_v })) {
 		return false;
