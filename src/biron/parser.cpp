@@ -283,6 +283,8 @@ AstExpr* Parser::parse_primary_expr(Bool simple) noexcept {
 		return parse_flt_expr();
 	case Token::Kind::LIT_STR:
 		return parse_str_expr();
+	case Token::Kind::LIT_CHR:
+		return parse_chr_expr();
 	case Token::Kind::LPAREN:
 		return parse_tuple_expr();
 	case Token::Kind::STAR:
@@ -479,6 +481,21 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 	}
 
 	return new_node<AstIntExpr>(Sint32(n), token.range);
+}
+
+// ChrExpr
+//	::= Byte
+AstIntExpr* Parser::parse_chr_expr() noexcept {
+	if (peek().kind != Token::Kind::LIT_CHR) {
+		ERROR("Expected character literal");
+		return nullptr;
+	}
+	auto token = next(); // Consume CHR
+	auto literal = m_lexer.string(token.range);
+	// The lexer retains the quotes in the string so that token.range is accurate,
+	// here we just slice them off.
+	literal = literal.slice(1, literal.length() - 2);
+	return new_node<AstIntExpr>(Uint8(literal[0]), token.range);
 }
 
 // FltExpr

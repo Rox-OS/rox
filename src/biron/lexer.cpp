@@ -19,7 +19,7 @@ static Bool is_bin(int ch) noexcept {
 }
 
 static Bool is_hex(int ch) noexcept {
-	return is_digit(ch) || (ch >= 'a' && ch <= 'f');
+	return is_digit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
 }
 
 static Bool is_alnum(int ch) noexcept {

@@ -78,6 +78,7 @@ struct Parser {
 	[[nodiscard]] AstFltExpr*      parse_flt_expr() noexcept;
 	[[nodiscard]] AstStrExpr*      parse_str_expr() noexcept;
 	[[nodiscard]] AstBoolExpr*     parse_bool_expr() noexcept;
+	[[nodiscard]] AstIntExpr*      parse_chr_expr() noexcept;
 
 	// Types
 	[[nodiscard]] AstType*         parse_type() noexcept;

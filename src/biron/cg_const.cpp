@@ -117,12 +117,12 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			if (!values.reserve(m_as_array.elems.length())) {
 				return cg.oom();
 			}
-			auto base = m_as_array.type->codegen(cg);
-			if (!base) {
+			auto array_type = m_as_array.type->codegen(cg);
+			if (!array_type) {
 				return cg.oom();
 			}
 			for (const auto& elem : m_as_array.elems) {
-				auto value = elem.codegen(cg, base);
+				auto value = elem.codegen(cg, array_type->deref());
 				if (!value) {
 					return cg.oom();
 				}
@@ -139,14 +139,14 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 					return cg.oom();
 				}
 			}
-			auto value = cg.llvm.ConstArray2(base->ref(),
+			auto value = cg.llvm.ConstArray2(array_type->deref()->ref(),
 			                                 consts.data(),
 			                                 consts.length());
 			if (!value) {
 				return cg.oom();
 			}
 
-			return CgValue { base, value };
+			return CgValue { type, value };
 		}
 		break;
 	case Kind::STRING:

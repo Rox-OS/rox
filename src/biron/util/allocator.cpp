@@ -35,6 +35,7 @@ void TemporaryAllocator::clear() noexcept {
 		m_allocator.deallocate(chunk, sizeof(Chunk) + chunk->capacity);
 		chunk = prev;
 	}
+	m_tail = nullptr;
 }
 
 void* ScratchAllocator::allocate(Ulen size) noexcept {
