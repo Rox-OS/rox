@@ -3,9 +3,10 @@
 
 #include <biron/util/numeric.inl>
 #include <biron/util/array.inl>
-#include <biron/util/string.inl>
 #include <biron/util/int128.inl>
 #include <biron/util/unreachable.inl>
+
+#include <biron/util/string.h>
 
 namespace Biron {
 

@@ -49,14 +49,14 @@ struct LLVM {
 	enum class RealPredicate         : int { False, OEQ, OGT, OGE, OLT, OLE, ONE, ORD, UNO, UEQ, UGT, UGE, ULT, ULE, UNE, True };
 
 	#define FN(RETURN, NAME, ...) \
-		RETURN (*NAME)(__VA_ARGS__);
+		RETURN (*NAME)(__VA_ARGS__) = nullptr;
 	#include <biron/llvm.inl>
 	#undef FN
 
 	static Maybe<LLVM> load() noexcept;
 
 private:
-	LLVM() noexcept;
+	constexpr LLVM() noexcept = default;
 	void* m_lib;
 };
 

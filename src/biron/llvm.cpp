@@ -1,6 +1,5 @@
 #include <dlfcn.h> // dlopen, dlclose, dlsym
 #include <stdio.h> // fprintf, stderr
-#include <string.h> // memset
 
 #include <biron/llvm.h>
 
@@ -15,14 +14,6 @@ static Bool link(void *lib, T*& p, const char *name) noexcept {
 	}
 	*reinterpret_cast<void **>(&p) = sym;
 	return true;
-}
-
-LLVM::LLVM() noexcept {
-	// This structure only stores function pointers and a local library handle. We
-	// start off with everything zeroed so any load errors along the way will at
-	// least leave things null so that ~LLVM() can safely call Shutdown if opened
-	// and dlclose if loaded.
-	memset(this, 0, sizeof *this);
 }
 
 LLVM::~LLVM() noexcept {

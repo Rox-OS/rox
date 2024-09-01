@@ -4,7 +4,7 @@
 #include <biron/ast_const.h>
 #include <biron/ast_unit.h>
 
-#include <biron/util/string.inl>
+#include <biron/util/string.h>
 #include <biron/util/unreachable.inl>
 
 namespace Biron {
@@ -269,7 +269,7 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 			}
 		}
 	}
-	cg.error(range(), "Undeclared type '%.*s'", Sint32(m_ident.length()), m_ident.data());
+	cg.error(range(), "Undeclared type '%S'", m_ident);
 	return nullptr;
 }
 

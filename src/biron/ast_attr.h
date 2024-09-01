@@ -1,7 +1,7 @@
 #ifndef BIRON_AST_ATTR_H
 #define BIRON_AST_ATTR_H
 #include <biron/ast.h>
-#include <biron/util/string.inl>
+#include <biron/util/string.h>
 
 namespace Biron {
 

@@ -1,6 +1,15 @@
-#include <biron/util/allocator.inl>
+#include <biron/util/allocator.h>
+#include <biron/util/system.inl>
 
 namespace Biron {
+
+void* SystemAllocator::allocate(Ulen size) noexcept {
+	return m_system.mem_allocate(m_system, size);
+}
+
+void SystemAllocator::deallocate(void* old, Ulen size) noexcept {
+	m_system.mem_deallocate(m_system, old, size);
+}
 
 void* TemporaryAllocator::allocate(Ulen size) noexcept {
 	const Ulen bytes = ((size + ALIGN - 1) / ALIGN) * ALIGN;

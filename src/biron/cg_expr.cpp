@@ -268,8 +268,7 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 		}
 	}
 
-	cg.error(range(), "Could not find symbol '%.*s'", Sint32(m_name.length()), m_name.data());
-
+	cg.error(range(), "Could not find symbol '%S'", m_name);
 	return None{};
 }
 
@@ -524,11 +523,6 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 				return None{};
 			}
 			if (*value->type() != *type) {
-				auto b0 = type->to_string(*cg.scratch);
-				auto b1 = type->to_string(*cg.scratch);
-				cg.error((*expr)->range(), "Expected expression of type '%.*s'. Got '%.*s' instead",
-				         Sint32(b0.length()), b0.data(),
-				         Sint32(b1.length()), b1.data());
 				return None{};
 			}
 			if (!dst->store(cg, *value)) {
@@ -661,7 +655,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 					return lhs_addr->at(cg, i);
 				}
 			}
-			cg.error(m_rhs->range(), "Undeclared field '%.*s'", Sint32(name.length()), name.data());
+			cg.error(m_rhs->range(), "Undeclared field '%S'", name);
 			return None{};
 		} else if (m_rhs->is_expr<AstIntExpr>()) {
 			auto rhs = m_rhs->eval();
@@ -709,9 +703,9 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			auto lhs_to_string = lhs->type()->to_string(*cg.scratch);
 			auto rhs_to_string = rhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to binary operator must be the same type: Got '%.*s' and '%.*s'",
-			         Sint32(lhs_to_string.length()), lhs_to_string.data(),
-			         Sint32(rhs_to_string.length()), rhs_to_string.data());
+			         "Operands to binary operator must be the same type: Got '%S' and '%S'",
+			         lhs_to_string,
+			         rhs_to_string);
 			return None{};
 		}
 	}
@@ -753,9 +747,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '+' operator must have numeric type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '+' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -767,9 +760,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '-' operator must have numeric type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '-' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -781,9 +773,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '*' operator must have numeric type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '*' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -861,9 +852,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '>=' operator must have numeric type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '>=' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -877,9 +867,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		}else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '>=' operator must have numeric type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '>=' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -893,9 +882,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		}else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '<' operator must have numeric type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '<' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -909,9 +897,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '<=' operator must have numeric type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '<=' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -945,9 +932,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 				cg.error(m_lhs->range(),
-				         "Operands to '||' operator must have boolean type. Got '%.*s' instead",
-				         Sint32(lhs_type_string.length()),
-				         lhs_type_string.data());
+				         "Operands to '||' operator must have boolean type. Got '%S' instead",
+				         lhs_type_string);
 				return None{};
 			}
 
@@ -1033,9 +1019,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 				cg.error(m_lhs->range(),
-				         "Operands to '&&' operator must have boolean type. Got '%.*s' instead",
-				         Sint32(lhs_type_string.length()),
-				         lhs_type_string.data());
+				         "Operands to '&&' operator must have boolean type. Got '%S' instead",
+				         lhs_type_string);
 				return None{};
 			}
 
@@ -1097,9 +1082,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '|' operator must have integer or boolean type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '|' operator must have integer or boolean type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -1109,9 +1093,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '&' operator must have integer or boolean type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '&' operator must have integer or boolean type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -1121,9 +1104,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '<<' operator must have integer type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '<<' operator must have integer type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 	case Op::RSHIFT:
@@ -1134,9 +1116,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		} else {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
-			         "Operands to '>>' operator must have integer type. Got '%.*s' instead",
-			         Sint32(lhs_type_string.length()),
-			         lhs_type_string.data());
+			         "Operands to '>>' operator must have integer type. Got '%S' instead",
+			         lhs_type_string);
 			return None{};
 		}
 		break;
@@ -1277,10 +1258,8 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 					}
 					i++;
 				}
-				cg.error(m_rhs->range(),
-				         "Undeclared field '%.*s'",
-				         Sint32(rhs->name().length()),
-				         rhs->name().data());
+				cg.error(m_rhs->range(), "Undeclared field '%S'", rhs->name());
+				return nullptr;
 			} else if (m_rhs->is_expr<AstIntExpr>()) {
 				auto i = m_rhs->eval();
 				if (!i) {
@@ -1320,11 +1299,10 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 		// the pointer.
 		if (auto operand = m_operand->gen_value(cg)) {
 			if (!operand->type()->is_pointer()) {
-				auto builder = operand->type()->to_string(*cg.scratch);
+				auto operand_type_string = operand->type()->to_string(*cg.scratch);
 				cg.error(m_operand->range(),
-				         "Operand to '*' must have pointer type. Got '%.*s' instead",
-				         Sint32(builder.length()),
-				         builder.data());
+				         "Operand to '*' must have pointer type. Got '%S' instead",
+				         operand_type_string);
 				return None{};
 			}
 			return operand->to_addr();
@@ -1392,11 +1370,10 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 
 	auto type = operand->type()->deref();
 	if (!type->is_pointer() && !type->is_array() && !type->is_slice()) {
-		auto builder = type->to_string(*cg.scratch);
+		auto type_string = type->to_string(*cg.scratch);
 		cg.error(range(),
-		         "Cannot index expression of type '%.*s'",
-		         Sint32(builder.length()),
-		         builder.data());
+		         "Cannot index expression of type '%S'",
+		         type_string);
 		return None{};
 	}
 
@@ -1407,12 +1384,12 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 	}
 
 	if (!index->type()->is_uint() && !index->type()->is_sint()) {
-		auto b0 = index->type()->to_string(*cg.scratch);
-		auto b1 = type->to_string(*cg.scratch);
+		auto index_type_string = index->type()->to_string(*cg.scratch);
+		auto value_type_string = type->to_string(*cg.scratch);
 		cg.error(m_index->range(),
-		         "Value of type '%.*s' cannot be used to index '%.*s'",
-		         Sint32(b0.length()), b0.data(),
-		         Sint32(b1.length()), b1.data());
+		         "Value of type '%S' cannot be used to index '%S'",
+		         value_type_string,
+		         index_type_string);
 		return None{};
 	}
 

@@ -1,10 +1,15 @@
-#include <string.h> // memcpy
 #include <stdio.h>  // snprintf
 #include <float.h>  // FLT_MANT_DIG, FLT_DECIMAL_DIG DBL_MANT_DIG, DBL_DECIMAL_DIG
 
-#include <biron/util/string.inl>
+#include <biron/util/string.h>
 
 namespace Biron {
+
+void StringView::assign(const char* string) noexcept {
+	m_data = string;
+	m_length = 0;
+	for (; *string; string++) m_length++;
+}
 
 Bool operator==(StringView lhs, StringView rhs) noexcept {
 	if (lhs.data() == rhs.data()) return true;
@@ -55,7 +60,9 @@ Maybe<Ulen> StringView::find_last_of(int ch) const noexcept {
 
 char* StringView::terminated(Allocator& allocator) const noexcept {
 	if (char *dst = reinterpret_cast<char *>(allocator.allocate(m_length + 1))) {
-		memcpy(dst, m_data, m_length);
+		for (Ulen l = m_length, i = 0; i < l; i++) {
+			dst[i] = m_data[i];
+		}
 		dst[m_length] = '\0';
 		return dst;
 	}
@@ -131,7 +138,9 @@ Bool StringBuilder::append(StringView view) noexcept {
 		m_valid = false;
 		return false;
 	}
-	memcpy(m_buffer.data() + offset, view.data(), view.length());
+	for (Ulen l = view.length(), i = 0; i < l; i++) {
+		m_buffer[offset + i] = view[i];
+	}
 	return true;
 }
 
@@ -159,7 +168,9 @@ Bool StringBuilder::repeat(StringView view, Ulen count) noexcept {
 	}
 	char* fill = m_buffer.data() + offset;
 	for (Ulen i = 0; i < count; i++) {
-		memcpy(fill, view.data(), view.length());
+		for (Ulen l = view.length(), j = 0; j < l; j++) {
+			fill[j] = view[j];
+		}
 		fill += view.length();
 	}
 	return true;

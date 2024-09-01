@@ -1,27 +1,28 @@
-#include <stdio.h> // fprintf, stderr
-#include <string.h> // memcpy
-
 #include <biron/cg.h>
 #include <biron/cg_value.h>
+
+#include <biron/util/system.inl>
 
 namespace Biron {
 
 // [CgMachine]
-static LLVM::TargetRef target_from_triple(LLVM& llvm, const char* triple) noexcept {
+static LLVM::TargetRef target_from_triple(const System& system, LLVM& llvm, const char* triple) noexcept {
 	LLVM::TargetRef target;
 	char* error = nullptr;
 	if (llvm.GetTargetFromTriple(triple, &target, &error) != 0) {
-		fprintf(stderr, "Could not find target: %s\n", error);
+		system.term_err(system, "Could not find target: ");
+		system.term_err(system, error);
+		system.term_err(system, "\n");
 		llvm.DisposeMessage(error);
 		return nullptr;
 	}
 	return target;
 }
 
-Maybe<CgMachine> CgMachine::make(LLVM& llvm, StringView target_triple) noexcept {
+Maybe<CgMachine> CgMachine::make(const System& system, LLVM& llvm, StringView target_triple) noexcept {
 	InlineAllocator<1024> scratch;
 	auto triple = target_triple.terminated(scratch);
-	auto target = target_from_triple(llvm, triple);
+	auto target = target_from_triple(system, llvm, triple);
 	if (!target) {
 		return None{};
 	}
@@ -48,7 +49,7 @@ CgMachine::~CgMachine() noexcept {
 }
 
 // [Cg]
-Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept {
+Maybe<Cg> Cg::make(const System& system, Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept {
 	auto context = llvm.ContextCreate();
 	auto builder = llvm.CreateBuilderInContext(context);
 	auto module  = llvm.ModuleCreateWithNameInContext("Biron", context);
@@ -71,6 +72,7 @@ Maybe<Cg> Cg::make(Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noe
 	}
 
 	return Cg {
+		system,
 		allocator,
 		llvm,
 		scratch,
@@ -116,7 +118,8 @@ Bool Cg::verify() noexcept {
 	                      LLVM::VerifierFailureAction::ReturnStatus,
 	                      &error) != 0)
 	{
-		fprintf(stderr, "Could not verify module: %s\n", error);
+		system.term_err(system, "Could not verify module: ");
+		system.term_err(system, error);
 		llvm.DisposeMessage(error);
 		return false;
 	}
@@ -136,7 +139,7 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	}
 	auto terminated = name.terminated(*scratch);
 	if (!terminated) {
-		fprintf(stderr, "Out of memory\n");
+		system.term_err(system, "Out of memory\n");
 		return false;
 	}
 	if (llvm.TargetMachineEmitToFile(machine.ref(),
@@ -145,7 +148,11 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	                                 LLVM::CodeGenFileType::Object,
 	                                 &error) != 0)
 	{
-		fprintf(stderr, "Could not compile module %s: %s\n", terminated, error);
+		system.term_err(system, "Could not compile module '");
+		system.term_err(system, name);
+		system.term_err(system, "': ");
+		system.term_err(system, error);
+		system.term_err(system, "\n");
 		llvm.DisposeMessage(error);
 		return false;
 	}
@@ -167,9 +174,13 @@ const char* Cg::nameof(StringView name) const noexcept {
 	if (!dst) {
 		return "OOM";
 	}
-	memcpy(&dst[0], prefix.data(), prefix.length());
+	for (Ulen l = prefix.length(), i = 0; i < l; i++) {
+		dst[i] = prefix[i];
+	}
 	dst[prefix.length()] = '.';
-	memcpy(&dst[prefix.length() + 1], name.data(), name.length());
+	for (Ulen l = name.length(), i = 0; i < l; i++) {
+		dst[prefix.length() + 1 + i] = name[i];
+	}
 	dst[prefix.length() + 1 + name.length()] = '\0';
 	return dst;
 }

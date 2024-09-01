@@ -1,5 +1,3 @@
-#include <string.h> // memset
-
 #include <biron/util/pool.h>
 
 namespace Biron {
@@ -27,21 +25,23 @@ Maybe<Pool> Pool::make(Allocator& allocator, Ulen object_size, Ulen object_count
 		return None{};
 	}
 
-	const auto bits = object_count / 32;
-	const auto bits_bytes = bits * 4;
-	const auto bits_data = allocator.allocate(bits_bytes);
-	if (!bits_data) {
+	const auto words = object_count / 32;
+	const auto words_data = allocator.allocate(words * 4);
+	if (!words_data) {
 		allocator.deallocate(objs_data, objs_bytes);
 		return None{};
 	}
 
-	memset(bits_data, 0, bits_bytes);
+	auto zero = reinterpret_cast<Uint32*>(words_data);
+	for (Ulen i = 0; i < words; i++) {
+		zero[i] = 0;
+	}
 
 	return Pool {
 		allocator,
 		object_size,
 		object_count,
-		static_cast<Uint32*>(bits_data),
+		static_cast<Uint32*>(words_data),
 		static_cast<Uint8*>(objs_data),
 	};
 }

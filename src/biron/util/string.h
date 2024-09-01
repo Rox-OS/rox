@@ -1,5 +1,5 @@
-#ifndef BIRON_STRING_INL
-#define BIRON_STRING_INL
+#ifndef BIRON_STRING_H
+#define BIRON_STRING_H
 #include <biron/util/types.inl>
 #include <biron/util/exchange.inl>
 #include <biron/util/array.inl>
@@ -8,6 +8,9 @@
 namespace Biron {
 
 struct Allocator;
+
+template<typename T>
+concept StringLiteral = Same<T, const char*> || Same<T, char*>;
 
 struct StringView {
 	constexpr StringView(const char *data, Ulen len) noexcept
@@ -34,6 +37,8 @@ struct StringView {
 		, m_length{other.m_length}
 	{
 	}
+	template<StringLiteral T>
+	StringView(const T string) noexcept { assign(string); }
 	[[nodiscard]] constexpr StringView slice(Ulen offset, Ulen length) const noexcept {
 		return {m_data + offset, length};
 	}
@@ -57,6 +62,8 @@ struct StringView {
 	[[nodiscard]] constexpr const char* begin() const noexcept { return m_data; }
 	[[nodiscard]] constexpr const char* end() const noexcept { return m_data + m_length; }
 private:
+	void assign(const char* string) noexcept;
+
 	const char *m_data;
 	Ulen        m_length;
 };

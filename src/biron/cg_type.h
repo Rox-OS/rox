@@ -1,10 +1,9 @@
 #ifndef BIRON_CG_TYPE_H
 #define BIRON_CG_TYPE_H
+#include <biron/llvm.h>
 
 #include <biron/util/pool.h>
-#include <biron/util/string.inl>
-
-#include <biron/llvm.h>
+#include <biron/util/string.h>
 
 namespace Biron {
 

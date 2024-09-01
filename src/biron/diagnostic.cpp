@@ -5,7 +5,7 @@
 
 namespace Biron {
 
-void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcept {
+void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept {
 	// Work out the column and line from the token offset.
 	Ulen line_number = 1;
 	Ulen this_column = 1;
@@ -27,16 +27,16 @@ void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcep
 		range.offset--;
 	}
 
-	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31m%s:\033[0m %s\n",
-	        (int)m_lexer.name().length(),
+	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31m%s:\033[0m %.*s\n",
+	        Sint32(m_lexer.name().length()),
 	        m_lexer.name().data(),
 	        line_number,
 	        this_column,
 	        kind == Kind::FATAL ? "fatal" : "error",
-	        message);
+	        Sint32(message.length()),
+	        message.data());
 
 	// Print the offending line.
-
 	if (range.offset == 0) {
 		// Do not print the offending line when the error range is invalid.
 		return;
@@ -51,8 +51,7 @@ void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcep
 		line_end++;
 	}
 	const auto line_len = line_end - line_beg;
-	fprintf(stderr, "%.*s\n", Sint32(line_len), &m_lexer[line_beg]);
-
+	fwrite(&m_lexer[line_beg], line_len, 1, stderr);
 	// Then print some swiggles underneath the offense.
 	for (Ulen i = line_beg; i < range.offset; i++) {
 		fprintf(stderr, " ");

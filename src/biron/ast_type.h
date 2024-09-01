@@ -1,9 +1,9 @@
 #ifndef BIRON_AST_TYPE_H
 #define BIRON_AST_TYPE_H
 #include <biron/ast.h>
+#include <biron/util/string.h>
 
 #include <biron/util/array.inl>
-#include <biron/util/string.inl>
 
 namespace Biron {
 

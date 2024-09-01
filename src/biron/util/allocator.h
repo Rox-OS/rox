@@ -1,9 +1,11 @@
-#ifndef BIRON_ALLOCATOR_INL
-#define BIRON_ALLOCATOR_INL
+#ifndef BIRON_ALLOCATOR_H
+#define BIRON_ALLOCATOR_H
 #include <biron/util/types.inl>
 #include <biron/util/exchange.inl>
 
 namespace Biron {
+
+struct System;
 
 struct Allocator {
 	virtual void* allocate(Ulen size) noexcept = 0;
@@ -16,6 +18,17 @@ struct Allocator {
 		}
 		return nullptr;
 	}
+};
+
+struct SystemAllocator : Allocator {
+	constexpr SystemAllocator(const System& system) noexcept
+		: m_system{system}
+	{
+	}
+	virtual void* allocate(Ulen size) noexcept override;
+	virtual void deallocate(void* old, Ulen size) noexcept override;
+private:
+	const System& m_system;
 };
 
 template<Ulen E>
@@ -63,7 +76,7 @@ struct TemporaryAllocator : Allocator {
 		, m_allocator{allocator}
 	{
 	}
-	TemporaryAllocator(TemporaryAllocator&& other) noexcept
+	constexpr TemporaryAllocator(TemporaryAllocator&& other) noexcept
 		: m_tail{exchange(other.m_tail, nullptr)}
 		, m_allocator{other.m_allocator}
 	{

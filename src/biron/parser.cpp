@@ -455,8 +455,7 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 			continue;
 		}
 		if (errno == ERANGE || n > match.max) {
-			auto len = Sint32(match.name.length());
-			ERROR("%.*s integer literal too large", len, match.name.data());
+			ERROR("Integer literal '%S' too large", match.name);
 			return nullptr;
 		}
 		// Control flow inversion since no runtime typing or compile-time for loop.
@@ -1117,7 +1116,8 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	auto token = next();
 	auto name = m_lexer.string(token.range);
 	if (has_symbol(name)) {
-		ERROR("Duplicate symbol '%.*s'", Sint32(name.length()), name.data());
+		// We should move this to the CG
+		ERROR("Duplicate symbol '%S'", name);
 		return nullptr;
 	}
 	AstExpr* init = nullptr;
@@ -1408,7 +1408,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		} else if (name == "alignstack") {
 		} else if (name == "export") {
 		} else {
-			ERROR("Unknown attribute: '%.*s'", Sint32(name.length()), name.data());
+			ERROR("Unknown attribute: '%S'", name);
 			return None{};
 		}
 		auto args = parse_tuple_expr();

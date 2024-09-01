@@ -1,7 +1,6 @@
 #ifndef BIRON_ARRAY_INL
 #define BIRON_ARRAY_INL
-#include <biron/util/allocator.inl>
-#include <biron/util/numeric.inl>
+#include <biron/util/allocator.h>
 #include <biron/util/maybe.inl>
 #include <biron/util/traits/conditional.inl>
 

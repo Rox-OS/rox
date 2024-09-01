@@ -1,6 +1,6 @@
 #ifndef BIRON_LEXER_H
 #define BIRON_LEXER_H
-#include <biron/util/string.inl>
+#include <biron/util/string.h>
 #include <biron/util/numeric.inl>
 #include <biron/util/unreachable.inl>
 

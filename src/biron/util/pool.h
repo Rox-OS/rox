@@ -2,7 +2,6 @@
 #define BIRON_POOL_H
 #include <biron/util/maybe.inl>
 #include <biron/util/array.inl>
-#include <biron/util/traits/is_same.inl>
 #include <biron/util/traits/conditional.inl>
 
 namespace Biron {

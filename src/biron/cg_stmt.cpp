@@ -251,12 +251,12 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 	if (*dst->type()->deref() != *src->type()) {
-		auto b0 = dst->type()->deref()->to_string(*cg.scratch);
-		auto b1 = src->type()->to_string(*cg.scratch);
+		auto dst_type_string = dst->type()->deref()->to_string(*cg.scratch);
+		auto src_type_string = src->type()->to_string(*cg.scratch);
 		cg.error(range(),
-		         "Cannot assign an rvalue of type '%.*s' to an lvalue of type '%.*s'",
-		         Sint32(b1.length()), b1.data(),
-		         Sint32(b0.length()), b0.data());
+		         "Cannot assign an rvalue of type '%S' to an lvalue of type '%S'",
+		         dst_type_string,
+		         src_type_string);
 		return false;
 	}
 	return dst->store(cg, *src);

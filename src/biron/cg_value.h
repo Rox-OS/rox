@@ -1,7 +1,7 @@
 #ifndef BIRON_CG_VALUE_H
 #define BIRON_CG_VALUE_H
 #include <biron/llvm.h>
-#include <biron/util/string.inl>
+#include <biron/util/string.h>
 
 namespace Biron {
 

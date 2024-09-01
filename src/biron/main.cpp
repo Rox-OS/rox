@@ -1,8 +1,9 @@
-#include <stdio.h> // fprintf, fopen, fclose, fseek, ftell, fread, stderr
-#include <string.h> // strlen
-#include <stdlib.h> // malloc, free, system
+#include <stdio.h> // fprintf, stderr
+#include <string.h> // strlen, memcpy
+#include <stdlib.h> // system
 
-#include <biron/util/allocator.inl>
+#include <biron/util/allocator.h>
+#include <biron/util/file.h>
 
 #include <biron/parser.h>
 #include <biron/llvm.h>
@@ -11,22 +12,12 @@
 using namespace Biron;
 
 namespace Biron {
-
-struct Mallocator : Allocator {
-	constexpr Mallocator() noexcept = default;
-	virtual void* allocate(Ulen size) noexcept override {
-		return malloc(size);
-	}
-	virtual void deallocate(void* old, Ulen size) noexcept override {
-		(void)size;
-		free(old);
-	}
-};
-
-} // namespace Biron
+	// The system interface.
+	extern const System SYSTEM_STDC;
+}
 
 int main(int argc, char **argv) {
-	Mallocator mallocator;
+	SystemAllocator allocator{SYSTEM_STDC};
 
 	argc--;
 	argv++;
@@ -40,7 +31,7 @@ int main(int argc, char **argv) {
 	Bool dump_ir = false;
 	Bool dump_ast = false;
 
-	Array<StringView> filenames{mallocator};
+	Array<StringView> filenames{allocator};
 	for (int i = 0; i < argc; i++) {
 		if (argv[i][0] != '-') {
 			if (!filenames.emplace_back(argv[i], strlen(argv[i]))) {
@@ -82,85 +73,63 @@ int main(int argc, char **argv) {
 	}
 
 	// Read in source code of all files
-	struct File {
+	struct Source {
 		StringView  name;
 		Array<char> data;
 	};
-
-	Array<File> files{mallocator};
-	for (auto& filename : filenames) {
+	Array<Source> sources{allocator};
+	for (auto filename : filenames) {
 		auto dot = filename.find_last_of('.');
 		if (!dot) {
 			fprintf(stderr, "Unknown source file '%.*s'\n",
 				Sint32(filename.length()), filename.data());
 			return 1;
 		}
-		FILE* fp = filename == "-" ? stdin : fopen(filename.terminated(mallocator), "rb");
-		if (!fp) {
-			fprintf(stderr, "Could not open '%.*s'\n",
+		auto file = File::open(SYSTEM_STDC, filename);
+		if (!file) {
+			fprintf(stderr, "Could not open file: '%.*s'\n",
 				Sint32(filename.length()), filename.data());
-			return false;
+			return 1;
 		}
-		Array<char> src{mallocator};
-		if (fseek(fp, 0, SEEK_END) != 0) {
-			while (!feof(fp)) {
-				if (!src.push_back(fgetc(fp))) {
-					goto L_oom;
+		Array<char> data{allocator};
+		for (;;) {
+			char buffer[4096];
+			auto length = file->read(data.length(), buffer, sizeof buffer);
+			if (length) {
+				auto offset = data.length();
+				if (!data.resize(offset + length)) {
+					return 1;
 				}
-			}
-		} else {
-			const auto tell = ftell(fp);
-			if (tell <= 0) {
-				goto L_error;
-			}
-			if (!src.resize(tell)) {
-				goto L_oom;
-			}
-			if (fseek(fp, 0, SEEK_SET) != 0) {
-				goto L_error;
-			}
-			if (fread(src.data(), src.length(), 1, fp) != 1) {
-				goto L_error;
+				memcpy(data.data() + offset, buffer, length);
+			} else {
+				break;
 			}
 		}
-		if (!files.emplace_back(filename, move(src))) {
-			goto L_oom;
+		if (!sources.emplace_back(filename, move(data))) {
+			return 1;
 		}
-		continue;
-	L_oom:
-		fprintf(stderr, "Out of memory\n");
-		goto L_exit;
-	L_error:
-		fprintf(stderr, "Could not read '%.*s'",
-			Sint32(filename.length()), filename.data());
-		goto L_exit;
-	L_exit:
-		if (fp != stdin) {
-			fclose(fp);
-		}
-		return 1;
 	}
 
 	// TODO(dweiler): Thread this part
-	for (const auto& file : files) {
-		StringView code{file.data.data(), file.data.length()};
-		Lexer lexer{file.name, code};
-		Diagnostic diagnostic{lexer, mallocator};
-		Parser parser{lexer, diagnostic, mallocator};
+	for (const auto& source : sources) {
+		StringView code{source.data.data(), source.data.length()};
+		Lexer lexer{source.name, code};
+		Diagnostic diagnostic{lexer, allocator};
+		Parser parser{lexer, diagnostic, allocator};
 		auto unit = parser.parse();
 		if (!unit) {
 			fprintf(stderr, "Could not parse unit\n");
 			return 1;
 		}
 
-		auto cg = Cg::make(mallocator, *llvm, diagnostic);
+		auto cg = Cg::make(SYSTEM_STDC, allocator, *llvm, diagnostic);
 		if (!cg) {
 			fprintf(stderr, "Could not initialize code generator\n");
 			return 1;
 		}
 
 		if (dump_ast) {
-			StringBuilder builder{mallocator};
+			StringBuilder builder{allocator};
 			unit->dump(builder);
 			if (builder.valid()) {
 				fwrite(builder.data(), builder.length(), 1, stderr);
@@ -174,7 +143,7 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		auto machine = CgMachine::make(*llvm, "x86_64-unknown-none");
+		auto machine = CgMachine::make(SYSTEM_STDC, *llvm, "x86_64-unknown-none");
 		if (!machine) {
 			return 1;
 		}
@@ -188,11 +157,11 @@ int main(int argc, char **argv) {
 		}
 
 		// Strip everything up to including '.'
-		auto dot = file.name.find_last_of('.');
-		auto name = file.name.slice(0, *dot);
+		auto dot = source.name.find_last_of('.');
+		auto name = source.name.slice(0, *dot);
 
 		// Build "name.o"
-		StringBuilder obj{mallocator};
+		StringBuilder obj{allocator};
 		obj.append(name);
 		obj.append('.');
 		obj.append('o');
@@ -210,12 +179,12 @@ int main(int argc, char **argv) {
 
 	if (!bm) {
 		// Build "gcc name.o -o name"
-		StringBuilder link{mallocator};
+		StringBuilder link{allocator};
 		link.append("gcc");
 		link.append(' ');
-		for (const auto& file : files) {
-			auto dot = file.name.find_last_of('.');
-			auto name = file.name.slice(0, *dot);
+		for (const auto& source : sources) {
+			auto dot = source.name.find_last_of('.');
+			auto name = source.name.slice(0, *dot);
 			link.append(name);
 			link.append('.');
 			link.append('o');

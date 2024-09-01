@@ -5,7 +5,7 @@
 
 #include <biron/diagnostic.h>
 
-#include <biron/util/string.inl>
+#include <biron/util/string.h>
 
 namespace Biron {
 
@@ -44,7 +44,7 @@ struct CgMachine {
 
 	using TargetMachineRef = LLVM::TargetMachineRef;
 
-	static Maybe<CgMachine> make(LLVM& llvm, StringView triple) noexcept;
+	static Maybe<CgMachine> make(const System& system, LLVM& llvm, StringView triple) noexcept;
 
 	TargetMachineRef ref() const noexcept { return m_machine; }
 
@@ -63,7 +63,7 @@ struct Cg {
 	using BuilderRef = LLVM::BuilderRef;
 	using ModuleRef  = LLVM::ModuleRef;
 
-	static Maybe<Cg> make(Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept;
+	static Maybe<Cg> make(const System& system, Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept;
 
 	[[nodiscard]] Bool optimize(CgMachine& machine, Ulen level) noexcept;
 	[[nodiscard]] Bool verify() noexcept;
@@ -81,12 +81,12 @@ struct Cg {
 	}
 
 	template<typename... Ts>
-	void error(Range range, const char* message, Ts&&... args) const noexcept {
+	void error(Range range, StringView message, Ts&&... args) const noexcept {
 		diagnostic.error(range, message, forward<Ts>(args)...);
 	}
 
 	template<typename... Ts>
-	void fatal(Range range, const char* message, Ts&&... args) const noexcept {
+	void fatal(Range range, StringView message, Ts&&... args) const noexcept {
 		diagnostic.fatal(range, message, forward<Ts>(args)...);
 	}
 
@@ -101,6 +101,7 @@ struct Cg {
 
 	const char* nameof(StringView name) const noexcept;
 
+	const System&     system;
 	Allocator&        allocator;
 	LLVM&             llvm;
 	ScratchAllocator* scratch;
@@ -118,7 +119,8 @@ struct Cg {
 	StringView        prefix;
 
 	constexpr Cg(Cg&& other) noexcept
-		: allocator{other.allocator}
+		: system{other.system}
+		, allocator{other.allocator}
 		, llvm{other.llvm}
 		, scratch{exchange(other.scratch, nullptr)}
 		, context{exchange(other.context, nullptr)}
@@ -139,7 +141,8 @@ struct Cg {
 	~Cg() noexcept;
 
 private:
-	constexpr Cg(Allocator&        allocator,
+	constexpr Cg(const System&     system,
+	             Allocator&        allocator,
 	             LLVM&             llvm,
 	             ScratchAllocator* scratch,
 	             ContextRef        context,
@@ -147,7 +150,8 @@ private:
 	             ModuleRef         module,
 	             CgTypeCache&&     types,
 	             Diagnostic&       diagnostic) noexcept
-		: allocator{allocator}
+		: system{system}
+		, allocator{allocator}
 		, llvm{llvm}
 		, scratch{scratch}
 		, context{context}
