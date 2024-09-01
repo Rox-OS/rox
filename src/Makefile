@@ -4,6 +4,7 @@ EXT_TEST := $(foreach exec,$(EXE_LIST),\
 	$(if $(shell command -v $(exec)),some string,\
 		$(error Could not find "$(exec)" in $$PATH. Please install which ever package provides this before continuing)))
 
+# xorriso flags
 XIFLAGS := -as mkisofs
 XIFLAGS += -b boot/limine/limine-bios-cd.bin
 XIFLAGS += -no-emul-boot
@@ -14,6 +15,21 @@ XIFLAGS += -efi-boot-part
 XIFLAGS += --efi-boot-image
 XIFLAGS += --protective-msdos-label
 XIFLAGS += iso
+
+# qemu flags
+QFLAGS := -M q35
+QFLAGS += -m 2G
+QFLAGS += -cdrom rox.iso
+QFLAGS += -boot d
+QFLAGS += -no-reboot
+QFLAGS += -d int
+QFLAGS += -D log.txt
+
+# If we support KVM then use KVM for QEMU acceleration
+KVM := $(shell lsmod | grep kvm)
+ifeq ($(.SHELLSTATUS),0)
+	QFLAGS += -accel kvm
+endif
 
 rox.iso: .limine/limine titan
 	rm -rf iso
@@ -36,14 +52,6 @@ rox.iso: .limine/limine titan
 
 titan:
 	$(MAKE) -C titan
-
-QFLAGS := -M q35
-QFLAGS += -m 2G
-QFLAGS += -cdrom rox.iso
-QFLAGS += -boot d
-QFLAGS += -no-reboot
-QFLAGS += -d int
-QFLAGS += -D log.txt
 
 run: rox.iso
 	qemu-system-x86_64 $(QFLAGS)

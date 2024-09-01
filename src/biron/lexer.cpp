@@ -203,6 +203,7 @@ Token Lexer::read() noexcept {
 			case 6:
 				/**/ if (ident == "return")   return {Kind::KW_RETURN,   {n, 6}};
 				else if (ident == "module")   return {Kind::KW_MODULE,   {n, 6}};
+				else if (ident == "import")   return {Kind::KW_IMPORT,   {n, 6}};
 				break;
 			case 8:
 				/**/ if (ident == "continue") return {Kind::KW_CONTINUE, {n, 8}};
