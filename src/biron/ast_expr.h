@@ -287,6 +287,7 @@ struct AstIndexExpr : AstExpr {
 	[[nodiscard]] virtual Maybe<AstConst> eval() const noexcept override;
 	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg) const noexcept override;
 private:
 	AstExpr* m_operand;
 	AstExpr* m_index;

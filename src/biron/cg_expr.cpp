@@ -1368,12 +1368,8 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 		return None{};
 	}
 
-	auto type = operand->type()->deref();
-	if (!type->is_pointer() && !type->is_array() && !type->is_slice()) {
-		auto type_string = type->to_string(*cg.scratch);
-		cg.error(range(),
-		         "Cannot index expression of type '%S'",
-		         type_string);
+	auto type = gen_type(cg);
+	if (!type) {
 		return None{};
 	}
 
@@ -1407,6 +1403,23 @@ Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg) const noexcept {
 	}
 	cg.fatal(range(), "Could not generate value");
 	return None{};
+}
+
+CgType* AstIndexExpr::gen_type(Cg& cg) const noexcept {
+	auto type = m_operand->gen_type(cg);
+	if (!type) {
+		return nullptr;
+	}
+
+	if (!type->is_pointer() && !type->is_array() && !type->is_slice()) {
+		auto type_string = type->to_string(*cg.scratch);
+		cg.error(range(),
+		         "Cannot index expression of type '%S'",
+		         type_string);
+		return nullptr;
+	}
+
+	return type->deref();
 }
 
 Maybe<AstConst> AstIndexExpr::eval() const noexcept {
