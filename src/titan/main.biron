@@ -1,3 +1,5 @@
+module titan;
+
 type LimineFramebuffer = (
   address:    *Uint32,
   dimensions: (Uint64, Uint64),
@@ -86,7 +88,9 @@ fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32
 // When in the kernel we do not want the Redzone and we want Biron to always
 // setup the stack so it's 16-byte aligned. This behavior is required by SysV
 // and will be true of all other functions but not necessarily the entry point.
-@(redzone(false), alignstack(16))
+// We also need to export the kmain so the bootloader can actually call us. This
+// entry point is set in link.ld.
+@(export(true), redzone(false), alignstack(16))
 fn kmain() {
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
   let color = (0xff_u32, 0_u32, 0_u32);
