@@ -271,6 +271,18 @@ L_dec:
 					}
 				}
 			}
+
+			if (peek() == 'e') {
+				fwd(); // Consume 'e'
+				k = Kind::LIT_FLT;
+				if (peek() == '-' || peek() == '+') {
+					fwd(); // Consume sign
+				}
+				while (is_digit(peek())) {
+					fwd(); // Consume digit
+				}
+			}
+
 			// The numeric literal can be typed with one of the following suffix
 			//	_(u|s){8,16,32,64}
 			if (peek() == '_') {

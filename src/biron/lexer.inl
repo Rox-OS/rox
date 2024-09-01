@@ -60,7 +60,29 @@ KIND(KW_MODULE)   // 'module'
 KIND(KW_IMPORT)   // 'import'
 KIND(KW_CONTINUE) // 'continue'
 
+// DecDigit
+//  ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+// DecLiteral
+//  ::= DecimalDigit DecimalDigit*
+// HexDigit
+//  ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+//    | 'a' | 'b' | 'c' | 'd' | 'e' | 'f' |
+//    | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' |
+// HexLiteral
+//  ::= '0x' HexDigit HexDigit*
+// BinDigit
+//  ::= 0 | 1
+// BinLiteral
+//  ::= '0b' BinaryDigit BinaryDigit*
+// IntegerSuffix
+//  ::= '_u8' | '_u16' | '_u32' | '_u64'
+//    | '_s8' | '_s16' | '_s32' | '_s64'
+// IntegerLiteral
+//  ::= DecLiteral IntegerSuffix?
+//    | HexLiteral IntegerSuffix?
+//    | BinLiteral IntegerSuffix?
 KIND(LIT_INT)
+
 KIND(LIT_FLT)
 KIND(LIT_STR)
 KIND(LIT_CHR)

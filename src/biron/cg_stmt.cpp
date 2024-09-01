@@ -357,7 +357,6 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	cg.scopes.pop_back();
 
 	return true;
-
 }
 
 } // namespace Biron
