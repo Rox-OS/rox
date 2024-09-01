@@ -164,7 +164,7 @@ struct Array {
 				return false;
 			}
 		}
-		return false;
+		return true;
 	}
 
 	Maybe<Array> copy() const noexcept
