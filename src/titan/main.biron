@@ -224,6 +224,8 @@ fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32
 // entry point is set in link.ld.
 @(export(true), redzone(false), alignstack(16))
 fn kmain() {
+  enable_fpu();
+
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
 
   // Clear the framebuffer to a nice shade of grey.

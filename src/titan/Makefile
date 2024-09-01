@@ -10,8 +10,9 @@ LDFLAGS += -T link.ld
 
 titan: $(BIRONC)
 	$(BIRONC) -bm -O3 main.biron
-	$(LD) main.o $(LDFLAGS) -o $@
-	rm main.o
+	$(CC) -ffreestanding -fno-stack-protector -c fpu.c -o fpu.o
+	$(LD) main.o fpu.o $(LDFLAGS) -o $@
+	rm main.o fpu.o
 
 $(BIRONC):
 	$(MAKE) -C $(BIRONDIR)
