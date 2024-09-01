@@ -3,24 +3,13 @@ Rox is an experimental toy operating system written in an experimental toy progr
 
 ## Biron
 Biron is an experimental toy systems programming language built for Rox.
-
-## Features
-* Rich inline assembly support for amd64
-* Parametric polymorphsim
-* Type inference
-* Few keywords: `fn asm if let else for as`
-* Pointers: `*T`, Tuples: `(T1, T2, ...)`, Arrays: `[N]T`, and Slices: `[]T`
-* Non-null-terminated UTF-8 string type: `String`
-* Sized integer types: `(S|U)int{8,16,32,64}`
-* Memory addressing type: `Address`
-* Designed to run on baremetal
-  * No floating point
-  * No integer divisions
-* Small: ~5k lines of freestanding C++ with no build dependencies
-  * Loads libLLVM dynamically at runtime.
+  
+You may read more about Biron [here](src/biron/README.md)
 
 ## Titan
 Titan is an experimental kernel written in Biron used for the Rox operating system.
+  
+You may read more about Titan [here](src/titan/README.md)
 
 ## Building
 To build run `make` from the `src` directory.
@@ -38,13 +27,19 @@ $ pacman -S llvm xorriso qemu
 ```
 
 ## Running
-To run Rox in qemu
+### Qemu
 ```
 $ make run
 ```
-> You can also mount the `rox.iso` in Virtualbox.
+> Ensure you have KVM enabled for QEMU acceleration otherwise it will run slow
 
-Finally, you can run it on real hardware by making a bootable USB drive.
+### VirtualBox
+Within the VirtualBox [Create Virtual Machine Wizard](https://www.virtualbox.org/manual/UserManual.html#create-vm-wizard) you can mount the `rox.iso`
+
+### Real Hardware
+You can also run it on real hardware by making a bootable USB drive
 ```
 $ dd if=rox.iso of=/dev/sdN # Where sdN is your USB drive
 ```
+
+> The ISO image supports both Legacy BIOS and EFI booting
