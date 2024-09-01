@@ -45,17 +45,17 @@ struct StringView {
 		m_length = name.m_length;
 		return *this;
 	}
-	[[nodiscard]] const char* data() const noexcept { return m_data; }
-	[[nodiscard]] Ulen length() const noexcept { return m_length; }
-	[[nodiscard]] const char& operator[](Ulen i) const noexcept { return m_data[i]; }
+	[[nodiscard]] constexpr const char* data() const noexcept { return m_data; }
+	[[nodiscard]] constexpr Ulen length() const noexcept { return m_length; }
+	[[nodiscard]] constexpr const char& operator[](Ulen i) const noexcept { return m_data[i]; }
 	friend Bool operator==(StringView lhs, StringView rhs) noexcept;
 	friend Bool operator!=(StringView lhs, StringView rhs) noexcept;
 	[[nodiscard]] Bool starts_with(StringView other) const noexcept;
 	Maybe<Ulen> find_first_of(int ch) const noexcept;
 	Maybe<Ulen> find_last_of(int ch) const noexcept;
 	char *terminated(Allocator& allocator) const noexcept;
-	[[nodiscard]] const char* begin() const noexcept { return m_data; }
-	[[nodiscard]] const char* end() const noexcept { return m_data + m_length; }
+	[[nodiscard]] constexpr const char* begin() const noexcept { return m_data; }
+	[[nodiscard]] constexpr const char* end() const noexcept { return m_data + m_length; }
 private:
 	const char *m_data;
 	Ulen        m_length;

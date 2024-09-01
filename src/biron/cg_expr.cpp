@@ -750,13 +750,27 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return CgValue { lhs->type(), cg.llvm.BuildAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { lhs->type(), cg.llvm.BuildFAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} 
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '+' operator must have numeric type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
+		}
 		break;
 	case Op::SUB:
 		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
 			return CgValue { lhs->type(), cg.llvm.BuildSub(cg.builder, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { lhs->type(), cg.llvm.BuildFSub(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '-' operator must have numeric type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::MUL:
@@ -764,20 +778,77 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return CgValue { lhs->type(), cg.llvm.BuildMul(cg.builder, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { lhs->type(), cg.llvm.BuildFMul(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '*' operator must have numeric type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::EQ:
-		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
+		if (lhs->type()->is_sint() || lhs->type()->is_uint() || lhs->type()->is_pointer()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::EQ, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildFCmp(cg.builder, RealPredicate::OEQ, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto intrinsic = cg.intrinsic("memory_eq");
+			if (!intrinsic) {
+				cg.fatal(range(), "Could not find 'memory_eq' intrinsic");
+				return None{};
+			}
+			// TODO(dweiler): use gen_addr to avoid a copy here
+			auto lhs_dst = cg.emit_alloca(lhs->type());
+			auto rhs_dst = cg.emit_alloca(rhs->type());
+			lhs_dst->store(cg, *lhs);
+			rhs_dst->store(cg, *rhs);
+			LLVM::ValueRef args[] = {
+				lhs_dst->ref(),
+				rhs_dst->ref(),
+				cg.llvm.ConstInt(cg.types.u64()->ref(), lhs->type()->size(), false),
+			};
+			auto call = cg.llvm.BuildCall2(cg.builder,
+			                               intrinsic->type()->deref()->ref(),
+			                               intrinsic->ref(),
+			                               args,
+			                               countof(args), "");
+			if (!call) {
+				return cg.oom();
+			}
+			return CgValue { cg.types.b32(), call };
 		}
 		break;
 	case Op::NE:
-		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
+		if (lhs->type()->is_sint() || lhs->type()->is_uint() || lhs->type()->is_pointer()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::NE, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildFCmp(cg.builder, RealPredicate::ONE, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto intrinsic = cg.intrinsic("memory_ne");
+			if (!intrinsic) {
+				cg.fatal(range(), "Could not find 'memory_ne' intrinsic");
+				return None{};
+			}
+			// TODO(dweiler): use gen_addr to avoid a copy here
+			auto lhs_dst = cg.emit_alloca(lhs->type());
+			auto rhs_dst = cg.emit_alloca(rhs->type());
+			lhs_dst->store(cg, *lhs);
+			rhs_dst->store(cg, *rhs);
+			LLVM::ValueRef args[] = {
+				lhs_dst->ref(),
+				rhs_dst->ref(),
+				cg.llvm.ConstInt(cg.types.u64()->ref(), lhs->type()->size(), false),
+			};
+			auto call = cg.llvm.BuildCall2(cg.builder,
+			                               intrinsic->type()->deref()->ref(),
+			                               intrinsic->ref(),
+			                               args,
+			                               countof(args), "");
+			if (!call) {
+				return cg.oom();
+			}
+			return CgValue { cg.types.b32(), call };
 		}
 		break;
 	case Op::GT:
@@ -787,6 +858,13 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::UGT, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildFCmp(cg.builder, RealPredicate::OGT, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '>=' operator must have numeric type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::GE:
@@ -796,6 +874,13 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::UGE, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildFCmp(cg.builder, RealPredicate::OGE, lhs->ref(), rhs->ref(), "") };
+		}else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '>=' operator must have numeric type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::LT:
@@ -805,6 +890,13 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::ULT, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildFCmp(cg.builder, RealPredicate::OLT, lhs->ref(), rhs->ref(), "") };
+		}else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '<' operator must have numeric type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::LE:
@@ -814,6 +906,13 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::ULE, lhs->ref(), rhs->ref(), "") };
 		} else if (lhs->type()->is_real()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildFCmp(cg.builder, RealPredicate::OLE, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '<=' operator must have numeric type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::LOR:
@@ -995,11 +1094,25 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	case Op::BOR:
 		if (lhs->type()->is_sint() || lhs->type()->is_uint() || lhs->type()->is_bool()) {
 			return CgValue { lhs->type(), cg.llvm.BuildOr(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '|' operator must have integer or boolean type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::BAND:
 		if (lhs->type()->is_sint() || lhs->type()->is_uint() || lhs->type()->is_bool()) {
 			return CgValue { lhs->type(), cg.llvm.BuildAnd(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '&' operator must have integer or boolean type. Got '%.*s' instead",
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
+			return None{};
 		}
 		break;
 	case Op::LSHIFT:
@@ -1009,8 +1122,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
 			         "Operands to '<<' operator must have integer type. Got '%.*s' instead",
-			          Sint32(lhs_type_string.length()),
-			          lhs_type_string.data());
+			         Sint32(lhs_type_string.length()),
+			         lhs_type_string.data());
 			return None{};
 		}
 	case Op::RSHIFT:
@@ -1246,7 +1359,7 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg) const noexcept {
 		// When taking the address we just gen_addr and turn it into a CgValue which
 		// gives us an R-value of the address.
 		if (auto operand = m_operand->gen_addr(cg)) {
-			return CgValue { operand->type(), operand->ref() };
+			return operand->to_value();
 		}
 		break;
 	}

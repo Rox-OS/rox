@@ -80,7 +80,7 @@ AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
 	return new_node<AstIndexExpr>(operand, index, range);
 }
 
-AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
+AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexcept {
 	using Op = AstBinExpr::Op;
 	for (;;) {
 		auto peek_prec = peek().prec();
@@ -93,7 +93,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		if (kind == Token::Kind::KW_AS) {
 			rhs = parse_type_expr();
 		} else {
-			rhs = parse_unary_expr(false);
+			rhs = parse_unary_expr(simple);
 		}
 		if (!rhs) {
 			return nullptr;
@@ -101,7 +101,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		// Handle less-tight binding
 		auto next_prec = peek().prec();
 		if (peek_prec < next_prec) {
-			rhs = parse_binop_rhs(peek_prec + 1, rhs);
+			rhs = parse_binop_rhs(simple, peek_prec + 1, rhs);
 			if (!rhs) {
 				return nullptr;
 			}
@@ -227,7 +227,7 @@ AstExpr* Parser::parse_expr(Bool simple) noexcept {
 	if (!lhs) {
 		return nullptr;
 	}
-	return parse_binop_rhs(0, lhs);
+	return parse_binop_rhs(simple, 0, lhs);
 }
 
 // PrimaryExpr

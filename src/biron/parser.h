@@ -127,7 +127,7 @@ private:
 	[[nodiscard]] AstExpr* parse_agg_expr(AstExpr* type) noexcept;
 	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
-	[[nodiscard]] AstExpr* parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept;
+	[[nodiscard]] AstExpr* parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexcept;
 	[[nodiscard]] AstType* parse_bracket_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
 	Token next() noexcept {
 		m_last_token = m_this_token;

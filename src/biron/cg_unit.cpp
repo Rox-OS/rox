@@ -216,6 +216,39 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
+	// Register memory_ne and memory_eq intrinsic
+	{
+		Array<CgType*> args{cg.allocator};
+		if (!args.resize(3)) {
+			return false;
+		}
+		args[0] = cg.types.ptr();
+		args[1] = cg.types.ptr();
+		args[2] = cg.types.u64();
+		Array<CgType*> rets{cg.allocator};
+		if (!rets.push_back(cg.types.b32())) {
+			return false;
+		}
+		auto args_t = cg.types.make(CgType::TupleInfo { move(args), None{}, None{} });
+		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), None{}, None{} });
+		if (!args_t || !rets_t) {
+			return false;
+		}
+		auto fn_t = cg.types.make(CgType::FnInfo { nullptr, args_t, rets_t });
+		if (!fn_t) {
+			return false;
+		}
+		auto fn_v = cg.llvm.AddFunction(cg.module, "__biron_runtime_memory_ne", fn_t->ref());
+		if (!fn_v || !cg.intrinsics.emplace_back("memory_ne", CgAddr { fn_t->addrof(cg), fn_v })) {
+			return false;
+		}
+		// We can just reuse all of the same things
+		fn_v = cg.llvm.AddFunction(cg.module, "__biron_runtime_memory_eq", fn_t->ref());
+		if (!fn_v || !cg.intrinsics.emplace_back("memory_eq", CgAddr { fn_t->addrof(cg), fn_v })) {
+			return false;
+		}
+	}
+
 	// Emit types
 	for (auto type : m_types) {
 		if (!type->codegen(cg)) {

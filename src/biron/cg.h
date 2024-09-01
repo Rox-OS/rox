@@ -95,6 +95,8 @@ struct Cg {
 		return None{};
 	}
 
+	Maybe<CgAddr> intrinsic(StringView name) const noexcept;
+
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
 
 	Allocator&        allocator;
@@ -108,6 +110,7 @@ struct Cg {
 	Array<CgVar>      globals;
 	Array<CgScope>    scopes;
 	Array<CgTypeDef>  typedefs;
+	Array<CgVar>      intrinsics;
 	const AstUnit*    unit;
 	Diagnostic&       diagnostic;
 
@@ -123,6 +126,7 @@ struct Cg {
 		, globals{move(other.globals)}
 		, scopes{move(other.scopes)}
 		, typedefs{move(other.typedefs)}
+		, intrinsics{move(other.intrinsics)}
 		, unit{nullptr}
 		, diagnostic{other.diagnostic}
 	{
@@ -150,6 +154,7 @@ private:
 		, globals{allocator}
 		, scopes{allocator}
 		, typedefs{allocator}
+		, intrinsics{allocator}
 		, unit{nullptr}
 		, diagnostic{diagnostic}
 	{

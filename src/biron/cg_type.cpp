@@ -515,6 +515,7 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 		if (!fields.emplace_back()) {
 			return nullptr;
 		}
+		offset = aligned_offset;
 	}
 	LLVM::TypeRef ref = nullptr;
 	if (padded.empty()) {

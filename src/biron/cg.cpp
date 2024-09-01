@@ -161,6 +161,15 @@ Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
 	return None{};
 }
 
+Maybe<CgAddr> Cg::intrinsic(StringView name) const noexcept {
+	for (const auto& intrinsic : intrinsics) {
+		if (intrinsic.name() == name) {
+			return intrinsic.addr();
+		}
+	}
+	return None{};
+}
+
 Cg::~Cg() noexcept {
 	if (scratch) {
 		allocator.deallocate(scratch, sizeof *scratch);
