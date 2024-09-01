@@ -39,10 +39,14 @@ int main(int argc, char **argv) {
 	Ulen opt = 0;
 	Bool dump_ir = false;
 	Bool dump_ast = false;
-	int file = -1;
+
+	Array<StringView> filenames{mallocator};
 	for (int i = 0; i < argc; i++) {
-		if (argv[i][0] != '-' && file == -1) {
-			file = i;
+		if (argv[i][0] != '-') {
+			if (!filenames.emplace_back(argv[i], strlen(argv[i]))) {
+				fprintf(stderr, "Out of memory\n");
+				return 1;
+			}
 		} else if (argv[i][0] == '-') {
 			if (argv[i][1] == 'b' && argv[i][2] == 'm') {
 				bm = true;
@@ -66,8 +70,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (file == -1) {
-		fprintf(stderr, "Missing filename\n");
+	if (filenames.empty()) {
+		fprintf(stderr, "Missing files\n");
 		return 1;
 	}
 
@@ -77,103 +81,131 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	// Load in file
-	FILE *fp = fopen(argv[file], "rb");
-	if (!fp) {
-		fprintf(stderr, "Could not open '%s'\n", argv[file]);
-		return 1;
-	}
+	// Read in source code of all files
+	struct File {
+		StringView  name;
+		Array<char> data;
+	};
 
-	fseek(fp, 0, SEEK_END);
-	long tell = ftell(fp);
-	if (tell <= 0) {
-		fclose(fp);
-		return 1;
-	}
-	fseek(fp, 0, SEEK_SET);
-
-	Ulen n = Ulen(tell);
-	Array<char> src{mallocator};
-	if (!src.resize(n)) {
-		fprintf(stderr, "Out of memory\n");
-		fclose(fp);
-		return 1;
-	}
-	if (fread(src.data(), n, 1, fp) != 1) {
-		fprintf(stderr, "Could not read '%s'\n", argv[file]);
-		fclose(fp);
-		return 1;
-	}
-	fclose(fp);
-
-	StringView name{argv[file], strlen(argv[file])};
-	auto dot = name.find_last_of('.');
-	if (!dot) {
-		fprintf(stderr, "Unknown source file: %s\n", argv[file]);
-		return 1;
-	}
-
-	StringView code{src.data(), src.length()};
-	Lexer lexer{name, code};
-	Diagnostic diagnostic{lexer, mallocator};
-	Parser parser{lexer, diagnostic, mallocator};
-	auto unit = parser.parse();
-	if (!unit) {
-		fprintf(stderr, "Could not parse unit\n");
-		return 1;
-	}
-
-	auto cg = Cg::make(mallocator, *llvm, diagnostic);
-	if (!cg) {
-		fprintf(stderr, "Could not initialize code generator\n");
-		return 1;
-	}
-
-	if (dump_ast) {
-		StringBuilder builder{mallocator};
-		unit->dump(builder);
-		if (builder.valid()) {
-			fwrite(builder.data(), builder.length(), 1, stderr);
-			fflush(stderr);
-		} else {
+	Array<File> files{mallocator};
+	for (auto& filename : filenames) {
+		auto dot = filename.find_last_of('.');
+		if (!dot) {
+			fprintf(stderr, "Unknown source file '%.*s'\n",
+				Sint32(filename.length()), filename.data());
 			return 1;
 		}
-	}
-
-	if (!unit->codegen(*cg)) {
-		return 1;
-	}
-
-	auto machine = CgMachine::make(*llvm, "x86_64-unknown-none");
-	if (!machine) {
-		return 1;
-	}
-
-	if (!cg->optimize(*machine, opt)) {
-		return 1;
-	}
-
-	if (dump_ir && !cg->dump()) {
-		return 1;
-	}
-
-	// Strip everything up to including '.'
-	name = name.slice(0, *dot);
-
-	// Build "name.o"
-	StringBuilder obj{mallocator};
-	obj.append(name);
-	obj.append('.');
-	obj.append('o');
-	if (!obj.valid()) {
+		FILE* fp = filename == "-" ? stdin : fopen(filename.terminated(mallocator), "rb");
+		if (!fp) {
+			fprintf(stderr, "Could not open '%.*s'\n",
+				Sint32(filename.length()), filename.data());
+			return false;
+		}
+		Array<char> src{mallocator};
+		if (fseek(fp, 0, SEEK_END) != 0) {
+			while (!feof(fp)) {
+				if (!src.push_back(fgetc(fp))) {
+					goto L_oom;
+				}
+			}
+		} else {
+			const auto tell = ftell(fp);
+			if (tell <= 0) {
+				goto L_error;
+			}
+			if (!src.resize(tell)) {
+				goto L_oom;
+			}
+			if (fseek(fp, 0, SEEK_SET) != 0) {
+				goto L_error;
+			}
+			if (fread(src.data(), src.length(), 1, fp) != 1) {
+				goto L_error;
+			}
+		}
+		if (!files.emplace_back(filename, move(src))) {
+			goto L_oom;
+		}
+		continue;
+	L_oom:
 		fprintf(stderr, "Out of memory\n");
+		goto L_exit;
+	L_error:
+		fprintf(stderr, "Could not read '%.*s'",
+			Sint32(filename.length()), filename.data());
+		goto L_exit;
+	L_exit:
+		if (fp != stdin) {
+			fclose(fp);
+		}
 		return 1;
 	}
 
-	if (auto name = obj.view(); !cg->emit(*machine, name)) {
-		fprintf(stderr, "Could not write object file: '%.*s'\n",
-			Sint32(name.length()), name.data());
-		return 1;
+	// TODO(dweiler): Thread this part
+	for (const auto& file : files) {
+		StringView code{file.data.data(), file.data.length()};
+		Lexer lexer{file.name, code};
+		Diagnostic diagnostic{lexer, mallocator};
+		Parser parser{lexer, diagnostic, mallocator};
+		auto unit = parser.parse();
+		if (!unit) {
+			fprintf(stderr, "Could not parse unit\n");
+			return 1;
+		}
+
+		auto cg = Cg::make(mallocator, *llvm, diagnostic);
+		if (!cg) {
+			fprintf(stderr, "Could not initialize code generator\n");
+			return 1;
+		}
+
+		if (dump_ast) {
+			StringBuilder builder{mallocator};
+			unit->dump(builder);
+			if (builder.valid()) {
+				fwrite(builder.data(), builder.length(), 1, stderr);
+				fflush(stderr);
+			} else {
+				return 1;
+			}
+		}
+
+		if (!unit->codegen(*cg)) {
+			return 1;
+		}
+
+		auto machine = CgMachine::make(*llvm, "x86_64-unknown-none");
+		if (!machine) {
+			return 1;
+		}
+
+		if (!cg->optimize(*machine, opt)) {
+			return 1;
+		}
+
+		if (dump_ir && !cg->dump()) {
+			return 1;
+		}
+
+		// Strip everything up to including '.'
+		auto dot = file.name.find_last_of('.');
+		auto name = file.name.slice(0, *dot);
+
+		// Build "name.o"
+		StringBuilder obj{mallocator};
+		obj.append(name);
+		obj.append('.');
+		obj.append('o');
+		if (!obj.valid()) {
+			fprintf(stderr, "Out of memory\n");
+			return 1;
+		}
+
+		if (auto name = obj.view(); !cg->emit(*machine, name)) {
+			fprintf(stderr, "Could not write object file: '%.*s'\n",
+				Sint32(name.length()), name.data());
+			return 1;
+		}
 	}
 
 	if (!bm) {
@@ -181,10 +213,15 @@ int main(int argc, char **argv) {
 		StringBuilder link{mallocator};
 		link.append("gcc");
 		link.append(' ');
-		link.append(obj.view());
-		link.append(' ');
-		link.append("-o");
-		link.append(name);
+		for (const auto& file : files) {
+			auto dot = file.name.find_last_of('.');
+			auto name = file.name.slice(0, *dot);
+			link.append(name);
+			link.append('.');
+			link.append('o');
+			link.append(' ');
+		}
+		link.append("-o a.out");
 		link.append('\0');
 		if (!link.valid()) {
 			fprintf(stderr, "Out of memory\n");

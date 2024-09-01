@@ -17,7 +17,7 @@ Bool CgScope::emit_defers(Cg& cg) const noexcept {
 	return true;
 }
 
-Bool AstTopFn::prepass(Cg& cg) const noexcept {
+Bool AstFn::prepass(Cg& cg) const noexcept {
 	auto rets_t = m_rets->codegen(cg);
 	if (!rets_t) {
 		return false;
@@ -87,31 +87,7 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 	return true;
 }
 
-Bool AstTopType::codegen(Cg& cg) const noexcept {
-	if (m_generated) {
-		return true;
-	}
-	auto type = m_type->codegen_named(cg, m_name);
-	if (!type) {
-		return false;
-	}
-	if (!cg.typedefs.emplace_back(m_name, type)) {
-		return false;
-	}
-	m_generated = true;
-	return true;
-}
-
-Bool AstTopModule::codegen(Cg& cg) const noexcept {
-	if (m_name == "intrinsics") {
-		cg.error(range(), "Module cannot be named 'intrinsics'");
-		return false;
-	}
-	cg.prefix = m_name;
-	return true;
-}
-
-Bool AstTopFn::codegen(Cg& cg) const noexcept {
+Bool AstFn::codegen(Cg& cg) const noexcept {
 	// When starting a new function we expect cg.scopes is empty
 	cg.scopes.clear();
 	if (!cg.scopes.emplace_back(cg.allocator)) {
@@ -213,6 +189,31 @@ Bool AstTopFn::codegen(Cg& cg) const noexcept {
 	return cg.scopes.pop_back();
 }
 
+Bool AstTypedef::codegen(Cg& cg) const noexcept {
+	if (m_generated) {
+		return true;
+	}
+	auto type = m_type->codegen_named(cg, m_name);
+	if (!type) {
+		return false;
+	}
+	if (!cg.typedefs.emplace_back(m_name, type)) {
+		return false;
+	}
+	m_generated = true;
+	return true;
+}
+
+Bool AstModule::codegen(Cg& cg) const noexcept {
+	if (m_name == "intrinsics") {
+		cg.error(range(), "Module cannot be named 'intrinsics'");
+		return false;
+	}
+	cg.prefix = m_name;
+	return true;
+}
+
+
 Bool AstUnit::codegen(Cg& cg) const noexcept {
 	if (!m_module) {
 		cg.error(Range{0, 0}, "Missing 'module'");
@@ -285,7 +286,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	}
 
 	// Emit types
-	for (auto type : m_types) {
+	for (auto type : m_typedefs) {
 		if (!type->codegen(cg)) {
 			return false;
 		}

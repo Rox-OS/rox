@@ -13,9 +13,9 @@ struct AstStmt;
 struct AstAttr;
 struct Cg;
 
-struct AstTopModule : AstNode {
+struct AstModule : AstNode {
 	static inline constexpr const auto KIND = Kind::MODULE;
-	constexpr AstTopModule(StringView name, Range range)
+	constexpr AstModule(StringView name, Range range)
 		: AstNode{KIND, range}
 		, m_name{name}
 	{
@@ -25,9 +25,22 @@ private:
 	StringView m_name;
 };
 
-struct AstTopFn : AstNode {
+struct AstImport : AstNode {
+	static inline constexpr const auto KIND = Kind::IMPORT;
+	constexpr AstImport(StringView name, Range range)
+		: AstNode{KIND, range}
+		, m_name{name}
+	{
+	}
+	[[nodiscard]] StringView name() const noexcept { return m_name; }
+	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
+private:
+	StringView m_name;
+};
+
+struct AstFn : AstNode {
 	static inline constexpr auto KIND = Kind::FN;
-	constexpr AstTopFn(StringView name, AstTupleType* selfs, AstTupleType* args, AstTupleType* rets, AstStmt* body, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstFn(StringView name, AstTupleType* selfs, AstTupleType* args, AstTupleType* rets, AstStmt* body, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_name{name}
 		, m_selfs{selfs}
@@ -51,9 +64,9 @@ private:
 	Maybe<Array<AstAttr*>> m_attrs;
 };
 
-struct AstTopType : AstNode {
+struct AstTypedef : AstNode {
 	static inline constexpr auto KIND = Kind::TYPE;
-	constexpr AstTopType(StringView name, AstType* type, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstTypedef(StringView name, AstType* type, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_name{name}
 		, m_type{type}
@@ -76,21 +89,32 @@ struct AstUnit {
 	constexpr AstUnit(Allocator& allocator) noexcept
 		: m_module{nullptr}
 		, m_fns{allocator}
-		, m_types{allocator}
 		, m_lets{allocator}
+		, m_typedefs{allocator}
+		, m_imports{allocator}
 	{
 	}
-	[[nodiscard]] Bool add_fn(AstTopFn* fn) noexcept {
+	[[nodiscard]] Bool add_fn(AstFn* fn) noexcept {
 		return m_fns.push_back(fn);
 	}
 	[[nodiscard]] Bool add_let(AstLetStmt* let) noexcept {
 		return m_lets.push_back(let);
 	}
-	[[nodiscard]] Bool add_typedef(AstTopType* type) noexcept {
-		return m_types.push_back(type);
+	[[nodiscard]] Bool add_typedef(AstTypedef* type) noexcept {
+		return m_typedefs.push_back(type);
 	}
-	[[nodiscard]] Bool assign_module(AstTopModule* module) noexcept {
+	[[nodiscard]] Bool add_import(AstImport* import) noexcept {
+		for (auto existing : m_imports) {
+			if (existing->name() == import->name()) {
+				// Duplicate import
+				return false;
+			}
+		}
+		return m_imports.push_back(import);
+	}
+	[[nodiscard]] Bool assign_module(AstModule* module) noexcept {
 		if (m_module) {
+			// Cannot have more than once instance of 'module' in a unit.
 			return false;
 		}
 		m_module = module;
@@ -100,10 +124,11 @@ struct AstUnit {
 	void dump(StringBuilder& builder) const noexcept;
 private:
 	friend struct AstIdentType;
-	AstTopModule*      m_module;
-	Array<AstTopFn*>   m_fns;
-	Array<AstTopType*> m_types;
+	AstModule*         m_module;
+	Array<AstFn*>      m_fns;
 	Array<AstLetStmt*> m_lets;
+	Array<AstTypedef*> m_typedefs;
+	Array<AstImport*>  m_imports;
 };
 
 } // namespace Biron

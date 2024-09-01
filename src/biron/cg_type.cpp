@@ -262,7 +262,7 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	}
 	// Check the unit for non-generated types and generate them here. This will
 	// basically perform an implicit dependency sort of the types for us for free.
-	for (const auto& type : cg.unit->m_types) {
+	for (const auto& type : cg.unit->m_typedefs) {
 		if (type->name() == m_ident) {
 			if (type->codegen(cg)) {
 				return codegen(cg);

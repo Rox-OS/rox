@@ -35,7 +35,7 @@ Bool Scope::find(StringView name) const noexcept {
 	return false;
 }
 
-Bool Scope::add_fn(AstTopFn* fn) noexcept {
+Bool Scope::add_fn(AstFn* fn) noexcept {
 	return m_fns.push_back(fn);
 }
 
@@ -1132,7 +1132,7 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 
 // Module
 //	::= 'module' Ident
-AstTopModule* Parser::parse_top_module() noexcept {
+AstModule* Parser::parse_module() noexcept {
 	if (peek().kind != Token::Kind::KW_MODULE) {
 		ERROR("Expected 'module'");
 		return nullptr;
@@ -1150,7 +1150,30 @@ AstTopModule* Parser::parse_top_module() noexcept {
 	next(); // Consume ';'
 	auto ident_string = m_lexer.string(ident_token.range);
 	auto range = module_token.range.include(ident_token.range);
-	return new_node<AstTopModule>(ident_string, range);
+	return new_node<AstModule>(ident_string, range);
+}
+
+// Import
+//	::= 'import' Ident
+AstImport* Parser::parse_import() noexcept {
+	if (peek().kind != Token::Kind::KW_MODULE) {
+		ERROR("Expected 'import'");
+		return nullptr;
+	}
+	auto import_token = next(); // Consume 'import'
+	if (peek().kind != Token::Kind::IDENT) {
+		ERROR("Expected identifier after 'import'");
+		return nullptr;
+	}
+	auto ident_token = next(); // Consume Ident
+	if (peek().kind != Token::Kind::SEMI) {
+		ERROR("Expected ';'");
+		return nullptr;
+	}
+	next(); // Consume ';'
+	auto ident_string = m_lexer.string(ident_token.range);
+	auto range = import_token.range.include(ident_token.range);
+	return new_node<AstImport>(ident_string, range);
 }
 
 // ForStmt
@@ -1234,7 +1257,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 
 // Fn
 //	::= 'fn' Ident TupleType ('->' Type)? BlockStmt
-AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	Scope scope{m_allocator, m_scope};
 	m_scope = &scope;
 	if (peek().kind != Token::Kind::KW_FN) {
@@ -1291,7 +1314,7 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		return nullptr;
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstTopFn>(name, selfs, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
+	auto node = new_node<AstFn>(name, selfs, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
 	if (!node) {
 		ERROR("Out of memory");
 		return nullptr;
@@ -1306,9 +1329,9 @@ AstTopFn* Parser::parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	return node;
 }
 
-// TopType
+// Typedef
 //	::= 'type' Ident '=' Type ';'
-AstTopType* Parser::parse_top_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstTypedef* Parser::parse_typedef(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_TYPE) {
 		ERROR("Expected type");
 		return nullptr;
@@ -1335,7 +1358,7 @@ AstTopType* Parser::parse_top_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	}
 	auto end_token = next(); // Consume ';'
 	auto range = beg_token.range.include(end_token.range);
-	return new_node<AstTopType>(name, type, move(attrs), range);
+	return new_node<AstTypedef>(name, type, move(attrs), range);
 }
 
 Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
@@ -1491,7 +1514,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		}
 		break;
 	case Token::Kind::KW_FN:
-		if (auto fn = parse_top_fn(move(attrs))) {
+		if (auto fn = parse_fn(move(attrs))) {
 			if (!unit.add_fn(fn)) {
 				ERROR("Out of memory");
 				return None{};
@@ -1499,7 +1522,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		}
 		break;
 	case Token::Kind::KW_TYPE:
-		if (auto type = parse_top_type(move(attrs))) {
+		if (auto type = parse_typedef(move(attrs))) {
 			if (!unit.add_typedef(type)) {
 				ERROR("Out of memory");
 				return None{};
@@ -1516,9 +1539,17 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		}
 		break;
 	case Token::Kind::KW_MODULE:
-		if (auto module = parse_top_module()) {
+		if (auto module = parse_module()) {
 			if (!unit.assign_module(module)) {
 				ERROR("Duplicate 'module' in file");
+				return None{};
+			}
+		}
+		break;
+	case Token::Kind::KW_IMPORT:
+		if (auto import = parse_import()) {
+			if (!unit.add_import(import)) {
+				ERROR("Duplicate 'import' in file");
 				return None{};
 			}
 		}

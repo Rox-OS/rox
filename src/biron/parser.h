@@ -49,13 +49,13 @@ struct Scope {
 	{
 	}
 	[[nodiscard]] Bool find(StringView name) const noexcept;
-	[[nodiscard]] Bool add_fn(AstTopFn* fn) noexcept;
+	[[nodiscard]] Bool add_fn(AstFn* fn) noexcept;
 	[[nodiscard]] Bool add_let(AstLetStmt* let) noexcept;
 	[[nodiscard]] Scope* prev() const noexcept { return m_prev; }
 private:
 	Array<AstLetStmt*> m_lets;
-	Array<AstTopFn*> m_fns;
-	Scope* m_prev;
+	Array<AstFn*>      m_fns;
+	Scope*             m_prev;
 };
 
 struct Parser {
@@ -103,9 +103,10 @@ struct Parser {
 	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;
 
 	// Top-level elements
-	[[nodiscard]] AstTopFn*        parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstTopType*      parse_top_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstTopModule*    parse_top_module() noexcept;
+	[[nodiscard]] AstFn*           parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstTypedef*      parse_typedef(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstModule*       parse_module() noexcept;
+	[[nodiscard]] AstImport*       parse_import() noexcept;
 
 	Maybe<AstUnit> parse() noexcept;
 

@@ -2,7 +2,7 @@
 #define KIND(...)
 #endif
 
-KIND(END)      
+KIND(END)
 KIND(AT)          // '@'
 KIND(COMMA)       // ','
 KIND(COLON)       // ':'
