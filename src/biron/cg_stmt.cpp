@@ -246,10 +246,12 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 	if (!dst) {
 		return false;
 	}
+
 	auto src = m_src->gen_value(cg);
 	if (!src) {
 		return false;
 	}
+
 	if (*dst->type()->deref() != *src->type()) {
 		auto dst_type_string = dst->type()->deref()->to_string(*cg.scratch);
 		auto src_type_string = src->type()->to_string(*cg.scratch);
@@ -259,7 +261,34 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 		         src_type_string);
 		return false;
 	}
-	return dst->store(cg, *src);
+
+	switch (m_op) {
+	case StoreOp::WR:
+		return dst->store(cg, *src);
+	case StoreOp::ADD:
+		if (auto load = dst->load(cg)) {
+			if (auto value = cg.emit_add(*load, *src, range())) {
+				return dst->store(cg, *value);
+			}
+		}
+		break;
+	case StoreOp::SUB:
+		if (auto load = dst->load(cg)) {
+			if (auto value = cg.emit_sub(*load, *src, range())) {
+				return dst->store(cg, *value);
+			}
+		}
+		break;
+	case StoreOp::MUL:
+		if (auto load = dst->load(cg)) {
+			if (auto value = cg.emit_mul(*load, *src, range())) {
+				return dst->store(cg, *value);
+			}
+		}
+		break;
+	}
+	
+	return false;
 }
 
 Bool AstForStmt::codegen(Cg& cg) const noexcept {

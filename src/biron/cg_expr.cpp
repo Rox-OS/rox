@@ -49,6 +49,16 @@ const char* AstExpr::name() const noexcept {
 }
 
 Maybe<AstConst> AstTupleExpr::eval() const noexcept {
+	// When a tuple contains only a single element we detuple it and emit the
+	// inner expression directly.
+	if (length() == 1) {
+		auto value = m_exprs[0]->eval();
+		if (!value) {
+			return None{};
+		}
+		return value;
+	}
+
 	Array<AstConst> values{m_exprs.allocator()};
 	Range range{0, 0};
 	for (const auto& expr : m_exprs) {
@@ -744,59 +754,13 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 
 	switch (m_op) {
 	case Op::ADD:
-		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
-			return CgValue { lhs->type(), cg.llvm.BuildAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else if (lhs->type()->is_real()) {
-			return CgValue { lhs->type(), cg.llvm.BuildFAdd(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else {
-			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to '+' operator must have numeric type. Got '%S' instead",
-			         lhs_type_string);
-			return None{};
-		}
-		break;
+		return cg.emit_add(*lhs, *rhs, range());
 	case Op::SUB:
-		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
-			return CgValue { lhs->type(), cg.llvm.BuildSub(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else if (lhs->type()->is_real()) {
-			return CgValue { lhs->type(), cg.llvm.BuildFSub(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else {
-			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to '-' operator must have numeric type. Got '%S' instead",
-			         lhs_type_string);
-			return None{};
-		}
-		break;
+		return cg.emit_sub(*lhs, *rhs, range());
 	case Op::MUL:
-		if (lhs->type()->is_sint() || lhs->type()->is_uint()) {
-			return CgValue { lhs->type(), cg.llvm.BuildMul(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else if (lhs->type()->is_real()) {
-			return CgValue { lhs->type(), cg.llvm.BuildFMul(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else {
-			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to '*' operator must have numeric type. Got '%S' instead",
-			         lhs_type_string);
-			return None{};
-		}
-		break;
+		return cg.emit_mul(*lhs, *rhs, range());
 	case Op::DIV:
-		if (lhs->type()->is_real()) {
-			return CgValue { lhs->type(), cg.llvm.BuildFDiv(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else if (lhs->type()->is_sint()) {
-			return CgValue { lhs->type(), cg.llvm.BuildSDiv(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else if (lhs->type()->is_uint()) {
-			return CgValue { lhs->type(), cg.llvm.BuildUDiv(cg.builder, lhs->ref(), rhs->ref(), "") };
-		} else {
-			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to '/' operator must have numeric type. Got '%S' instead",
-			         lhs_type_string);
-			return None{};
-		}
-		break;
+		return cg.emit_div(*lhs, *rhs, range());
 	case Op::EQ:
 		if (lhs->type()->is_sint() || lhs->type()->is_uint() || lhs->type()->is_pointer()) {
 			return CgValue { cg.types.b32(), cg.llvm.BuildICmp(cg.builder, IntPredicate::EQ, lhs->ref(), rhs->ref(), "") };

@@ -1251,14 +1251,29 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 	}
 	// TODO(dweiler): compound operators
 	AstAssignStmt* assignment = nullptr; 
-	if (peek().kind == Token::Kind::EQ) {
+	auto token = peek();
+	if (token.kind == Token::Kind::EQ
+	 || token.kind == Token::Kind::PLUSEQ
+	 || token.kind == Token::Kind::MINUSEQ
+	 || token.kind == Token::Kind::MINUSEQ)
+	{
 		next(); // Consume '='
 		auto value = parse_expr(false);
 		if (!value) {
 			return nullptr;
 		}
 		auto range = expr->range().include(value->range());
-		assignment = new_node<AstAssignStmt>(expr, value, AstAssignStmt::StoreOp::WR, range);
+		using StoreOp = AstAssignStmt::StoreOp;
+		StoreOp op;
+		switch (token.kind) {
+		/****/ case Token::Kind::EQ:       op = StoreOp::WR;
+		break; case Token::Kind::PLUSEQ:   op = StoreOp::ADD;
+		break; case Token::Kind::MINUSEQ:  op = StoreOp::SUB;
+		break; case Token::Kind::STAREQ:   op = StoreOp::MUL;
+		break; default:
+		break;
+		}
+		assignment = new_node<AstAssignStmt>(expr, value, op, range);
 	}
 	if (semi) {
 		if (peek().kind != Token::Kind::SEMI) {

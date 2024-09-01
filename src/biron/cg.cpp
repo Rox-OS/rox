@@ -169,6 +169,60 @@ Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
 	return None{};
 }
 
+Maybe<CgValue> Cg::emit_add(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_sint() || lhs.type()->is_uint()) {
+		return CgValue { lhs.type(), llvm.BuildAdd(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_real()) {
+		return CgValue { lhs.type(), llvm.BuildFAdd(builder, lhs.ref(), rhs.ref(), "") };
+	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	error(range,
+	      "Operands to '+' operator must have numeric type. Got '%S' instead",
+	      lhs_type_string);
+	return None{};
+}
+
+Maybe<CgValue> Cg::emit_sub(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_sint() || lhs.type()->is_uint()) {
+		return CgValue { lhs.type(), llvm.BuildSub(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_real()) {
+		return CgValue { lhs.type(), llvm.BuildFSub(builder, lhs.ref(), rhs.ref(), "") };
+	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	error(range,
+	      "Operands to '-' operator must have numeric type. Got '%S' instead",
+	      lhs_type_string);
+	return None{};
+}
+
+Maybe<CgValue> Cg::emit_mul(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_sint() || lhs.type()->is_uint()) {
+		return CgValue { lhs.type(), llvm.BuildMul(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_real()) {
+		return CgValue { lhs.type(), llvm.BuildFMul(builder, lhs.ref(), rhs.ref(), "") };
+	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	error(range,
+	      "Operands to '*' operator must have numeric type. Got '%S' instead",
+	      lhs_type_string);
+	return None{};
+}
+
+Maybe<CgValue> Cg::emit_div(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_real()) {
+		return CgValue { lhs.type(), llvm.BuildFDiv(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_sint()) {
+		return CgValue { lhs.type(), llvm.BuildSDiv(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_uint()) {
+		return CgValue { lhs.type(), llvm.BuildUDiv(builder, lhs.ref(), rhs.ref(), "") };
+	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	error(range,
+	      "Operands to '/' operator must have numeric type. Got '%S' instead",
+	      lhs_type_string);
+	return None{};
+}
+
 const char* Cg::nameof(StringView name) const noexcept {
 	auto dst = reinterpret_cast<char *>(scratch->allocate(prefix.length() + name.length() + 2));
 	if (!dst) {

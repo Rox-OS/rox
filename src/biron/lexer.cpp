@@ -51,17 +51,30 @@ Token Lexer::read() noexcept {
 	case ']': return {Kind::RBRACKET, {fwd(), 1}};
 	case '{': return {Kind::LBRACE,   {fwd(), 1}};
 	case '}': return {Kind::RBRACE,   {fwd(), 1}};
-	case '+': return {Kind::PLUS,     {fwd(), 1}};
-	case '-':
-		n = fwd(); // Consume '-'
-		if (peek() == '>') {
-			fwd(); // Consume '>'
-			return {Kind::ARROW, {n, 2}};
+	case '+':
+		n = fwd(); // Consume '+'
+		if (peek() == '=') {
+			return {Kind::PLUSEQ, {fwd(), 2}};
 		} else {
-			return {Kind::MINUS, {n, 1}};
+			return {Kind::PLUS,   {n,     1}};
 		}
 		break;
-	case '*': return {Kind::STAR,    {fwd(), 1}};
+	case '-':
+		n = fwd(); // Consume '-'
+		switch (peek()) {
+		case '>': return {Kind::ARROW,   {fwd(), 2}};
+		case '=': return {Kind::MINUSEQ, {fwd(), 2}};
+		default:  return {Kind::MINUS,   {n,     1}};
+		}
+		break;
+	case '*':
+		n = fwd(); // Consume '*'
+		if (peek() == '=') {
+			return {Kind::STAREQ, {fwd(), 2}};
+		} else {
+			return {Kind::STAR,   {n,     1}};
+		}
+		break;
 	case '%': return {Kind::PERCENT, {fwd(), 1}};
 	case '$': return {Kind::DOLLAR,  {fwd(), 1}};
 	case '|':
