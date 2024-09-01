@@ -241,6 +241,36 @@ fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32
          (b << fb.b_mask.shift as Uint32);
 }
 
+type Particle = (
+  position: [2]Real32,
+  velocity: [2]Real32,
+  density:  Real32
+);
+
+let H = 2.0_f32;
+let INV_H = 0.5_f32;
+let REST_DENSITY = 1.0_f32;
+
+fn sph_kernel(r: Real32) -> Real32 {
+  let result = 0.45372841_f32; // 40 / (7 * pi * h^2)
+  let q = r * INV_H;
+  if (q <= 0.5_f32) {
+    result = result * (q*q*q - q*q) + 1.0_f32;
+  } else {
+    let a = 1.0_f32 - q;
+    result = result * 2.0_f32 * a*a*a;
+  }
+  return result;
+}
+
+@(export(true))
+fn memset(dst: *Uint8, value: Uint32, num: Uint64) {
+  let ch  = (value & 0xff_u32) as Uint8;
+  for let i = 0_u64; i < num; i = i + 1_u64 {
+    dst[i] = ch;
+  }
+}
+
 // When in the kernel we do not want the Redzone and we want Biron to always
 // setup the stack so it's 16-byte aligned. This behavior is required by SysV
 // and will be true of all other functions but not necessarily the entry point.
@@ -263,13 +293,28 @@ fn kmain() {
 
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
 
-  // Clear the framebuffer to a nice shade of grey.
-  for let y = 0_u64; y < fb.dimensions.1; y = y + 1_u64 {
-    for let x = 0_u64; x < fb.dimensions.0; x = x + 1_u64 {
-      fb.address[y * fb.dimensions.0 + x] = make_color(fb, 0x20_u32, 0x20_u32, 0x20_u32);
+  let world_width  = fb.dimensions.0 as Real32;
+  let world_height = fb.dimensions.1 as Real32;
+
+  let n_particles_x = 64_u64;
+  let n_particles_y = 64_u64;
+  let n_particles = n_particles_x * n_particles_y;
+  let particles = [64_u64 * 64_u64]Particle{};
+
+  let block_x = (world_width  - (n_particles_x as Real32)) * 0.5_f32;
+  let block_y = (world_height - (n_particles_y as Real32)) * 0.5_f32;
+
+  for let y = 0_u64; y < n_particles_y; y = y + 1_u64 {
+    for let x = 0_u64; x < n_particles_x; x = x + 1_u64 {
+      let particle = &particles[y * n_particles_x + x];
+      particle.position[0] = block_x + (x as Real32) * 1_f32;
+      particle.position[1] = block_y + (y as Real32) * 1_f32;
+
+      particle.velocity[0] = 1_f32;
     }
   }
 
+  /*
   // Then print "Hello RoxOS!" in the center of the screen in yellow.
   let msg = [12]Uint8 { 'H', 'e', 'l', 'l', 'o', ' ', 'R', 'o', 'x', 'O', 'S', '!' };
   let PX = (fb.dimensions.0 >> 1_u64) - (12_u64 >> 1_u64) * 8_u64;
@@ -293,7 +338,68 @@ fn kmain() {
     py = py + 1_u64;
     px = PX;
   }
+  */
 
   // Then burn forever.
-  for {}
+  for {
+    // Move the particles around.
+    for let i = 0_u64; i < n_particles; i = i + 1_u64 {
+      let particle = &particles[i];
+      particle.position[0] = particle.position[0] + particle.velocity[0];
+      particle.position[1] = particle.position[1] + particle.velocity[1];
+    }
+
+    // Simulation
+    for let i = 0_u64; i < n_particles; i = i + 1_u64 {
+      let particle = &particles[i];
+      particle.density = 0_f32;
+      for let j = 0_u64; j < n_particles; j = j + 1_u64 {
+        let neighbor = &particles[j];
+        let delta = [2]Real32{
+          neighbor.position[0] - particle.position[0],
+          neighbor.position[1] - particle.position[1]
+        };
+        let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
+        if r < H {
+          particle.density = particle.density + sph_kernel(r);
+        }
+      }
+    }
+
+    // Clear the framebuffer to a nice shade of grey.
+    for let y = 0_u64; y < fb.dimensions.1; y = y + 1_u64 {
+      for let x = 0_u64; x < fb.dimensions.0; x = x + 1_u64 {
+        fb.address[y * fb.dimensions.0 + x] = make_color(fb, 0x20_u32, 0x20_u32, 0x20_u32);
+      }
+    }
+
+    // Draw the particles.
+    for let i = 0_u64; i < n_particles; i = i + 1_u64 {
+      let x = particles[i].position[0] as Sint64;
+      let y = particles[i].position[1] as Sint64;
+      if x >= 0_s64 && x < (fb.dimensions.0 as Sint64) && y >= 0_s64 && y < (fb.dimensions.1 as Sint64) {
+        let color = (0_u32, 0_u32, 0_u32);
+
+        let density = particles[i].density - REST_DENSITY;
+        if density > 0_f32 {
+          if density > 1_f32 {
+            density = 1_f32;
+          }
+          color.0 = 0x00_u32;
+          color.1 = 0xff_u32;
+          color.2 = ((1_f32 - density) * 255_f32) as Uint32;
+        } else {
+          density = -density;
+          if density > 1_f32 {
+            density = 1_f32;
+          }
+          color.0 = (density * 255_f32) as Uint32;
+          color.1 = ((1_f32 - density) * 255_f32) as Uint32;
+          color.2 = ((1_f32 - density) * 255_f32) as Uint32;
+        }
+
+        fb.address[y * (fb.dimensions.0 as Sint64) + x] = make_color(fb, ...color);
+      }
+    }
+  }
 }

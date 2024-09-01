@@ -275,6 +275,31 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
+	// sqrt
+	{
+		Array<CgType*> args{cg.allocator};
+		Array<CgType*> rets{cg.allocator};
+		if (!args.push_back(cg.types.f32())) {
+			return false;
+		}
+		if (!rets.push_back(cg.types.f32())) {
+			return false;
+		}
+		auto args_t = cg.types.make(CgType::TupleInfo { move(args), None{}, None{} });
+		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), None{}, None{} });
+		if (!args_t || !rets_t) {
+			return false;
+		}
+		auto fn_t = cg.types.make(CgType::FnInfo { nullptr, args_t, rets_t });
+		if (!fn_t) {
+			return false;
+		}
+		auto fn_v = cg.llvm.AddFunction(cg.module, "llvm.sqrt.f32", fn_t->ref());
+		if (!cg.fns.emplace_back("sqrt", CgAddr{fn_t->addrof(cg), fn_v})) {
+			return false;
+		}
+	}
+
 	// Register memory_ne and memory_eq intrinsic
 	{
 		Array<CgType*> args{cg.allocator};
