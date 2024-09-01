@@ -23,6 +23,7 @@ QFLAGS += -cdrom rox.iso
 QFLAGS += -boot d
 QFLAGS += -no-reboot
 QFLAGS += -d int,page
+QFLAGS += -rtc base=localtime,clock=vm,driftfix=slew
 QFLAGS += -D qemu.log
 
 # If we support KVM then use KVM for QEMU acceleration

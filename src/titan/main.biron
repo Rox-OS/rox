@@ -235,27 +235,64 @@ let FONT = [128][8]Uint8 {
   [8]Uint8 { 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8 } 
 };
 
+@(export(true))
+fn memset(dst: *Uint8, value: Uint32, num: Uint64) {
+  let ch  = (value & 0xff_u32) as Uint8;
+  for let i = 0_u64; i < num; i += 1_u64 {
+    dst[i] = ch;
+  }
+}
+
 fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32 {
   return (r << fb.r_mask.shift as Uint32) |
          (g << fb.g_mask.shift as Uint32) |
          (b << fb.b_mask.shift as Uint32);
 }
 
+fn draw_scaled_pixel(fb: *LimineFramebuffer, offset: (Sint64, Sint64), x: Sint64, y: Sint64, color: Uint32) {
+  x *= 4_s64;
+  y *= 4_s64;
+  x += offset.0;
+  y += offset.1;
+  for let p = 0_s64; p < 16_s64; p += 1_s64 {
+    let py = p / 4_s64;
+    let px = p - 4_s64 * py;
+    fb.address[(y + py) * (fb.dimensions.0 as Sint64) + (x + px)] = color;
+  }
+}
+
+fn draw_scaled_particle(fb: *LimineFramebuffer, offset: (Sint64, Sint64), x: Sint64, y: Sint64, color: Uint32) {
+  x *= 4_s64;
+  y *= 4_s64;
+  x += offset.0;
+  y += offset.1;
+  fb.address[(y + 1_s64) * (fb.dimensions.0 as Sint64) + (x + 1_s64)] = color;
+}
+
+type Sim = (
+  particles: [48_u64 * 48_u64]Particle,
+  boundary_particles: [2 * 128 + 2 * 128 + 2 * 2][2]Real32,
+  world_size: [2]Real32
+);
+
 type Particle = (
+  initial_position: [2]Real32,
   position: [2]Real32,
   velocity: [2]Real32,
   density:  Real32
 );
 
 let H = 2.0_f32;
-let INV_H = 0.5_f32;
 let REST_DENSITY = 1.0_f32;
+let GRAVITY = 0.05_f32;
+let STIFFNESS = 1.70_f32;
+let RESTITUTION = 0.05_f32;
 
 fn sph_kernel(r: Real32) -> Real32 {
-  let result = 0.45372841_f32; // 40 / (7 * pi * h^2)
-  let q = r * INV_H;
-  if (q <= 0.5_f32) {
-    result = result * (q*q*q - q*q) + 1.0_f32;
+  let result = 0.45472841_f32; // 40 / (7 * pi * h^2)
+  let q = r / H;
+  if q <= 0.5_f32 {
+    result = result * (6_f32 * (q*q*q - q*q) + 1_f32);
   } else {
     let a = 1.0_f32 - q;
     result = result * 2.0_f32 * a*a*a;
@@ -263,12 +300,12 @@ fn sph_kernel(r: Real32) -> Real32 {
   return result;
 }
 
-@(export(true))
-fn memset(dst: *Uint8, value: Uint32, num: Uint64) {
-  let ch  = (value & 0xff_u32) as Uint8;
-  for let i = 0_u64; i < num; i = i + 1_u64 {
-    dst[i] = ch;
+fn particle_pressure(p: *Particle) -> Real32 {
+  let pressure = STIFFNESS * (p.density - REST_DENSITY);
+  if pressure < 0_f32 {
+    pressure = 0_f32;
   }
+  return pressure;
 }
 
 // When in the kernel we do not want the Redzone and we want Biron to always
@@ -293,28 +330,27 @@ fn kmain() {
 
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
 
-  let world_width  = fb.dimensions.0 as Real32;
-  let world_height = fb.dimensions.1 as Real32;
+  let sim = &Sim{};
+  sim.init();
+  // Then ~~burn~~ sim forever.
+  for {
+    sim.step();
+    clear(fb);
+    hello(fb);
+    sim.render(fb);
+  }
+}
 
-  let n_particles_x = 64_u64;
-  let n_particles_y = 64_u64;
-  let n_particles = n_particles_x * n_particles_y;
-  let particles = [64_u64 * 64_u64]Particle{};
-
-  let block_x = (world_width  - (n_particles_x as Real32)) * 0.5_f32;
-  let block_y = (world_height - (n_particles_y as Real32)) * 0.5_f32;
-
-  for let y = 0_u64; y < n_particles_y; y = y + 1_u64 {
-    for let x = 0_u64; x < n_particles_x; x = x + 1_u64 {
-      let particle = &particles[y * n_particles_x + x];
-      particle.position[0] = block_x + (x as Real32) * 1_f32;
-      particle.position[1] = block_y + (y as Real32) * 1_f32;
-
-      particle.velocity[0] = 1_f32;
+fn clear(fb: *LimineFramebuffer) {
+  // Clear the framebuffer to a nice shade of grey.
+  for let y = 0_u64; y < fb.dimensions.1; y = y + 1_u64 {
+    for let x = 0_u64; x < fb.dimensions.0; x = x + 1_u64 {
+      fb.address[y * fb.dimensions.0 + x] = make_color(fb, 0x20_u32, 0x20_u32, 0x20_u32);
     }
   }
+}
 
-  /*
+fn hello(fb: *LimineFramebuffer) {
   // Then print "Hello RoxOS!" in the center of the screen in yellow.
   let msg = [12]Uint8 { 'H', 'e', 'l', 'l', 'o', ' ', 'R', 'o', 'x', 'O', 'S', '!' };
   let PX = (fb.dimensions.0 >> 1_u64) - (12_u64 >> 1_u64) * 8_u64;
@@ -338,68 +374,227 @@ fn kmain() {
     py = py + 1_u64;
     px = PX;
   }
-  */
+}
 
-  // Then burn forever.
-  for {
-    // Move the particles around.
-    for let i = 0_u64; i < n_particles; i = i + 1_u64 {
-      let particle = &particles[i];
-      particle.position[0] = particle.position[0] + particle.velocity[0];
-      particle.position[1] = particle.position[1] + particle.velocity[1];
+fn (sim: *Sim) init() {
+  let world_size = [2]Real32{128_f32, 128_f32};
+  sim.world_size = world_size;
+
+  // TODO(said): Hard-coded for now
+  let n_particles_x = 48_u64;
+  let n_particles_y = 48_u64;
+  let n_particles = n_particles_x * n_particles_y;
+  let n_boundary_particles = 2_u64 * (128_u64 + 128_u64 + 2_u64);
+
+  let particles = &sim.particles[0];
+  let boundary_particles = &sim.boundary_particles[0];
+
+  for let i = 0_s64; i < 128_s64 + 2_s64; i += 1_s64 {
+    boundary_particles[i]                   = [2]Real32{(i as Real32) - 0.5_f32, -0.5_f32};
+    boundary_particles[i + 128_s64 + 2_s64] = [2]Real32{(i as Real32) - 0.5_f32, world_size[1] + 0.5_f32};
+  }
+  for let i = 0_s64; i < 128_s64; i += 1_s64 {
+    boundary_particles[i + 2_s64 * (128_s64 + 2_s64)]           = [2]Real32{-0.5_f32,                (i as Real32) + 0.5_f32};
+    boundary_particles[i + 2_s64 * (128_s64 + 2_s64) + 128_s64] = [2]Real32{world_size[0] + 0.5_f32, (i as Real32) + 0.5_f32};
+  }
+
+  let block_x = 0.5_f32;
+  let block_y = 0.75_f32 * world_size[1] - 0.5_f32;
+
+  for let y = 0_u64; y < n_particles_y; y = y + 1_u64 {
+    for let x = 0_u64; x < n_particles_x; x = x + 1_u64 {
+      let particle = &particles[y * n_particles_x + x];
+      particle.position[0] = block_x + (x as Real32);
+      particle.position[1] = block_y - (y as Real32);
+    }
+  }
+}
+
+fn (sim: *Sim) step() {
+  // TODO(said): Hard-coded for now
+  let n_particles = 48_u64 * 48_u64;
+  let n_boundary_particles = 2_u64 * (128_u64 + 128_u64 + 2_u64);
+
+  let particles = &sim.particles[0];
+  let boundary_particles = &sim.boundary_particles[0];
+
+  // Apply forces and "advect" the particles.
+  for let i = 0_u64; i < n_particles; i += 1_u64 {
+    let particle = &particles[i];
+
+    particle.initial_position = particle.position;
+
+    particle.velocity[1] += GRAVITY;
+
+    particle.position[0] += particle.velocity[0];
+    particle.position[1] += particle.velocity[1];
+  }
+
+  // Estimate density.
+  for let i = 0_u64; i < n_particles; i += 1_u64 {
+    let particle = &particles[i];
+    particle.density = 0_f32;
+
+    // Count fluid particles.
+    for let j = 0_u64; j < n_particles; j += 1_u64 {
+      let neighbor = &particles[j];
+      let delta = [2]Real32{
+        particle.position[0] - neighbor.position[0],
+        particle.position[1] - neighbor.position[1]
+      };
+      let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
+      if r < H {
+        particle.density += sph_kernel(r);
+      }
     }
 
-    // Simulation
-    for let i = 0_u64; i < n_particles; i = i + 1_u64 {
-      let particle = &particles[i];
-      particle.density = 0_f32;
-      for let j = 0_u64; j < n_particles; j = j + 1_u64 {
+    // Count boundary particles.
+    for let j = 0_u64; j < n_boundary_particles; j += 1_u64 {
+      let delta = [2]Real32{
+        particle.position[0] - boundary_particles[j][0],
+        particle.position[1] - boundary_particles[j][1]
+      };
+      let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
+      if r < H {
+        particle.density += sph_kernel(r);
+      }
+    }
+  }
+
+  // Compute pressure.
+  for let i = 0_u64; i < n_particles; i += 1_u64 {
+    let particle = &particles[i];
+
+    let f_p = particle_pressure(particle) / (particle.density * particle.density);
+    let force = [2]Real32{};
+
+    for let j = 0_u64; j < n_particles; j += 1_u64 {
+      if i != j {
         let neighbor = &particles[j];
-        let delta = [2]Real32{
-          neighbor.position[0] - particle.position[0],
-          neighbor.position[1] - particle.position[1]
+        let d = [2]Real32{
+          particle.position[0] - neighbor.position[0],
+          particle.position[1] - neighbor.position[1]
         };
-        let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
+        let r = sqrt(d[0]*d[0] + d[1]*d[1]);
         if r < H {
-          particle.density = particle.density + sph_kernel(r);
+          if r <= 0.001_f32 {
+            if j < i {
+              d[0] = 1_f32;
+            } else {
+              d[0] = -1_f32;
+            }
+            d[1] = 0_f32;
+            r = 1_f32;
+          } else {
+            d[0] = d[0] / r;
+            d[1] = d[1] / r;
+          }
+          let w = H - r;
+          w *= 0.23873241; // 12 / (pi * h^4)
+          let f_n = particle_pressure(neighbor) / (neighbor.density * neighbor.density);
+          let f = (f_p + f_n) * w;
+
+          force[0] += f * d[0];
+          force[1] += f * d[1];
         }
       }
     }
 
-    // Clear the framebuffer to a nice shade of grey.
-    for let y = 0_u64; y < fb.dimensions.1; y = y + 1_u64 {
-      for let x = 0_u64; x < fb.dimensions.0; x = x + 1_u64 {
-        fb.address[y * fb.dimensions.0 + x] = make_color(fb, 0x20_u32, 0x20_u32, 0x20_u32);
-      }
-    }
-
-    // Draw the particles.
-    for let i = 0_u64; i < n_particles; i = i + 1_u64 {
-      let x = particles[i].position[0] as Sint64;
-      let y = particles[i].position[1] as Sint64;
-      if x >= 0_s64 && x < (fb.dimensions.0 as Sint64) && y >= 0_s64 && y < (fb.dimensions.1 as Sint64) {
-        let color = (0_u32, 0_u32, 0_u32);
-
-        let density = particles[i].density - REST_DENSITY;
-        if density > 0_f32 {
-          if density > 1_f32 {
-            density = 1_f32;
-          }
-          color.0 = 0x00_u32;
-          color.1 = 0xff_u32;
-          color.2 = ((1_f32 - density) * 255_f32) as Uint32;
+    for let j = 0_u64; j < n_boundary_particles; j = j + 1_u64 {
+      let d = [2]Real32{
+        particle.position[0] - boundary_particles[j][0],
+        particle.position[1] - boundary_particles[j][1]
+      };
+      let r = sqrt(d[0]*d[0] + d[1]*d[1]);
+      if r < H {
+        if r <= 0.001_f32 {
+          d[0] = 0_f32;
+          d[1] = 1_f32;
+          r = 1_f32;
         } else {
-          density = -density;
-          if density > 1_f32 {
-            density = 1_f32;
-          }
-          color.0 = (density * 255_f32) as Uint32;
-          color.1 = ((1_f32 - density) * 255_f32) as Uint32;
-          color.2 = ((1_f32 - density) * 255_f32) as Uint32;
+          d[0] = d[0] / r;
+          d[1] = d[1] / r;
         }
+        let w = H - r;
+        w *= 0.23873241; // 12 / (pi * h^4)
+        let f_n = particle_pressure(particle) / (REST_DENSITY * REST_DENSITY);
+        let f = (f_p + f_n) * w;
 
-        fb.address[y * (fb.dimensions.0 as Sint64) + x] = make_color(fb, ...color);
+        force[0] += f * d[0];
+        force[1] += f * d[1];
       }
     }
+
+    particle.velocity[0] += force[0] / particle.density;
+    particle.velocity[1] += force[1] / particle.density;
+  }
+
+  // Use pressure-corrected velocity and apply boundary conditions.
+  for let i = 0_u64; i < n_particles; i += 1_u64 {
+    let particle = &particles[i];
+    particle.position[0] = particle.initial_position[0] + particle.velocity[0];
+    particle.position[1] = particle.initial_position[1] + particle.velocity[1];
+
+    for let c = 0_u64; c < 2_u64; c += 1_u64 {
+      if particle.position[c] < 0.5_f32 {
+        particle.position[c] = 0.5_f32;
+        if particle.velocity[c] < 0_f32 {
+          particle.velocity[c] *= -RESTITUTION;
+        }
+      } else if particle.position[c] > sim.world_size[c] - 0.5_f32 {
+        particle.position[c] = sim.world_size[c] - 0.5_f32;
+        if particle.velocity[c] > 0_f32 {
+          particle.velocity[c] = particle.velocity[c] * -RESTITUTION;
+        }
+      }
+    }
+  }
+}
+
+fn (sim: *Sim) render(fb: *LimineFramebuffer) {
+  // TODO(said): Hard-coded for now
+  let n_particles = 48_u64 * 48_u64;
+  let n_boundary_particles = 2_u64 * (128_u64 + 128_u64 + 2_u64);
+
+  let particles = &sim.particles[0];
+  let boundary_particles = &sim.boundary_particles[0];
+
+  let sim_bounds_offset = (
+    (fb.dimensions.0 as Sint64 - 4_s64 * 128_s64) / 2_s64,
+    (fb.dimensions.1 as Sint64 - 4_s64 * 128_s64) / 2_s64
+  );
+
+  // Draw the particles.
+  for let i = 0_u64; i < n_particles; i += 1_u64 {
+    let x = (particles[i].position[0] + 0.5_f32) as Sint64;
+    let y = (particles[i].position[1] + 0.5_f32) as Sint64;
+
+    let color = (0_u32, 0xff_u32, 0xff_u32);
+
+    let density = particles[i].density - REST_DENSITY;
+    if density > 0_f32 {
+      if density > 1_f32 {
+        density = 1_f32;
+      }
+      color.0 = 0x00_u32;
+      color.1 = 0xff_u32;
+      color.2 = ((1_f32 - density) * 255_f32) as Uint32;
+    } else {
+      density = -density;
+      if density > 1_f32 {
+        density = 1_f32;
+      }
+      color.0 = (density * 255_f32) as Uint32;
+      color.1 = ((1_f32 - density) * 255_f32) as Uint32;
+      color.2 = ((1_f32 - density) * 255_f32) as Uint32;
+    }
+
+    draw_scaled_particle(fb, sim_bounds_offset, x, y, make_color(fb, ...color));
+  }
+
+  for let i = 0_u64; i < n_boundary_particles; i += 1_u64 {
+    let x = (boundary_particles[i][0] + 0.5_f32) as Sint64;
+    let y = (boundary_particles[i][1] + 0.5_f32) as Sint64;
+    draw_scaled_pixel(fb, sim_bounds_offset, x, y, make_color(fb, 0, 0, 0));
   }
 }
