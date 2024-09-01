@@ -230,7 +230,7 @@ private:
 struct AstBinExpr : AstExpr {
 	static inline constexpr auto KIND = Kind::BIN;
 	enum class Op {
-		ADD, SUB, MUL,
+		ADD, SUB, MUL, DIV,
 		EQ, NE, GT, GE, LT, LE,
 		LOR, LAND,
 		BOR, BAND,

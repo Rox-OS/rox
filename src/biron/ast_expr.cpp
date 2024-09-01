@@ -113,6 +113,7 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	/****/ case Op::ADD:    builder.append(" + ");
 	break; case Op::SUB:    builder.append(" - ");
 	break; case Op::MUL:    builder.append(" * ");
+	break; case Op::DIV:    builder.append(" / ");
 	break; case Op::EQ:     builder.append(" == ");
 	break; case Op::NE:     builder.append(" != ");
 	break; case Op::GT:     builder.append(" > ");

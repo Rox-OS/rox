@@ -473,28 +473,14 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 		return cg.oom();
 	}
 
-	auto count = type->is_array() ? type->extent() : type->length();
-
-	if (count == 0) {
-		// When the type is a scalar.
-		if (auto length = m_exprs.length()) {
-			if (length > 1) {
-				cg.error(range(), "Too many expressions in aggregate initializer");
-				return None{};
-			}
-			// We have an expression to initialize it with.
-			auto value = m_exprs[0]->gen_value(cg);
-			if (!value || !addr->store(cg, *value)) {
-				return cg.oom();
-			}
-		} else {
-			// No expression so zero initialize it.
-			auto zero = CgValue::zero(addr->type()->deref(), cg);
-			if (!zero || !addr->store(cg, *zero)) {
-				return cg.oom();
-			}
-		}
-		return addr;
+	Ulen count = 1;
+	Bool scalar = false;
+	if (type->is_array()) {
+		count = type->extent();
+	} else if (type->is_tuple()) {
+		count = type->length();
+	} else {
+		scalar = true;
 	}
 
 	if (m_exprs.length() > count) {
@@ -502,7 +488,25 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 		return None{};
 	}
 
-	// We now actually go over every index in the type.
+	if (m_exprs.length() == 0) {
+		// No expression so zero initialize it.
+		auto zero = CgValue::zero(addr->type()->deref(), cg);
+		if (!zero || !addr->store(cg, *zero)) {
+			return cg.oom();
+		}
+		return addr;
+	}
+
+	// The scalar case we just read from [0] and write to addr.
+	if (scalar) {
+		auto value = m_exprs[0]->gen_value(cg);
+		if (!value || !addr->store(cg, *value)) {
+			return None{};
+		}
+		return addr;
+	}
+
+	// Sequence types (tuples, arrays, etc) we have to step over every index.
 	for (Ulen l = count, i = 0, j = 0; i < l; i++) {
 		auto dst = addr->at(cg, i);
 		if (!dst) {
@@ -774,6 +778,21 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 			cg.error(range(),
 			         "Operands to '*' operator must have numeric type. Got '%S' instead",
+			         lhs_type_string);
+			return None{};
+		}
+		break;
+	case Op::DIV:
+		if (lhs->type()->is_real()) {
+			return CgValue { lhs->type(), cg.llvm.BuildFDiv(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else if (lhs->type()->is_sint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildSDiv(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else if (lhs->type()->is_uint()) {
+			return CgValue { lhs->type(), cg.llvm.BuildUDiv(cg.builder, lhs->ref(), rhs->ref(), "") };
+		} else {
+			auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '/' operator must have numeric type. Got '%S' instead",
 			         lhs_type_string);
 			return None{};
 		}
@@ -1222,7 +1241,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 
 CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 	switch (m_op) {
-	case Op::ADD: case Op::SUB: case Op::MUL:
+	case Op::ADD: case Op::SUB: case Op::MUL: case Op::DIV:
 		return m_lhs->gen_type(cg);
 	case Op::EQ: case Op::NE: case Op::GT: case Op::GE: case Op::LT: case Op::LE:
 		return cg.types.b8();

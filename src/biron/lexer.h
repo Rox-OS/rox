@@ -33,6 +33,7 @@ struct Token {
 		// 1 will be used for '::'
 		case Kind::KW_AS:    return 4;  // Cast                (LTR)
 		case Kind::STAR:     return 5;  // Multiplication      (LTR)
+		case Kind::FSLASH:   return 5;  // Division            (LTR)
 		case Kind::PLUS:     return 6;  // Addition            (LTR)
 		case Kind::MINUS:    return 6;  // Subtraction         (LTR)
 		case Kind::LSHIFT:   return 7;  // Left shift          (LTR)

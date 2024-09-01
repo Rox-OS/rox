@@ -111,6 +111,15 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 
 Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 	auto& llvm = cg.llvm;
+	
+	auto value = llvm.ConstNull(type->ref());
+	if (!value) {
+		return None{};
+	}
+
+	return CgValue { type, value };
+
+/*
 	switch (type->kind()) {
 	case CgType::Kind::U8:  case CgType::Kind::S8:
 	case CgType::Kind::U16: case CgType::Kind::S16:
@@ -241,6 +250,7 @@ Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 		return None{};
 	}
 	return None{};
+*/
 }
 
 } // namespace Biron

@@ -171,6 +171,8 @@ Token Lexer::read() noexcept {
 				}
 			}
 			return {Kind::COMMENT, {n, m_offset - n}};
+		default:
+			return {Kind::FSLASH,  {n, 1}};
 		}
 		break;
 	default:

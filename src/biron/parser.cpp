@@ -112,6 +112,7 @@ AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexc
 		switch (kind) {
 		/***/  case Token::Kind::KW_AS:  lhs = new_node<AstBinExpr>(Op::AS,     lhs, rhs, range);
 		break; case Token::Kind::STAR:   lhs = new_node<AstBinExpr>(Op::MUL,    lhs, rhs, range);
+		break; case Token::Kind::FSLASH: lhs = new_node<AstBinExpr>(Op::DIV,    lhs, rhs, range);
 		break; case Token::Kind::PLUS:   lhs = new_node<AstBinExpr>(Op::ADD,    lhs, rhs, range);
 		break; case Token::Kind::MINUS:  lhs = new_node<AstBinExpr>(Op::SUB,    lhs, rhs, range);
 		break; case Token::Kind::LSHIFT: lhs = new_node<AstBinExpr>(Op::LSHIFT, lhs, rhs, range);
