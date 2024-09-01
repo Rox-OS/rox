@@ -150,12 +150,15 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 	}
 	if (m_attrs) {
 		for (const auto& it : *m_attrs) {
-			if (it->is_attr<AstAlignAttr>()) {
-				auto attr = static_cast<AstAlignAttr*>(it);
-				cg.llvm.SetAlignment(addr->ref(), attr->value());
-			} else {
-				cg.error(range(), "Unknown attribute for 'let'");
+			if (it->is_attr<AstIntAttr>()) {
+				auto attr = static_cast<const AstIntAttr *>(it);
+				if (attr->is_kind(AstIntAttr::Kind::ALIGN)) {
+					cg.llvm.SetAlignment(addr->ref(), attr->value());
+					break;
+				}
 			}
+			cg.error(range(), "Unknown attribute for 'let'");
+			return false;
 		}
 	}
 	if (!cg.scopes.last().vars.emplace_back(m_name, move(*addr))) {
@@ -195,22 +198,34 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 
 	// cg.llvm.SetGlobalConstant(dst, true);
 
-	if (m_attrs) {
-		for (auto it : *m_attrs) {
-			if (it->is_attr<AstAlignAttr>()) {
-				auto attr = static_cast<const AstAlignAttr*>(it);
-				cg.llvm.SetAlignment(dst, attr->value());
-			} else if (it->is_attr<AstSectionAttr>()) {
-				auto attr = static_cast<const AstSectionAttr*>(it);
+	if (m_attrs) for (auto it : *m_attrs) {
+		if (it->is_attr<AstStringAttr>()) {
+			auto attr = static_cast<const AstStringAttr *>(it);
+			if (attr->is_kind(AstStringAttr::Kind::SECTION)) {
 				auto name = attr->value().terminated(*cg.scratch);
 				if (name) {
 					cg.llvm.SetSection(dst, name);
+					continue;
 				} else {
 					cg.oom();
 					return false;
 				}
 			}
+		} else if (it->is_attr<AstIntAttr>()) {
+			auto attr = static_cast<const AstIntAttr *>(it);
+			if (attr->is_kind(AstIntAttr::Kind::ALIGN)) {
+				cg.llvm.SetAlignment(dst, attr->value());
+				continue;
+			}
+		} else if (it->is_attr<AstBoolAttr>()) {
+			auto attr = static_cast<const AstBoolAttr *>(it);
+			if (attr->is_kind(AstBoolAttr::Kind::USED)) {
+				// TODO(dweiler): Figure out how to mark 'dst' as used.
+				continue;
+			}
 		}
+		cg.error(it->range(), "Unknown attribute");
+		return false;
 	}
 
 	return true;

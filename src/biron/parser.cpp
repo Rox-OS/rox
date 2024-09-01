@@ -1398,6 +1398,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		if (!args || args->length() != 1) {
 			return None{};
 		}
+		auto range = token.range.include(args->range());
 		if (name == "section") {
 			auto expr = args->at(0);
 			auto value = expr->eval();
@@ -1405,7 +1406,8 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 				ERROR(expr->range(), "Expected constant string expression for section name");
 				return None{};
 			}
-			auto attr = new_node<AstSectionAttr>(value->as_string(), expr->range());
+			using Kind = AstStringAttr::Kind;
+			auto attr = new_node<AstStringAttr>(Kind::SECTION, value->as_string(), range);
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
@@ -1425,11 +1427,13 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 				ERROR("Alignment must be a power-of-two");
 				return None{};
 			}
-			auto attr = new_node<AstAlignAttr>(*align, expr->range());
+			using Kind = AstIntAttr::Kind;
+			auto kind = name == "align" ? Kind::ALIGN : Kind::ALIGNSTACK;
+			auto attr = new_node<AstIntAttr>(kind, *align, range);
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
-		} else if (name == "used") {
+		} else if (name == "used" || name == "inline" || name == "aliasable" || name == "redzone" || name == "export") {
 			auto expr = args->at(0);
 			auto value = expr->eval();
 			if (!value || !value->is_bool()) {
@@ -1437,51 +1441,15 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 				return None{};
 			}
 			auto used = value->to<Bool32>();
-			auto attr = new_node<AstUsedAttr>(*used, expr->range());
-			if (!attr || !attrs.push_back(attr)) {
-				return None{};
-			}
-		} else if (name == "inline") {
-			auto expr = args->at(0);
-			auto value = expr->eval();
-			if (!value || !value->is_bool()) {
-				ERROR("Expected constant boolean expression for inline attribute");
-				return None{};
-			}
-			auto attr = new_node<AstInlineAttr>(*value->to<Bool32>(), expr->range());
-			if (!attr || !attrs.push_back(attr)) {
-				return None{};
-			}
-		} else if (name == "aliasable") {
-			auto expr = args->at(0);
-			auto value = expr->eval();
-			if (!value || !value->is_bool()) {
-				ERROR("Expected constant boolean expression for 'aliasable' attribute");
-				return None{};
-			}
-			auto attr = new_node<AstAliasableAttr>(*value->to<Bool32>(), expr->range());
-			if (!attr || !attrs.push_back(attr)) {
-				return None{};
-			}
-		} else if (name == "redzone") {
-			auto expr = args->at(0);
-			auto value = expr->eval();
-			if (!value || !value->is_bool()) {
-				ERROR("Expected constant boolean expression for 'redzone' attribute");
-				return None{};
-			}
-			auto attr = new_node<AstRedzoneAttr>(*value->to<Bool32>(), expr->range());
-			if (!attr || !attrs.push_back(attr)) {
-				return None{};
-			}
-		} else if (name == "export") {
-			auto expr = args->at(0);
-			auto value = expr->eval();
-			if (!value || !value->is_bool()) {
-				ERROR("Expected constant boolean expression for 'export' attribute");
-				return None{};
-			}
-			auto attr = new_node<AstExportAttr>(*value->to<Bool32>(), expr->range());
+			using Kind = AstBoolAttr::Kind;
+			Kind kind;
+			/**/ if (name == "used")      kind = Kind::USED;
+			else if (name == "inline")    kind = Kind::INLINE;
+			else if (name == "aliasable") kind = Kind::ALIASABLE;
+			else if (name == "redzone")   kind = Kind::REDZONE;
+			else if (name == "export")    kind = Kind::EXPORT;
+			else return None{};
+			auto attr = new_node<AstBoolAttr>(kind, *used, range);
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}

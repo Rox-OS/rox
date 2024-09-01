@@ -45,8 +45,9 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 	// which will typically mangle the name to add the module name.
 	const char* name = nullptr;
 	if (m_attrs) for (auto base : *m_attrs) {
-		if (base->is_attr<AstExportAttr>()) {
-			if (static_cast<const AstExportAttr *>(base)->value()) {
+		if (base->is_attr<AstBoolAttr>()) {
+			auto attr = static_cast<const AstBoolAttr *>(base);
+			if (attr->is_kind(AstBoolAttr::Kind::EXPORT) && attr->value()) {
 				name = m_name.terminated(*cg.scratch);
 			}
 			break;
@@ -63,20 +64,23 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 	}
 
 	if (m_attrs) for (auto base : *m_attrs) {
-		if (base->is_attr<AstRedzoneAttr>()) {
-			auto attr = static_cast<const AstRedzoneAttr*>(base);
-			if (attr->value()) continue; // The default is redzone
-			StringView name = "noredzone";
-			auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
-			auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, 0);
-			cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
-		} else if (base->is_attr<AstAlignAttr>()) {
-			// This is alignstack
-			auto attr = static_cast<const AstAlignAttr*>(base);
-			StringView name = "alignstack";
-			auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
-			auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, attr->value());
-			cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+		if (base->is_attr<AstBoolAttr>()) {
+			auto attr = static_cast<const AstBoolAttr *>(base);
+			if (attr->is_kind(AstBoolAttr::Kind::REDZONE)) {
+				if (attr->value()) continue; // The default is redzone
+				StringView name = "noredzone";
+				auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
+				auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, 0);
+				cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+			}
+		} else if (base->is_attr<AstIntAttr>()) {
+			auto attr = static_cast<const AstIntAttr *>(base);
+			if (attr->is_kind(AstIntAttr::Kind::ALIGNSTACK)) {
+				StringView name = "alignstack";
+				auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
+				auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, attr->value());
+				cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+			}
 		}
 	}
 

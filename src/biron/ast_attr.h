@@ -7,7 +7,7 @@ namespace Biron {
 
 struct AstAttr : AstNode {
 	static inline constexpr const auto KIND = Kind::ATTR;
-	enum class Kind { SECTION, ALIGN, USED, INLINE, ALIASABLE, REDZONE, EXPORT };
+	enum class Kind { BOOL, INT, STRING };
 	constexpr AstAttr(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_kind{kind}
@@ -23,95 +23,61 @@ private:
 	Kind m_kind;
 };
 
-struct AstSectionAttr : AstAttr {
-	static inline constexpr const auto KIND = Kind::SECTION;
-	constexpr AstSectionAttr(StringView name, Range range) noexcept
+struct AstBoolAttr : AstAttr {
+	static inline constexpr const auto KIND = Kind::BOOL;
+	enum class Kind { USED, INLINE, ALIASABLE, REDZONE, EXPORT };
+	constexpr AstBoolAttr(Kind kind, Bool value, Range range)
 		: AstAttr{KIND, range}
-		, m_name{name}
-	{
-	}
-	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] constexpr StringView value() const noexcept { return m_name; }
-private:
-	StringView m_name;
-};
-
-struct AstAlignAttr : AstAttr {
-	static inline constexpr const auto KIND = Kind::ALIGN;
-	constexpr AstAlignAttr(Uint64 align, Range range) noexcept
-		: AstAttr{KIND, range}
-		, m_align{align}
-	{
-	}
-	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] constexpr Uint64 value() const noexcept { return m_align; }
-private:
-	Uint64 m_align;
-};
-
-struct AstUsedAttr : AstAttr {
-	static inline constexpr const auto KIND = Kind::USED;
-	constexpr AstUsedAttr(Bool value, Range range) noexcept
-		: AstAttr{KIND, range}
+		, m_kind{kind}
 		, m_value{value}
 	{
 	}
+	[[nodiscard]] constexpr Bool is_kind(Kind kind) const noexcept {
+		return m_kind == kind;
+	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
+	constexpr Bool value() const noexcept { return m_value; }
 private:
+	Kind m_kind;
 	Bool m_value;
 };
 
-struct AstInlineAttr : AstAttr {
-	static inline constexpr const auto KIND = Kind::INLINE;
-	constexpr AstInlineAttr(Bool value, Range range) noexcept
+struct AstIntAttr : AstAttr {
+	static inline constexpr const auto KIND = Kind::INT;
+	enum class Kind { ALIGN, ALIGNSTACK };
+	constexpr AstIntAttr(Kind kind, Uint64 value, Range range)
 		: AstAttr{KIND, range}
+		, m_kind{kind}
 		, m_value{value}
 	{
 	}
+	[[nodiscard]] constexpr Bool is_kind(Kind kind) const noexcept {
+		return m_kind == kind;
+	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
+	constexpr Uint64 value() const noexcept { return m_value; }
 private:
-	Bool m_value;
+	Kind   m_kind;
+	Uint64 m_value;
 };
 
-struct AstAliasableAttr : AstAttr {
-	static inline constexpr const auto KIND = Kind::ALIASABLE;
-	constexpr AstAliasableAttr(Bool value, Range range) noexcept
+struct AstStringAttr : AstAttr {
+	static inline constexpr const auto KIND = Kind::STRING;
+	enum class Kind { SECTION };
+	constexpr AstStringAttr(Kind kind, StringView value, Range range)
 		: AstAttr{KIND, range}
+		, m_kind{kind}
 		, m_value{value}
 	{
 	}
-	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
-private:
-	Bool m_value;
-};
-
-struct AstRedzoneAttr : AstAttr {
-	static inline constexpr const auto KIND = Kind::REDZONE;
-	constexpr AstRedzoneAttr(Bool value, Range range) noexcept
-		: AstAttr{KIND, range}
-		, m_value{value}
-	{
+	[[nodiscard]] constexpr Bool is_kind(Kind kind) const noexcept {
+		return m_kind == kind;
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
+	constexpr StringView value() const noexcept { return m_value; }
 private:
-	Bool m_value;
-};
-
-struct AstExportAttr : AstAttr {
-	static inline constexpr const auto KIND = Kind::EXPORT;
-	constexpr AstExportAttr(Bool value, Range range) noexcept
-		: AstAttr{KIND, range}
-		, m_value{value}
-	{
-	}
-	virtual void dump(StringBuilder& builder) const noexcept override;
-	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
-private:
-	Bool m_value;
+	Kind       m_kind;
+	StringView m_value;
 };
 
 } // namespace Biron

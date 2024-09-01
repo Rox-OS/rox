@@ -2,26 +2,24 @@
 
 namespace Biron {
 
-void AstSectionAttr::dump(StringBuilder& builder) const noexcept {
-	builder.append("section");
-	builder.append('(');
-	builder.append('"');
-	builder.append(m_name);
-	builder.append('"');
-	builder.append(')');
-}
-
-void AstAlignAttr::dump(StringBuilder& builder) const noexcept {
-	builder.append("align");
-	builder.append('(');
-	builder.append('"');
-	builder.append(m_align);
-	builder.append('"');
-	builder.append(')');
-}
-
-void AstUsedAttr::dump(StringBuilder& builder) const noexcept {
-	builder.append("used");
+void AstBoolAttr::dump(StringBuilder& builder) const noexcept {
+	switch (m_kind) {
+	case Kind::USED:
+		builder.append("used");
+		break;
+	case Kind::INLINE:
+		builder.append("inline");
+		break;
+	case Kind::ALIASABLE:
+		builder.append("aliasable");
+		break;
+	case Kind::REDZONE:
+		builder.append("redzone");
+		break;
+	case Kind::EXPORT:
+		builder.append("export");
+		break;
+	}
 	builder.append('(');
 	if (m_value) {
 		builder.append("true");
@@ -31,47 +29,28 @@ void AstUsedAttr::dump(StringBuilder& builder) const noexcept {
 	builder.append(')');
 }
 
-void AstInlineAttr::dump(StringBuilder& builder) const noexcept {
-	builder.append("inline");
-	builder.append('(');
-	if (m_value) {
-		builder.append("true");
-	} else {
-		builder.append("false");
+void AstIntAttr::dump(StringBuilder& builder) const noexcept {
+	switch (m_kind) {
+	case Kind::ALIGN:
+		builder.append("align");
+		break;
+	case Kind::ALIGNSTACK:
+		builder.append("alignstack");
+		break;
 	}
+	builder.append('(');
+	builder.append(m_value);
 	builder.append(')');
 }
 
-void AstAliasableAttr::dump(StringBuilder& builder) const noexcept {
-	builder.append("aliasable");
-	builder.append('(');
-	if (m_value) {
-		builder.append("true");
-	} else {
-		builder.append("false");
+void AstStringAttr::dump(StringBuilder& builder) const noexcept {
+	switch (m_kind) {
+	case Kind::SECTION:
+		builder.append("section");
+		break;
 	}
-	builder.append(')');
-}
-
-void AstRedzoneAttr::dump(StringBuilder& builder) const noexcept {
-	builder.append("redzone");
 	builder.append('(');
-	if (m_value) {
-		builder.append("true");
-	} else {
-		builder.append("false");
-	}
-	builder.append(')');
-}
-
-void AstExportAttr::dump(StringBuilder& builder) const noexcept {
-	builder.append("export");
-	builder.append('(');
-	if (m_value) {
-		builder.append("true");
-	} else {
-		builder.append("false");
-	}
+	builder.append(m_value);
 	builder.append(')');
 }
 
