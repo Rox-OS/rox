@@ -1,6 +1,8 @@
 # Rox
 Rox is an experimental toy operating system written in an experimental toy programming language Biron.
 
+![](screenshots/main.png)
+
 ## Biron
 Biron is an experimental toy systems programming language built for Rox.
   
