@@ -22,8 +22,8 @@ QFLAGS += -m 2G
 QFLAGS += -cdrom rox.iso
 QFLAGS += -boot d
 QFLAGS += -no-reboot
-QFLAGS += -d int
-QFLAGS += -D log.txt
+QFLAGS += -d int,page
+QFLAGS += -D qemu.log
 
 # If we support KVM then use KVM for QEMU acceleration
 KVM := $(shell lsmod | grep kvm)

@@ -3,4 +3,5 @@
 *.iso
 src/biron/bironc
 src/titan/titan
+src/qemu.log
 !/.gitignore
