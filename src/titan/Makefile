@@ -11,6 +11,7 @@ LDFLAGS += -T link.ld
 titan: $(BIRONC)
 	$(BIRONC) -bm -O1 main.biron
 	$(LD) main.o $(LDFLAGS) -o $@
+	rm main.o
 
 $(BIRONC):
 	$(MAKE) -C $(BIRONDIR)
