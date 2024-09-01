@@ -123,7 +123,7 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Op::LOR:    builder.append(" || ");
 	break; case Op::LAND:   builder.append(" && ");
 	break; case Op::BOR:    builder.append(" | ");
-	break; case Op::BAND:   builder.append(" && ");
+	break; case Op::BAND:   builder.append(" & ");
 	break; case Op::LSHIFT: builder.append(" << ");
 	break; case Op::RSHIFT: builder.append(" >> ");
 	break; case Op::DOT:    builder.append('.');

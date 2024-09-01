@@ -26,37 +26,60 @@ struct Token {
 		return "";
 	}
 	Bool eof() const noexcept { return kind == Kind::END; }
-	Sint32 prec() const noexcept {
+
+	Sint32 binary_prec_() const noexcept {
 		switch (kind) {
-		case Kind::LPAREN:   return 16 - 1; // ()
-		case Kind::LBRACKET: return 16 - 1; // []
-		case Kind::DOT:      return 16 - 1; // .
-		case Kind::KW_AS:    return 16 - 1; // as
-		// case Kind::LNOT:     return 16 - 2;
-		// case Kind::BNOT:     return 16 - 2;
-		// case Kind::STAR:     return 16 - 2;
-		case Kind::STAR:     return 16 - 3; // indirection (dereference)
-		case Kind::PERCENT:  return 16 - 3; 
-		case Kind::PLUS:     return 16 - 4;
-		case Kind::MINUS:    return 16 - 4;
-		case Kind::LSHIFT:   return 16 - 5;
-		case Kind::RSHIFT:   return 16 - 5;
-		case Kind::LT:       return 16 - 6;
-		case Kind::LTE:      return 16 - 6;
-		case Kind::GT:       return 16 - 6;
-		case Kind::GTE:      return 16 - 6;
-		case Kind::EQEQ:     return 16 - 7;
-		case Kind::NEQ:      return 16 - 7;
-		case Kind::BAND:     return 16 - 8;
-		case Kind::BOR:      return 16 - 10;
-		case Kind::LAND:     return 16 - 11;
-		case Kind::LOR:      return 16 - 12;
-		// TODO(dweiler): ternary
+		// 0 is reserved
+		// 1 will be used for '::'
+		case Kind::KW_AS:    return 4;  // Cast                (LTR)
+		case Kind::STAR:     return 5;  // Multiplication      (LTR)
+		case Kind::PLUS:     return 6;  // Addition            (LTR)
+		case Kind::MINUS:    return 6;  // Subtraction         (LTR)
+		case Kind::LSHIFT:   return 7;  // Left shift          (LTR)
+		case Kind::RSHIFT:   return 7;  // Right shift         (LTR)
+		// 8 will be used for CMP
+		case Kind::LT:       return 9;  // Less than           (LTR)
+		case Kind::LTE:      return 9;  // Less than equal     (LTR)
+		case Kind::GT:       return 9;  // Greater than        (LTR)
+		case Kind::GTE:      return 9;  // Greater than equal  (LTR)
+		case Kind::EQEQ:     return 10; // Equal               (LTR)
+		case Kind::NEQ:      return 10; // Not equal           (LTR)
+		case Kind::BAND:     return 11; // Bitwise AND         (LTR)
+		// 12 will be used for Bitwise XOR
+		case Kind::BOR:      return 13; // Bitwise OR          (LTR)
+		case Kind::LAND:     return 14; // Logical AND         (LTR)
+		case Kind::LOR:      return 15; // Logical OR          (LTR)
+
+		// case Kind::EQ:       return 16; // Direct assignment   (RTL)
+		// 16 will also be used for +=, -=, ..
 		default:
-			return -1;
+			return 17;
 		}
 		BIRON_UNREACHABLE();
 	}
+
+	Sint32 unary_prec_() const noexcept {
+		switch (kind) {
+		case Kind::LPAREN:   return 2; // Function call (LTR)
+		case Kind::RBRACKET: return 2; // Subscript     (LTR)
+		case Kind::DOT:      return 2; // Member access (LTR)
+
+		// RTL is handled elsewhere
+		case Kind::KW_AS:    return 3; // Cast          (RTL)
+		case Kind::NOT:      return 3; // Logical NOT   (RTL)
+		case Kind::PLUS:     return 3; // Unary plus    (RTL)
+		case Kind::MINUS:    return 3; // Unary minus   (RTL)
+		case Kind::STAR:     return 4; // Indirection   (RTL)
+		case Kind::BAND:     return 4; // Address-of    (RTL)
+		default:
+			return 17;
+		}
+		BIRON_UNREACHABLE();
+	}
+
+	Sint32 binary_prec() const noexcept { return 16 - binary_prec_(); }
+	Sint32 unary_prec() const noexcept { return 16 - unary_prec_(); }
+
 	Kind kind;
 	Range range;
 };
