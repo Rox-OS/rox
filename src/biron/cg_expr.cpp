@@ -1338,7 +1338,11 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg) const noexcept {
 	switch (m_op) {
 	case Op::NEG:
 		if (auto operand = m_operand->gen_value(cg)) {
-			return CgValue { operand->type(), cg.llvm.BuildNeg(cg.builder, operand->ref(), "") };
+			if (operand->type()->is_real()) {
+				return CgValue { operand->type(), cg.llvm.BuildFNeg(cg.builder, operand->ref(), "") };
+			} else {
+				return CgValue { operand->type(), cg.llvm.BuildNeg(cg.builder, operand->ref(), "") };
+			}
 		}
 		break;
 	case Op::NOT:
