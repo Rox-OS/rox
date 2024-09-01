@@ -36,6 +36,17 @@ type LimineHHDMResponse = (
   offset:   Uint64
 );
 
+type LimineStackSizeRequest = (
+  id:       [4]Uint64,
+  revision: Uint64,
+  response: *LimineStackSizeResponse,
+  size:     Uint64
+);
+
+type LimineStackSizeResponse = (
+  revision: Uint64
+);
+
 @(used(true), section(".requests"))
 let LIMINE_BASE_VERSION = [3]Uint64 {
   0xf9562b2d5c95a6c8_u64,
@@ -52,18 +63,7 @@ let LIMINE_REQUESTS_BEG_MARKER = [4]Uint64 {
 };
 
 @(used(true), section(".requests"))
-let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
-  [4]Uint64 {
-    0xc7b1dd30df4c8b88_u64,
-    0x0a82e883a194f07b_u64,
-    0x9d5827dcd881dd75_u64,
-    0xa3148604f6fab11b_u64
-  },
-  0_u64
-};
-
-@(used(true), section(".requests"))
-let LIMNE_HHDM_REQUEST = LimineHHDMRequest {
+let LIMINE_HHDM_REQUEST = LimineHHDMRequest {
   [4]Uint64 {
     0xc7b1dd30df4c8b88_u64,
     0x0a82e883a194f07b_u64,
@@ -71,6 +71,30 @@ let LIMNE_HHDM_REQUEST = LimineHHDMRequest {
     0x63984e959a98244b_u64,
   },
   0_u64
+};
+
+@(used(true), section(".requests"))
+let LIMINE_STACK_SIZE_REQUEST = LimineStackSizeRequest {
+  [4]Uint64 {
+    0xc7b1dd30df4c8b88_u64,
+    0x0a82e883a194f07b_u64,
+    0x224ef0460a8e8926_u64,
+    0xe1cb0fc25f46ea3d_u64,
+  },
+  0_u64,
+  0_u64,
+  128_u64 * 1024_u64 * 1024_u64, // 128 MiB
+};
+
+@(used(true), section(".requests"))
+let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
+  [4]Uint64 {
+    0xc7b1dd30df4c8b88_u64,
+    0x0a82e883a194f07b_u64,
+    0x9d5827dcd881dd75_u64,
+    0xa3148604f6fab11b_u64
+  },
+  1_u64
 };
 
 @(used(true), section(".requests_end_marker"))
@@ -225,6 +249,17 @@ fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32
 @(export(true), redzone(false), alignstack(16))
 fn kmain() {
   enable_fpu();
+
+  // Ensure we support 128 MiB stack, Higher-Half Direct Map and a XRGB Framebuffer
+  if LIMINE_STACK_SIZE_REQUEST.response == 0_u64 as *LimineStackSizeResponse {
+    for {}
+  }
+  if LIMINE_HHDM_REQUEST.response == 0_u64 as *LimineHHDMResponse {
+    for {}
+  }
+  if LIMINE_FRAMEBUFFER_REQUEST.response == 0_u64 as *LimineFramebufferResponse {
+    for {}
+  }
 
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
 
