@@ -13,6 +13,18 @@ struct AstStmt;
 struct AstAttr;
 struct Cg;
 
+struct AstTopModule : AstNode {
+	static inline constexpr const auto KIND = Kind::MODULE;
+	constexpr AstTopModule(StringView name, Range range)
+		: AstNode{KIND, range}
+		, m_name{name}
+	{
+	}
+	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
+private:
+	StringView m_name;
+};
+
 struct AstTopFn : AstNode {
 	static inline constexpr auto KIND = Kind::FN;
 	constexpr AstTopFn(StringView name, AstTupleType* selfs, AstTupleType* args, AstTupleType* rets, AstStmt* body, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
@@ -62,7 +74,8 @@ struct AstLetStmt;
 
 struct AstUnit {
 	constexpr AstUnit(Allocator& allocator) noexcept
-		: m_fns{allocator}
+		: m_module{nullptr}
+		, m_fns{allocator}
 		, m_types{allocator}
 		, m_lets{allocator}
 	{
@@ -76,11 +89,19 @@ struct AstUnit {
 	[[nodiscard]] Bool add_typedef(AstTopType* type) noexcept {
 		return m_types.push_back(type);
 	}
+	[[nodiscard]] Bool assign_module(AstTopModule* module) noexcept {
+		if (m_module) {
+			return false;
+		}
+		m_module = module;
+		return true;
+	}
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 	void dump(StringBuilder& builder) const noexcept;
 private:
 	friend struct AstIdentType;
-	Array<AstTopFn*> m_fns;
+	AstTopModule*      m_module;
+	Array<AstTopFn*>   m_fns;
 	Array<AstTopType*> m_types;
 	Array<AstLetStmt*> m_lets;
 };

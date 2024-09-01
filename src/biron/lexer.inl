@@ -52,6 +52,7 @@ KIND(KW_DEFER)    // 'defer'
 KIND(KW_UNION)    // 'union'
 KIND(KW_BREAK)    // 'break'
 KIND(KW_RETURN)   // 'return'
+KIND(KW_MODULE)   // 'module'
 KIND(KW_CONTINUE) // 'continue'
 
 KIND(LIT_INT)

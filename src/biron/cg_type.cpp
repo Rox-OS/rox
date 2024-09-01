@@ -447,7 +447,7 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 			ptr()->ref(),
 			u64()->ref(),
 		};
-		m_llvm.StructSetBody(type, types, countof(types), false);
+		m_llvm.StructSetBody(type, types, countof(types), true);
 		ref = type;
 	} else {
 		return nullptr;

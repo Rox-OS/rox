@@ -1,4 +1,5 @@
 #include <stdio.h> // fprintf, stderr
+#include <string.h> // memcpy
 
 #include <biron/cg.h>
 #include <biron/cg_value.h>
@@ -159,6 +160,18 @@ Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
 		return CgAddr { type->addrof(*this), value };
 	}
 	return None{};
+}
+
+const char* Cg::nameof(StringView name) const noexcept {
+	auto dst = reinterpret_cast<char *>(scratch->allocate(prefix.length() + name.length() + 2));
+	if (!dst) {
+		return "OOM";
+	}
+	memcpy(&dst[0], prefix.data(), prefix.length());
+	dst[prefix.length()] = '.';
+	memcpy(&dst[prefix.length() + 1], name.data(), name.length());
+	dst[prefix.length() + 1 + name.length()] = '\0';
+	return dst;
 }
 
 Maybe<CgAddr> Cg::intrinsic(StringView name) const noexcept {

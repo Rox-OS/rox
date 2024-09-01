@@ -1130,6 +1130,29 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	return node;
 }
 
+// Module
+//	::= 'module' Ident
+AstTopModule* Parser::parse_top_module() noexcept {
+	if (peek().kind != Token::Kind::KW_MODULE) {
+		ERROR("Expected 'module'");
+		return nullptr;
+	}
+	auto module_token = next(); // Consume 'module'
+	if (peek().kind != Token::Kind::IDENT) {
+		ERROR("Expected identifier after 'module'");
+		return nullptr;
+	}
+	auto ident_token = next(); // Consume Ident
+	if (peek().kind != Token::Kind::SEMI) {
+		ERROR("Expected ';'");
+		return nullptr;
+	}
+	next(); // Consume ';'
+	auto ident_string = m_lexer.string(ident_token.range);
+	auto range = module_token.range.include(ident_token.range);
+	return new_node<AstTopModule>(ident_string, range);
+}
+
 // ForStmt
 //	::= 'for' BlockStmt
 //	  | 'for' LetStmt? Expr BlockStmt
@@ -1343,6 +1366,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		} else if (name == "aliasable") {
 		} else if (name == "redzone") {
 		} else if (name == "alignstack") {
+		} else if (name == "export") {
 		} else {
 			ERROR("Unknown attribute: '%.*s'", Sint32(name.length()), name.data());
 			return None{};
@@ -1427,6 +1451,17 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			if (!attr || !attrs.push_back(attr)) {
 				return None{};
 			}
+		} else if (name == "export") {
+			auto expr = args->at(0);
+			auto value = expr->eval();
+			if (!value || !value->is_bool()) {
+				ERROR("Expected constant boolean expression for 'export' attribute");
+				return None{};
+			}
+			auto attr = new_node<AstExportAttr>(*value->to<Bool32>(), expr->range());
+			if (!attr || !attrs.push_back(attr)) {
+				return None{};
+			}
 		}
 		if (peek().kind != Token::Kind::COMMA) {
 			break;
@@ -1476,6 +1511,14 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		if (auto let = parse_let_stmt(move(attrs))) {
 			if (!unit.add_let(let)) {
 				ERROR("out of memory");
+				return None{};
+			}
+		}
+		break;
+	case Token::Kind::KW_MODULE:
+		if (auto module = parse_top_module()) {
+			if (!unit.assign_module(module)) {
+				ERROR("Duplicate 'module' in file");
 				return None{};
 			}
 		}

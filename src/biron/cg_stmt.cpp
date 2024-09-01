@@ -183,7 +183,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 
 	auto dst = cg.llvm.AddGlobal(cg.module,
 	                             type->ref(),
-	                             m_name.terminated(*cg.scratch));
+	                             cg.nameof(m_name));
 
 	auto addr = CgAddr { src->type()->addrof(cg), dst };
 	if (!cg.globals.emplace_back(m_name, move(addr))) {

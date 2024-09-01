@@ -181,27 +181,28 @@ Token Lexer::read() noexcept {
 			StringView ident = m_data.slice(n, l);
 			switch (l) {
 			case 2:
-				/**/ if (ident == "fn")       return {Kind::KW_FN,     {n, 2}};
-				else if (ident == "if")       return {Kind::KW_IF,     {n, 2}};
-				else if (ident == "as")       return {Kind::KW_AS,     {n, 2}};
+				/**/ if (ident == "fn")       return {Kind::KW_FN,       {n, 2}};
+				else if (ident == "if")       return {Kind::KW_IF,       {n, 2}};
+				else if (ident == "as")       return {Kind::KW_AS,       {n, 2}};
 				break;
 			case 3:
-				/**/ if (ident == "let")      return {Kind::KW_LET,    {n, 3}};
-				else if (ident == "for")      return {Kind::KW_FOR,    {n, 3}};
+				/**/ if (ident == "let")      return {Kind::KW_LET,      {n, 3}};
+				else if (ident == "for")      return {Kind::KW_FOR,      {n, 3}};
 				break;
 			case 4:
-				/**/ if (ident == "else")     return {Kind::KW_ELSE,   {n, 4}};
-				else if (ident == "type")     return {Kind::KW_TYPE,   {n, 4}};
-				else if (ident == "true")     return {Kind::KW_TRUE,   {n, 4}};
+				/**/ if (ident == "else")     return {Kind::KW_ELSE,     {n, 4}};
+				else if (ident == "type")     return {Kind::KW_TYPE,     {n, 4}};
+				else if (ident == "true")     return {Kind::KW_TRUE,     {n, 4}};
 				break;
 			case 5:
-				/**/ if (ident == "union")    return {Kind::KW_UNION,  {n, 5}};
-				else if (ident == "defer")    return {Kind::KW_DEFER,  {n, 5}};
-				else if (ident == "false")    return {Kind::KW_FALSE,  {n, 5}};
-				else if (ident == "break")    return {Kind::KW_BREAK,  {n, 5}};
+				/**/ if (ident == "union")    return {Kind::KW_UNION,    {n, 5}};
+				else if (ident == "defer")    return {Kind::KW_DEFER,    {n, 5}};
+				else if (ident == "false")    return {Kind::KW_FALSE,    {n, 5}};
+				else if (ident == "break")    return {Kind::KW_BREAK,    {n, 5}};
 				break;
 			case 6:
-				/**/ if (ident == "return")   return {Kind::KW_RETURN, {n, 6}};
+				/**/ if (ident == "return")   return {Kind::KW_RETURN,   {n, 6}};
+				else if (ident == "module")   return {Kind::KW_MODULE,   {n, 6}};
 				break;
 			case 8:
 				/**/ if (ident == "continue") return {Kind::KW_CONTINUE, {n, 8}};

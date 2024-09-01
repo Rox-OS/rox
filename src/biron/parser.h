@@ -103,8 +103,9 @@ struct Parser {
 	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;
 
 	// Top-level elements
-	AstTopFn* parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	AstTopType* parse_top_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstTopFn*        parse_top_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstTopType*      parse_top_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstTopModule*    parse_top_module() noexcept;
 
 	Maybe<AstUnit> parse() noexcept;
 

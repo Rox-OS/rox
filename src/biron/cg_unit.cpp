@@ -41,9 +41,26 @@ Bool AstTopFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto fn_v = cg.llvm.AddFunction(cg.module,
-	                                m_name.terminated(*cg.scratch),
-	                                fn_t->ref());
+	// Check for the export attribute. When present and true we do not use nameof,
+	// which will typically mangle the name to add the module name.
+	const char* name = nullptr;
+	if (m_attrs) for (auto base : *m_attrs) {
+		if (base->is_attr<AstExportAttr>()) {
+			if (static_cast<const AstExportAttr *>(base)->value()) {
+				name = m_name.terminated(*cg.scratch);
+			}
+			break;
+		}
+	}
+	if (!name) {
+		// Use the mangled name
+		name = cg.nameof(m_name);
+	}
+
+	auto fn_v = cg.llvm.AddFunction(cg.module, name, fn_t->ref());
+	if (!fn_v) {
+		return false;
+	}
 
 	if (m_attrs) for (auto base : *m_attrs) {
 		if (base->is_attr<AstRedzoneAttr>()) {
@@ -82,6 +99,15 @@ Bool AstTopType::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 	m_generated = true;
+	return true;
+}
+
+Bool AstTopModule::codegen(Cg& cg) const noexcept {
+	if (m_name == "intrinsics") {
+		cg.error(range(), "Module cannot be named 'intrinsics'");
+		return false;
+	}
+	cg.prefix = m_name;
 	return true;
 }
 
@@ -188,6 +214,15 @@ Bool AstTopFn::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstUnit::codegen(Cg& cg) const noexcept {
+	if (!m_module) {
+		cg.error(Range{0, 0}, "Missing 'module'");
+		return false;
+	}
+
+	if (!m_module->codegen(cg)) {
+		return false;
+	}
+
 	cg.unit = this;
 	
 	// Register a "printf" function for debugging purposes

@@ -64,4 +64,15 @@ void AstRedzoneAttr::dump(StringBuilder& builder) const noexcept {
 	builder.append(')');
 }
 
+void AstExportAttr::dump(StringBuilder& builder) const noexcept {
+	builder.append("export");
+	builder.append('(');
+	if (m_value) {
+		builder.append("true");
+	} else {
+		builder.append("false");
+	}
+	builder.append(')');
+}
+
 } // namespace Biron

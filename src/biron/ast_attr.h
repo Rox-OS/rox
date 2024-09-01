@@ -6,8 +6,8 @@
 namespace Biron {
 
 struct AstAttr : AstNode {
-	static inline constexpr auto KIND = Kind::ATTR;
-	enum class Kind { SECTION, ALIGN, USED, INLINE, ALIASABLE, REDZONE };
+	static inline constexpr const auto KIND = Kind::ATTR;
+	enum class Kind { SECTION, ALIGN, USED, INLINE, ALIASABLE, REDZONE, EXPORT };
 	constexpr AstAttr(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_kind{kind}
@@ -24,7 +24,7 @@ private:
 };
 
 struct AstSectionAttr : AstAttr {
-	static inline constexpr auto KIND = Kind::SECTION;
+	static inline constexpr const auto KIND = Kind::SECTION;
 	constexpr AstSectionAttr(StringView name, Range range) noexcept
 		: AstAttr{KIND, range}
 		, m_name{name}
@@ -37,7 +37,7 @@ private:
 };
 
 struct AstAlignAttr : AstAttr {
-	static inline constexpr auto KIND = Kind::ALIGN;
+	static inline constexpr const auto KIND = Kind::ALIGN;
 	constexpr AstAlignAttr(Uint64 align, Range range) noexcept
 		: AstAttr{KIND, range}
 		, m_align{align}
@@ -50,7 +50,7 @@ private:
 };
 
 struct AstUsedAttr : AstAttr {
-	static inline constexpr auto KIND = Kind::USED;
+	static inline constexpr const auto KIND = Kind::USED;
 	constexpr AstUsedAttr(Bool value, Range range) noexcept
 		: AstAttr{KIND, range}
 		, m_value{value}
@@ -63,7 +63,7 @@ private:
 };
 
 struct AstInlineAttr : AstAttr {
-	static inline constexpr auto KIND = Kind::INLINE;
+	static inline constexpr const auto KIND = Kind::INLINE;
 	constexpr AstInlineAttr(Bool value, Range range) noexcept
 		: AstAttr{KIND, range}
 		, m_value{value}
@@ -76,7 +76,7 @@ private:
 };
 
 struct AstAliasableAttr : AstAttr {
-	static inline constexpr auto KIND = Kind::ALIASABLE;
+	static inline constexpr const auto KIND = Kind::ALIASABLE;
 	constexpr AstAliasableAttr(Bool value, Range range) noexcept
 		: AstAttr{KIND, range}
 		, m_value{value}
@@ -89,8 +89,21 @@ private:
 };
 
 struct AstRedzoneAttr : AstAttr {
-	static inline constexpr auto KIND = Kind::REDZONE;
+	static inline constexpr const auto KIND = Kind::REDZONE;
 	constexpr AstRedzoneAttr(Bool value, Range range) noexcept
+		: AstAttr{KIND, range}
+		, m_value{value}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] constexpr Bool value() const noexcept { return m_value; }
+private:
+	Bool m_value;
+};
+
+struct AstExportAttr : AstAttr {
+	static inline constexpr const auto KIND = Kind::EXPORT;
+	constexpr AstExportAttr(Bool value, Range range) noexcept
 		: AstAttr{KIND, range}
 		, m_value{value}
 	{

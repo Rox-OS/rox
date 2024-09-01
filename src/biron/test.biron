@@ -1,3 +1,5 @@
+module test;
+
 type Rect = (w: Sint32, h: Sint32, x: Sint32, y: Sint32);
 
 fn(self: *Rect) area() -> Sint32 {
@@ -20,6 +22,7 @@ fn(lhs: @(aliasable(false)) *Rect, rhs: @(aliasable(false)) *Rect) collide() -> 
   return x_overlap && y_overlap;
 }
 
+@(export(true))
 fn main() -> Sint32 {
   let lhs = &Rect{10, 10, 0, 10};
   let rhs = &Rect{10, 10, 0,  0};

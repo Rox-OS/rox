@@ -99,6 +99,8 @@ struct Cg {
 
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
 
+	const char* nameof(StringView name) const noexcept;
+
 	Allocator&        allocator;
 	LLVM&             llvm;
 	ScratchAllocator* scratch;
@@ -113,6 +115,7 @@ struct Cg {
 	Array<CgVar>      intrinsics;
 	const AstUnit*    unit;
 	Diagnostic&       diagnostic;
+	StringView        prefix;
 
 	constexpr Cg(Cg&& other) noexcept
 		: allocator{other.allocator}
@@ -129,6 +132,7 @@ struct Cg {
 		, intrinsics{move(other.intrinsics)}
 		, unit{nullptr}
 		, diagnostic{other.diagnostic}
+		, prefix{move(other.prefix)}
 	{
 	}
 
@@ -157,6 +161,7 @@ private:
 		, intrinsics{allocator}
 		, unit{nullptr}
 		, diagnostic{diagnostic}
+		, prefix{}
 	{
 	}
 };

@@ -26,6 +26,7 @@ void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcep
 		line_number--;
 		range.offset--;
 	}
+
 	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31m%s:\033[0m %s\n",
 	        (int)m_lexer.name().length(),
 	        m_lexer.name().data(),
@@ -35,6 +36,12 @@ void Diagnostic::diagnostic(Range range, Kind kind, const char *message) noexcep
 	        message);
 
 	// Print the offending line.
+
+	if (range.offset == 0) {
+		// Do not print the offending line when the error range is invalid.
+		return;
+	}
+
 	auto line_beg = range.offset;
 	auto line_end = range.offset;
 	while (line_beg && m_lexer[line_beg - 1] != '\n') {
