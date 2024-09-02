@@ -21,8 +21,7 @@ static LLVM::TargetRef target_from_triple(Terminal& terminal,
 	return target;
 }
 
-Maybe<CgMachine> CgMachine::make(const System& system,
-                                 Terminal& terminal,
+Maybe<CgMachine> CgMachine::make(Terminal& terminal,
                                  LLVM& llvm,
                                  StringView target_triple) noexcept
 {

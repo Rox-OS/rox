@@ -46,8 +46,7 @@ struct CgMachine {
 
 	using TargetMachineRef = LLVM::TargetMachineRef;
 
-	static Maybe<CgMachine> make(const System& system,
-	                             Terminal& terminal,
+	static Maybe<CgMachine> make(Terminal& terminal,
 	                             LLVM& llvm,
 	                             StringView triple) noexcept;
 
