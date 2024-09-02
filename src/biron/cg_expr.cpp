@@ -101,7 +101,10 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 	Array<CgValue> values{*cg.scratch};
 	for (Ulen l = length(), i = 0; i < l; i++) {
 		auto value = at(i)->gen_value(cg);
-		if (!value || !values.push_back(move(*value))) {
+		if (!value) {
+			return None{};
+		}
+		if (!values.push_back(move(*value))) {
 			return cg.oom();
 		}
 	}
@@ -157,7 +160,10 @@ CgType* AstTupleExpr::gen_type(Cg& cg) const noexcept {
 	}
 	for (Ulen l = length(), i = 0; i < l; i++) {
 		auto type = at(i)->gen_type(cg);
-		if (!type || !types.push_back(type)) {
+		if (!type) {
+			return nullptr;
+		}
+		if (!types.push_back(type)) {
 			cg.oom();
 			return nullptr;
 		}
@@ -244,10 +250,6 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 	                                values.data(),
 	                                values.length(),
 	                                "");
-
-	if (!value) {
-		return cg.oom();
-	}
 
 	// When the rets tuple only contains a single element we detuple it. This
 	// changes the return type of the function from (T) to T.
@@ -438,9 +440,6 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	}
 	auto ptr = cg.llvm.BuildGlobalString(cg.builder, builder.data(), "");
 	auto len = cg.llvm.ConstInt(cg.types.u64()->ref(), m_literal.length(), false);
-	if (!ptr || !len) {
-		return cg.oom();
-	}
 	LLVM::ValueRef values[2] = { ptr, len };
 	auto t = gen_type(cg);
 	auto v = cg.llvm.ConstNamedStruct(t->ref(), values, countof(values));
@@ -826,10 +825,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			                               intrinsic->type()->deref()->ref(),
 			                               intrinsic->ref(),
 			                               args,
-			                               countof(args), "");
-			if (!call) {
-				return cg.oom();
-			}
+			                               countof(args),
+			                               "");
 			return CgValue { cg.types.b32(), call };
 		}
 		break;
@@ -1024,9 +1021,6 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			};
 			
 			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(), "");
-			if (!phi) {
-				return cg.oom();
-			}
 
 			cg.llvm.AddIncoming(phi, values, blocks, countof(blocks));
 
@@ -1111,9 +1105,6 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			};
 			
 			auto phi = cg.llvm.BuildPhi(cg.builder, cg.types.b32()->ref(), "");
-			if (!phi) {
-				return cg.oom();
-			}
 
 			cg.llvm.AddIncoming(phi, values, blocks, countof(blocks));
 
