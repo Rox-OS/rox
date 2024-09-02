@@ -34,36 +34,39 @@ void AstVarExpr::dump(StringBuilder& builder) const noexcept {
 void AstIntExpr::dump(StringBuilder& builder) const noexcept {
 	switch (m_kind) {
 	case Kind::U8:
-		builder.append(m_as_u8);
+		builder.append(Uint8(m_as_uint));
 		builder.append("_u8");
 		break;
 	case Kind::U16:
-		builder.append(m_as_u16);
+		builder.append(Uint16(m_as_uint));
 		builder.append("_u16");
 		break;
 	case Kind::U32:
-		builder.append(m_as_u32);
+		builder.append(Uint32(m_as_uint));
 		builder.append("_u32");
 		break;
 	case Kind::U64:
-		builder.append(m_as_u64);
+		builder.append(Uint64(m_as_uint));
 		builder.append("_u64");
 		break;
 	case Kind::S8:
-		builder.append(m_as_s8);
+		builder.append(Sint8(m_as_sint));
 		builder.append("_s8");
 		break;
 	case Kind::S16:
-		builder.append(m_as_s16);
+		builder.append(Sint16(m_as_sint));
 		builder.append("_s16");
 		break;
 	case Kind::S32:
-		builder.append(m_as_s32);
+		builder.append(Sint32(m_as_sint));
 		builder.append("_s32");
 		break;
 	case Kind::S64:
-		builder.append(m_as_s64);
+		builder.append(Sint32(m_as_sint));
 		builder.append("_s64");
+		break;
+	case Kind::UNTYPED:
+		builder.append(Uint64(m_as_uint));
 		break;
 	}
 }
@@ -77,6 +80,9 @@ void AstFltExpr::dump(StringBuilder& builder) const noexcept {
 	case Kind::F64:
 		builder.append(m_as_f64);
 		builder.append("_f64");
+		break;
+	case Kind::UNTYPED:
+		builder.append(m_as_f64);
 		break;
 	}
 }
@@ -121,6 +127,7 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Op::LT:     builder.append(" < ");
 	break; case Op::LE:     builder.append(" <= ");
 	break; case Op::AS:     builder.append(" as ");
+	break; case Op::OF:     builder.append(" of" );
 	break; case Op::LOR:    builder.append(" || ");
 	break; case Op::LAND:   builder.append(" && ");
 	break; case Op::BOR:    builder.append(" | ");

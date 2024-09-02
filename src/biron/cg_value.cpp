@@ -87,17 +87,19 @@ CgAddr::CgAddr(CgType *const type, LLVM::ValueRef ref) noexcept
 
 Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	auto u32 = cg.types.u32();
+
+	auto type = m_type->deref();
 	LLVM::ValueRef indices[] = {
 		cg.llvm.ConstInt(u32->ref(), 0, false),
 		cg.llvm.ConstInt(u32->ref(), i, false),
 	};
 
-	auto type = m_type->deref();
+	auto is_ptr = type->is_pointer();
 	auto gep = cg.llvm.BuildGEP2(cg.builder,
-	                             type->ref(),
-	                             m_ref,
-	                             indices,
-	                             countof(indices),
+	                             is_ptr ? type->deref()->ref() : type->ref(),
+	                             is_ptr ? load(cg)->ref() : ref(),
+	                             indices + is_ptr,
+	                             countof(indices) - is_ptr,
 	                             "");
 	if (!gep) {
 		return None{};

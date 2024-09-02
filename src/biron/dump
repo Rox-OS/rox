@@ -1,0 +1,2018 @@
+; ModuleID = 'Biron'
+source_filename = "Biron"
+
+%LimineHHDMRequest = type <{ [4 x i64], i64, ptr }>
+%LimineStackSizeRequest = type <{ [4 x i64], i64, ptr, i64 }>
+%LimineFramebufferRequest = type <{ [4 x i64], i64, ptr }>
+%LimineFramebuffer = type <{ ptr, <{ i64, i64 }>, i64, i16, i8, <{ i8, i8 }>, <{ i8, i8 }>, <{ i8, i8 }>, i8, %.Pad6, <{ i64, ptr }>, <{ i64, ptr }> }>
+%.Pad6 = type <{ [6 x i8] }>
+%Particle = type <{ [2 x float], [2 x float], [2 x float], float }>
+%LimineFramebufferResponse = type <{ i64, <{ i64, ptr }> }>
+%Sim = type <{ [2304 x %Particle], [516 x [2 x float]], [2 x float] }>
+
+@titan.LIMINE_BASE_VERSION = global [3 x i64] [i64 -480148836441545016, i64 7672788277485857756, i64 2], section ".requests"
+@titan.LIMINE_REQUESTS_BEG_MARKER = global [4 x i64] [i64 -668515492378979922, i64 -380243654171903537, i64 8672928822407193366, i64 1737987079877605849], section ".requests_beg_marker"
+@titan.LIMINE_HHDM_REQUEST = global %LimineHHDMRequest <{ [4 x i64] [i64 -4057218587309601912, i64 757423339400917115, i64 5250337122116876370, i64 7176572410665641035], i64 0, ptr null }>, section ".requests"
+@titan.LIMINE_STACK_SIZE_REQUEST = global %LimineStackSizeRequest <{ [4 x i64] [i64 -4057218587309601912, i64 757423339400917115, i64 2472177429088471334, i64 -2176628667406947779], i64 0, i64 0, i64 134217728 }>, section ".requests"
+@titan.LIMINE_FRAMEBUFFER_REQUEST = global %LimineFramebufferRequest <{ [4 x i64] [i64 -4057218587309601912, i64 757423339400917115, i64 -7108888182325650059, i64 -6695579390111469285], i64 1, ptr null }>, section ".requests"
+@titan.LIMINE_REQUESTS_END_MARKER = global [2 x i64] [i64 -5926490462068077309, i64 -7677950585681327006], section ".requests_end_marker"
+@titan.FONT = global [128 x [8 x i8]] [[8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] zeroinitializer, [8 x i8] c"\18<<\18\18\00\18\00", [8 x i8] c"66\00\00\00\00\00\00", [8 x i8] c"66\7F6\7F66\00", [8 x i8] c"\0C>\03\1E0\1F\0C\00", [8 x i8] c"\00c3\18\0Cfc\00", [8 x i8] c"\1C6\1Cn;3n\00", [8 x i8] c"\06\06\03\00\00\00\00\00", [8 x i8] c"\18\0C\06\06\06\0C\18\00", [8 x i8] c"\06\0C\18\18\18\0C\06\00", [8 x i8] c"\00f<\FF<f\00\00", [8 x i8] c"\00\0C\0C?\0C\0C\00\00", [8 x i8] c"\00\00\00\00\00\0C\0C\06", [8 x i8] c"\00\00\00?\00\00\00\00", [8 x i8] c"\00\00\00\00\00\0C\0C\00", [8 x i8] c"`0\18\0C\06\03\01\00", [8 x i8] c">cs{og>\00", [8 x i8] c"\0C\0E\0C\0C\0C\0C?\00", [8 x i8] c"\1E30\1C\063?\00", [8 x i8] c"\1E30\1C03\1E\00", [8 x i8] c"8<63\7F0x\00", [8 x i8] c"?\03\1F003\1E\00", [8 x i8] c"\1C\06\03\1F33\1E\00", [8 x i8] c"?30\18\0C\0C\0C\00", [8 x i8] c"\1E33\1E33\1E\00", [8 x i8] c"\1E33>0\18\0E\00", [8 x i8] c"\00\0C\0C\00\00\0C\0C\00", [8 x i8] c"\00\0C\0C\00\00\0C\0C\06", [8 x i8] c"\18\0C\06\03\06\0C\18\00", [8 x i8] c"\00\00?\00\00?\00\00", [8 x i8] c"\06\0C\180\18\0C\06\00", [8 x i8] c"\1E30\18\0C\00\0C\00", [8 x i8] c">c{{{\03\1E\00", [8 x i8] c"\0C\1E33?33\00", [8 x i8] c"?ff>ff?\00", [8 x i8] c"<f\03\03\03f<\00", [8 x i8] c"\1F6fff6\1F\00", [8 x i8] c"\7FF\16\1E\16F\7F\00", [8 x i8] c"\7FF\16\1E\16\06\0F\00", [8 x i8] c"<f\03\03sf|\00", [8 x i8] c"333?333\00", [8 x i8] c"\1E\0C\0C\0C\0C\0C\1E\00", [8 x i8] c"x00033\1E\00", [8 x i8] c"gf6\1E6fg\00", [8 x i8] c"\0F\06\06\06Ff\7F\00", [8 x i8] c"cw\7F\7Fkcc\00", [8 x i8] c"cgo{scc\00", [8 x i8] c"\1C6ccc6\1C\00", [8 x i8] c"?ff>\06\06\0F\00", [8 x i8] c"\1E333;\1E8\00", [8 x i8] c"?ff>6fg\00", [8 x i8] c"\1E3\07\0E83\1E\00", [8 x i8] c"?-\0C\0C\0C\0C\1E\00", [8 x i8] c"333333?\00", [8 x i8] c"33333\1E\0C\00", [8 x i8] c"ccck\7Fwc\00", [8 x i8] c"cc6\1C\1C6c\00", [8 x i8] c"333\1E\0C\0C\1E\00", [8 x i8] c"\7Fc1\18Lf\7F\00", [8 x i8] c"\1E\06\06\06\06\06\1E\00", [8 x i8] c"\03\06\0C\180`@\00", [8 x i8] c"\1E\18\18\18\18\18\1E\00", [8 x i8] c"\08\1C6c\00\00\00\00", [8 x i8] c"\00\00\00\00\00\00\00\FF", [8 x i8] c"\0C\0C\18\00\00\00\00\00", [8 x i8] c"\00\00\1E0>3n\00", [8 x i8] c"\07\06\06>ff;\00", [8 x i8] c"\00\00\1E3\033\1E\00", [8 x i8] c"800>33n\00", [8 x i8] c"\00\00\1E3?\03\1E\00", [8 x i8] c"\1C6\06\0F\06\06\0F\00", [8 x i8] c"\00\00n33>0\1F", [8 x i8] c"\07\066nffg\00", [8 x i8] c"\0C\00\0E\0C\0C\0C\1E\00", [8 x i8] c"0\0000033\1E", [8 x i8] c"\07\06f6\1E6g\00", [8 x i8] c"\0E\0C\0C\0C\0C\0C\1E\00", [8 x i8] c"\00\003\7F\7Fkc\00", [8 x i8] c"\00\00\1F3333\00", [8 x i8] c"\00\00\1E333\1E\00", [8 x i8] c"\00\00;ff>\06\0F", [8 x i8] c"\00\00n33>0x", [8 x i8] c"\00\00;nf\06\0F\00", [8 x i8] c"\00\00>\03\1E0\1F\00", [8 x i8] c"\08\0C>\0C\0C,\18\00", [8 x i8] c"\00\003333n\00", [8 x i8] c"\00\00333\1E\0C\00", [8 x i8] c"\00\00ck\7F\7F6\00", [8 x i8] c"\00\00c6\1C6c\00", [8 x i8] c"\00\00333>0\1F", [8 x i8] c"\00\00?\19\0C&?\00", [8 x i8] c"8\0C\0C\07\0C\0C8\00", [8 x i8] c"\18\18\18\00\18\18\18\00", [8 x i8] c"\07\0C\0C8\0C\0C\07\00", [8 x i8] c"n;\00\00\00\00\00\00", [8 x i8] zeroinitializer]
+@titan.H = global float 2.000000e+00
+@titan.REST_DENSITY = global float 1.000000e+00
+@titan.GRAVITY = global float 0x3FA99999A0000000
+@titan.STIFFNESS = global float 0x3FFB333340000000
+@titan.RESTITUTION = global float 0x3FA99999A0000000
+
+declare i32 @printf(ptr %0, ...)
+
+declare void @enable_fpu()
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare float @llvm.sqrt.f32(float %0) #0
+
+declare i1 @__biron_runtime_memory_ne(ptr %0, ptr %1, i64 %2)
+
+declare i1 @__biron_runtime_memory_eq(ptr %0, ptr %1, i64 %2)
+
+define void @memset(ptr %0, i32 %1, i64 %2) {
+entry:
+  %3 = alloca ptr, align 8
+  store ptr %0, ptr %3, align 8
+  %4 = alloca i32, align 4
+  store i32 %1, ptr %4, align 4
+  %5 = alloca i64, align 8
+  store i64 %2, ptr %5, align 8
+  %6 = load i32, ptr %4, align 4
+  %7 = and i32 %6, 255
+  %8 = alloca i32, align 4
+  store i32 %7, ptr %8, align 4
+  %9 = load i32, ptr %8, align 4
+  %10 = trunc i32 %9 to i8
+  %11 = alloca i8, align 1
+  store i8 %10, ptr %11, align 1
+  %12 = alloca i64, align 8
+  store i64 0, ptr %12, align 8
+  br label %loop
+
+loop:                                             ; preds = %post, %entry
+  %13 = load i64, ptr %12, align 8
+  %14 = load i64, ptr %5, align 8
+  %15 = icmp ult i64 %13, %14
+  br i1 %15, label %join, label %exit
+
+join:                                             ; preds = %loop
+  %16 = load i64, ptr %12, align 8
+  %17 = load ptr, ptr %3, align 8
+  %at = getelementptr i8, ptr %17, i64 %16
+  %18 = load i8, ptr %11, align 1
+  store i8 %18, ptr %at, align 1
+  br label %post
+
+post:                                             ; preds = %join
+  %19 = load i64, ptr %12, align 8
+  %20 = add i64 %19, 1
+  store i64 %20, ptr %12, align 8
+  br label %loop
+
+exit:                                             ; preds = %loop
+  ret void
+}
+
+define i32 @titan.make_color(ptr %0, i32 %1, i32 %2, i32 %3) {
+entry:
+  %4 = alloca ptr, align 8
+  store ptr %0, ptr %4, align 8
+  %5 = alloca i32, align 4
+  store i32 %1, ptr %5, align 4
+  %6 = alloca i32, align 4
+  store i32 %2, ptr %6, align 4
+  %7 = alloca i32, align 4
+  store i32 %3, ptr %7, align 4
+  %8 = load i32, ptr %5, align 4
+  %9 = load ptr, ptr %4, align 8
+  %10 = getelementptr %LimineFramebuffer, ptr %9, i32 0, i32 5
+  %11 = getelementptr <{ i8, i8 }>, ptr %10, i32 0, i32 1
+  %12 = load i8, ptr %11, align 1
+  %13 = zext i8 %12 to i32
+  %14 = shl i32 %8, %13
+  %15 = alloca i32, align 4
+  store i32 %14, ptr %15, align 4
+  %16 = load i32, ptr %15, align 4
+  %17 = load i32, ptr %6, align 4
+  %18 = load ptr, ptr %4, align 8
+  %19 = getelementptr %LimineFramebuffer, ptr %18, i32 0, i32 6
+  %20 = getelementptr <{ i8, i8 }>, ptr %19, i32 0, i32 1
+  %21 = load i8, ptr %20, align 1
+  %22 = zext i8 %21 to i32
+  %23 = shl i32 %17, %22
+  %24 = alloca i32, align 4
+  store i32 %23, ptr %24, align 4
+  %25 = load i32, ptr %24, align 4
+  %26 = or i32 %16, %25
+  %27 = load i32, ptr %7, align 4
+  %28 = load ptr, ptr %4, align 8
+  %29 = getelementptr %LimineFramebuffer, ptr %28, i32 0, i32 7
+  %30 = getelementptr <{ i8, i8 }>, ptr %29, i32 0, i32 1
+  %31 = load i8, ptr %30, align 1
+  %32 = zext i8 %31 to i32
+  %33 = shl i32 %27, %32
+  %34 = alloca i32, align 4
+  store i32 %33, ptr %34, align 4
+  %35 = load i32, ptr %34, align 4
+  %36 = or i32 %26, %35
+  ret i32 %36
+}
+
+define void @titan.draw_scaled_pixel(ptr %0, <{ i64, i64 }> %1, i64 %2, i64 %3, i32 %4) {
+entry:
+  %5 = alloca ptr, align 8
+  store ptr %0, ptr %5, align 8
+  %6 = alloca <{ i64, i64 }>, align 8
+  store <{ i64, i64 }> %1, ptr %6, align 8
+  %7 = alloca i64, align 8
+  store i64 %2, ptr %7, align 8
+  %8 = alloca i64, align 8
+  store i64 %3, ptr %8, align 8
+  %9 = alloca i32, align 4
+  store i32 %4, ptr %9, align 4
+  %10 = load i64, ptr %7, align 8
+  %11 = mul i64 %10, 4
+  store i64 %11, ptr %7, align 8
+  %12 = load i64, ptr %8, align 8
+  %13 = mul i64 %12, 4
+  store i64 %13, ptr %8, align 8
+  %14 = getelementptr <{ i64, i64 }>, ptr %6, i32 0, i32 0
+  %15 = load i64, ptr %14, align 8
+  %16 = load i64, ptr %7, align 8
+  %17 = add i64 %16, %15
+  store i64 %17, ptr %7, align 8
+  %18 = getelementptr <{ i64, i64 }>, ptr %6, i32 0, i32 1
+  %19 = load i64, ptr %18, align 8
+  %20 = load i64, ptr %8, align 8
+  %21 = add i64 %20, %19
+  store i64 %21, ptr %8, align 8
+  %22 = alloca i64, align 8
+  store i64 0, ptr %22, align 8
+  br label %loop
+
+loop:                                             ; preds = %post, %entry
+  %23 = load i64, ptr %22, align 8
+  %24 = icmp slt i64 %23, 16
+  br i1 %24, label %join, label %exit
+
+join:                                             ; preds = %loop
+  %25 = load i64, ptr %22, align 8
+  %26 = sdiv i64 %25, 4
+  %27 = alloca i64, align 8
+  store i64 %26, ptr %27, align 8
+  %28 = load i64, ptr %22, align 8
+  %29 = load i64, ptr %27, align 8
+  %30 = mul i64 4, %29
+  %31 = sub i64 %28, %30
+  %32 = alloca i64, align 8
+  store i64 %31, ptr %32, align 8
+  %33 = load ptr, ptr %5, align 8
+  %34 = getelementptr %LimineFramebuffer, ptr %33, i32 0, i32 0
+  %35 = load i64, ptr %8, align 8
+  %36 = load i64, ptr %27, align 8
+  %37 = add i64 %35, %36
+  %38 = alloca i64, align 8
+  store i64 %37, ptr %38, align 8
+  %39 = load i64, ptr %38, align 8
+  %40 = load ptr, ptr %5, align 8
+  %41 = getelementptr %LimineFramebuffer, ptr %40, i32 0, i32 1
+  %42 = getelementptr <{ i64, i64 }>, ptr %41, i32 0, i32 0
+  %43 = load i64, ptr %42, align 8
+  %44 = alloca i64, align 8
+  store i64 %43, ptr %44, align 8
+  %45 = load i64, ptr %44, align 8
+  %46 = mul i64 %39, %45
+  %47 = load i64, ptr %7, align 8
+  %48 = load i64, ptr %32, align 8
+  %49 = add i64 %47, %48
+  %50 = alloca i64, align 8
+  store i64 %49, ptr %50, align 8
+  %51 = load i64, ptr %50, align 8
+  %52 = add i64 %46, %51
+  %53 = load ptr, ptr %34, align 8
+  %at = getelementptr i32, ptr %53, i64 %52
+  %54 = load i32, ptr %9, align 4
+  store i32 %54, ptr %at, align 4
+  br label %post
+
+post:                                             ; preds = %join
+  %55 = load i64, ptr %22, align 8
+  %56 = add i64 %55, 1
+  store i64 %56, ptr %22, align 8
+  br label %loop
+
+exit:                                             ; preds = %loop
+  ret void
+}
+
+define void @titan.draw_scaled_particle(ptr %0, <{ i64, i64 }> %1, i64 %2, i64 %3, i32 %4) {
+entry:
+  %5 = alloca ptr, align 8
+  store ptr %0, ptr %5, align 8
+  %6 = alloca <{ i64, i64 }>, align 8
+  store <{ i64, i64 }> %1, ptr %6, align 8
+  %7 = alloca i64, align 8
+  store i64 %2, ptr %7, align 8
+  %8 = alloca i64, align 8
+  store i64 %3, ptr %8, align 8
+  %9 = alloca i32, align 4
+  store i32 %4, ptr %9, align 4
+  %10 = load i64, ptr %7, align 8
+  %11 = mul i64 %10, 4
+  store i64 %11, ptr %7, align 8
+  %12 = load i64, ptr %8, align 8
+  %13 = mul i64 %12, 4
+  store i64 %13, ptr %8, align 8
+  %14 = getelementptr <{ i64, i64 }>, ptr %6, i32 0, i32 0
+  %15 = load i64, ptr %14, align 8
+  %16 = load i64, ptr %7, align 8
+  %17 = add i64 %16, %15
+  store i64 %17, ptr %7, align 8
+  %18 = getelementptr <{ i64, i64 }>, ptr %6, i32 0, i32 1
+  %19 = load i64, ptr %18, align 8
+  %20 = load i64, ptr %8, align 8
+  %21 = add i64 %20, %19
+  store i64 %21, ptr %8, align 8
+  %22 = load ptr, ptr %5, align 8
+  %23 = getelementptr %LimineFramebuffer, ptr %22, i32 0, i32 0
+  %24 = load i64, ptr %8, align 8
+  %25 = add i64 %24, 1
+  %26 = alloca i64, align 8
+  store i64 %25, ptr %26, align 8
+  %27 = load i64, ptr %26, align 8
+  %28 = load ptr, ptr %5, align 8
+  %29 = getelementptr %LimineFramebuffer, ptr %28, i32 0, i32 1
+  %30 = getelementptr <{ i64, i64 }>, ptr %29, i32 0, i32 0
+  %31 = load i64, ptr %30, align 8
+  %32 = alloca i64, align 8
+  store i64 %31, ptr %32, align 8
+  %33 = load i64, ptr %32, align 8
+  %34 = mul i64 %27, %33
+  %35 = load i64, ptr %7, align 8
+  %36 = add i64 %35, 1
+  %37 = alloca i64, align 8
+  store i64 %36, ptr %37, align 8
+  %38 = load i64, ptr %37, align 8
+  %39 = add i64 %34, %38
+  %40 = load ptr, ptr %23, align 8
+  %at = getelementptr i32, ptr %40, i64 %39
+  %41 = load i32, ptr %9, align 4
+  store i32 %41, ptr %at, align 4
+  ret void
+}
+
+define float @titan.sph_kernel(float %0) {
+entry:
+  %1 = alloca float, align 4
+  store float %0, ptr %1, align 4
+  %2 = alloca float, align 4
+  store float 0x3FDD1A4540000000, ptr %2, align 4
+  %3 = load float, ptr %1, align 4
+  %4 = load float, ptr @titan.H, align 4
+  %5 = fdiv float %3, %4
+  %6 = alloca float, align 4
+  store float %5, ptr %6, align 4
+  %7 = load float, ptr %6, align 4
+  %8 = fcmp ole float %7, 5.000000e-01
+  br i1 %8, label %then, label %else
+
+then:                                             ; preds = %entry
+  %9 = load float, ptr %2, align 4
+  %10 = load float, ptr %6, align 4
+  %11 = load float, ptr %6, align 4
+  %12 = fmul float %10, %11
+  %13 = load float, ptr %6, align 4
+  %14 = fmul float %12, %13
+  %15 = load float, ptr %6, align 4
+  %16 = load float, ptr %6, align 4
+  %17 = fmul float %15, %16
+  %18 = fsub float %14, %17
+  %19 = alloca float, align 4
+  store float %18, ptr %19, align 4
+  %20 = load float, ptr %19, align 4
+  %21 = fmul float 6.000000e+00, %20
+  %22 = fadd float %21, 1.000000e+00
+  %23 = alloca float, align 4
+  store float %22, ptr %23, align 4
+  %24 = load float, ptr %23, align 4
+  %25 = fmul float %9, %24
+  store float %25, ptr %2, align 4
+  br label %join
+
+else:                                             ; preds = %entry
+  %26 = load float, ptr %6, align 4
+  %27 = fsub float 1.000000e+00, %26
+  %28 = alloca float, align 4
+  store float %27, ptr %28, align 4
+  %29 = load float, ptr %2, align 4
+  %30 = fmul float %29, 2.000000e+00
+  %31 = load float, ptr %28, align 4
+  %32 = fmul float %30, %31
+  %33 = load float, ptr %28, align 4
+  %34 = fmul float %32, %33
+  %35 = load float, ptr %28, align 4
+  %36 = fmul float %34, %35
+  store float %36, ptr %2, align 4
+  br label %join
+
+join:                                             ; preds = %else, %then
+  %37 = load float, ptr %2, align 4
+  ret float %37
+}
+
+define float @titan.particle_pressure(ptr %0) {
+entry:
+  %1 = alloca ptr, align 8
+  store ptr %0, ptr %1, align 8
+  %2 = load float, ptr @titan.STIFFNESS, align 4
+  %3 = load ptr, ptr %1, align 8
+  %4 = getelementptr %Particle, ptr %3, i32 0, i32 3
+  %5 = load float, ptr %4, align 4
+  %6 = load float, ptr @titan.REST_DENSITY, align 4
+  %7 = fsub float %5, %6
+  %8 = alloca float, align 4
+  store float %7, ptr %8, align 4
+  %9 = load float, ptr %8, align 4
+  %10 = fmul float %2, %9
+  %11 = alloca float, align 4
+  store float %10, ptr %11, align 4
+  %12 = load float, ptr %11, align 4
+  %13 = fcmp olt float %12, 0.000000e+00
+  br i1 %13, label %then, label %join
+
+then:                                             ; preds = %entry
+  store float 0.000000e+00, ptr %11, align 4
+  br label %join
+
+join:                                             ; preds = %then, %entry
+  %14 = load float, ptr %11, align 4
+  ret float %14
+}
+
+; Function Attrs: noredzone alignstack(16)
+define void @kmain() #1 {
+entry:
+  call void @enable_fpu()
+  %0 = load ptr, ptr getelementptr inbounds (%LimineStackSizeRequest, ptr @titan.LIMINE_STACK_SIZE_REQUEST, i32 0, i32 2), align 8
+  %1 = icmp eq ptr %0, null
+  br i1 %1, label %then, label %join1
+
+then:                                             ; preds = %entry
+  br label %loop
+
+loop:                                             ; preds = %post, %then
+  br label %join
+
+join:                                             ; preds = %loop
+  br label %post
+
+post:                                             ; preds = %join
+  br label %loop
+
+exit:                                             ; No predecessors!
+  br label %join1
+
+join1:                                            ; preds = %exit, %entry
+  %2 = load ptr, ptr getelementptr inbounds (%LimineHHDMRequest, ptr @titan.LIMINE_HHDM_REQUEST, i32 0, i32 2), align 8
+  %3 = icmp eq ptr %2, null
+  br i1 %3, label %then2, label %join7
+
+then2:                                            ; preds = %join1
+  br label %loop3
+
+loop3:                                            ; preds = %post5, %then2
+  br label %join4
+
+join4:                                            ; preds = %loop3
+  br label %post5
+
+post5:                                            ; preds = %join4
+  br label %loop3
+
+exit6:                                            ; No predecessors!
+  br label %join7
+
+join7:                                            ; preds = %exit6, %join1
+  %4 = load ptr, ptr getelementptr inbounds (%LimineFramebufferRequest, ptr @titan.LIMINE_FRAMEBUFFER_REQUEST, i32 0, i32 2), align 8
+  %5 = icmp eq ptr %4, null
+  br i1 %5, label %then8, label %join13
+
+then8:                                            ; preds = %join7
+  br label %loop9
+
+loop9:                                            ; preds = %post11, %then8
+  br label %join10
+
+join10:                                           ; preds = %loop9
+  br label %post11
+
+post11:                                           ; preds = %join10
+  br label %loop9
+
+exit12:                                           ; No predecessors!
+  br label %join13
+
+join13:                                           ; preds = %exit12, %join7
+  %6 = load ptr, ptr getelementptr inbounds (%LimineFramebufferRequest, ptr @titan.LIMINE_FRAMEBUFFER_REQUEST, i32 0, i32 2), align 8
+  %7 = getelementptr %LimineFramebufferResponse, ptr %6, i32 0, i32 1
+  %8 = getelementptr <{ i64, ptr }>, ptr %7, i32 0, i32 1
+  %9 = load ptr, ptr %8, align 8
+  %at = getelementptr ptr, ptr %9, i32 0
+  %10 = load ptr, ptr %at, align 8
+  %11 = alloca ptr, align 8
+  store ptr %10, ptr %11, align 8
+  %12 = alloca %Sim, align 4
+  store %Sim zeroinitializer, ptr %12, align 4
+  %13 = alloca ptr, align 8
+  store ptr %12, ptr %13, align 8
+  %14 = load ptr, ptr %13, align 8
+  call void @titan.init()
+  br label %loop14
+
+loop14:                                           ; preds = %post16, %join13
+  br label %join15
+
+join15:                                           ; preds = %loop14
+  %15 = load ptr, ptr %13, align 8
+  call void @titan.step()
+  %16 = load ptr, ptr %11, align 8
+  call void @titan.clear(ptr %16)
+  %17 = load ptr, ptr %11, align 8
+  call void @titan.hello(ptr %17)
+  %18 = load ptr, ptr %13, align 8
+  %19 = load ptr, ptr %11, align 8
+  call void @titan.render(ptr %19)
+  br label %post16
+
+post16:                                           ; preds = %join15
+  br label %loop14
+
+exit17:                                           ; No predecessors!
+  ret void
+}
+
+define void @titan.clear(ptr %0) {
+entry:
+  %1 = alloca ptr, align 8
+  store ptr %0, ptr %1, align 8
+  %2 = alloca i64, align 8
+  store i64 0, ptr %2, align 8
+  br label %loop
+
+loop:                                             ; preds = %post3, %entry
+  %3 = load i64, ptr %2, align 8
+  %4 = load ptr, ptr %1, align 8
+  %5 = getelementptr %LimineFramebuffer, ptr %4, i32 0, i32 1
+  %6 = getelementptr <{ i64, i64 }>, ptr %5, i32 0, i32 1
+  %7 = load i64, ptr %6, align 8
+  %8 = icmp ult i64 %3, %7
+  br i1 %8, label %join, label %exit4
+
+join:                                             ; preds = %loop
+  %9 = alloca i64, align 8
+  store i64 0, ptr %9, align 8
+  br label %loop1
+
+loop1:                                            ; preds = %post, %join
+  %10 = load i64, ptr %9, align 8
+  %11 = load ptr, ptr %1, align 8
+  %12 = getelementptr %LimineFramebuffer, ptr %11, i32 0, i32 1
+  %13 = getelementptr <{ i64, i64 }>, ptr %12, i32 0, i32 0
+  %14 = load i64, ptr %13, align 8
+  %15 = icmp ult i64 %10, %14
+  br i1 %15, label %join2, label %exit
+
+join2:                                            ; preds = %loop1
+  %16 = load ptr, ptr %1, align 8
+  %17 = getelementptr %LimineFramebuffer, ptr %16, i32 0, i32 0
+  %18 = load i64, ptr %2, align 8
+  %19 = load ptr, ptr %1, align 8
+  %20 = getelementptr %LimineFramebuffer, ptr %19, i32 0, i32 1
+  %21 = getelementptr <{ i64, i64 }>, ptr %20, i32 0, i32 0
+  %22 = load i64, ptr %21, align 8
+  %23 = mul i64 %18, %22
+  %24 = load i64, ptr %9, align 8
+  %25 = add i64 %23, %24
+  %26 = load ptr, ptr %17, align 8
+  %at = getelementptr i32, ptr %26, i64 %25
+  %27 = load ptr, ptr %1, align 8
+  %28 = call i32 @titan.make_color(ptr %27, i32 32, i32 32, i32 32)
+  store i32 %28, ptr %at, align 4
+  br label %post
+
+post:                                             ; preds = %join2
+  %29 = load i64, ptr %9, align 8
+  %30 = add i64 %29, 1
+  store i64 %30, ptr %9, align 8
+  br label %loop1
+
+exit:                                             ; preds = %loop1
+  br label %post3
+
+post3:                                            ; preds = %exit
+  %31 = load i64, ptr %2, align 8
+  %32 = add i64 %31, 1
+  store i64 %32, ptr %2, align 8
+  br label %loop
+
+exit4:                                            ; preds = %loop
+  ret void
+}
+
+define void @titan.hello(ptr %0) {
+entry:
+  %1 = alloca ptr, align 8
+  store ptr %0, ptr %1, align 8
+  %2 = alloca [12 x i8], align 1
+  %3 = getelementptr [12 x i8], ptr %2, i32 0, i32 0
+  store i8 72, ptr %3, align 1
+  %4 = getelementptr [12 x i8], ptr %2, i32 0, i32 1
+  store i8 101, ptr %4, align 1
+  %5 = getelementptr [12 x i8], ptr %2, i32 0, i32 2
+  store i8 108, ptr %5, align 1
+  %6 = getelementptr [12 x i8], ptr %2, i32 0, i32 3
+  store i8 108, ptr %6, align 1
+  %7 = getelementptr [12 x i8], ptr %2, i32 0, i32 4
+  store i8 111, ptr %7, align 1
+  %8 = getelementptr [12 x i8], ptr %2, i32 0, i32 5
+  store i8 32, ptr %8, align 1
+  %9 = getelementptr [12 x i8], ptr %2, i32 0, i32 6
+  store i8 82, ptr %9, align 1
+  %10 = getelementptr [12 x i8], ptr %2, i32 0, i32 7
+  store i8 111, ptr %10, align 1
+  %11 = getelementptr [12 x i8], ptr %2, i32 0, i32 8
+  store i8 120, ptr %11, align 1
+  %12 = getelementptr [12 x i8], ptr %2, i32 0, i32 9
+  store i8 79, ptr %12, align 1
+  %13 = getelementptr [12 x i8], ptr %2, i32 0, i32 10
+  store i8 83, ptr %13, align 1
+  %14 = getelementptr [12 x i8], ptr %2, i32 0, i32 11
+  store i8 33, ptr %14, align 1
+  %15 = load ptr, ptr %1, align 8
+  %16 = getelementptr %LimineFramebuffer, ptr %15, i32 0, i32 1
+  %17 = getelementptr <{ i64, i64 }>, ptr %16, i32 0, i32 0
+  %18 = load i64, ptr %17, align 8
+  %19 = lshr i64 %18, 1
+  %20 = alloca i64, align 8
+  store i64 %19, ptr %20, align 8
+  %21 = load i64, ptr %20, align 8
+  %22 = alloca i64, align 8
+  store i64 6, ptr %22, align 8
+  %23 = load i64, ptr %22, align 8
+  %24 = mul i64 %23, 8
+  %25 = sub i64 %21, %24
+  %26 = alloca i64, align 8
+  store i64 %25, ptr %26, align 8
+  %27 = load ptr, ptr %1, align 8
+  %28 = getelementptr %LimineFramebuffer, ptr %27, i32 0, i32 1
+  %29 = getelementptr <{ i64, i64 }>, ptr %28, i32 0, i32 1
+  %30 = load i64, ptr %29, align 8
+  %31 = lshr i64 %30, 1
+  %32 = alloca i64, align 8
+  store i64 %31, ptr %32, align 8
+  %33 = load i64, ptr %32, align 8
+  %34 = alloca i64, align 8
+  store i64 4, ptr %34, align 8
+  %35 = load i64, ptr %34, align 8
+  %36 = mul i64 %35, 8
+  %37 = sub i64 %33, %36
+  %38 = alloca i64, align 8
+  store i64 %37, ptr %38, align 8
+  %39 = load i64, ptr %26, align 8
+  %40 = alloca i64, align 8
+  store i64 %39, ptr %40, align 8
+  %41 = load i64, ptr %38, align 8
+  %42 = alloca i64, align 8
+  store i64 %41, ptr %42, align 8
+  %43 = alloca i32, align 4
+  store i32 0, ptr %43, align 4
+  br label %loop
+
+loop:                                             ; preds = %post12, %entry
+  %44 = load i32, ptr %43, align 4
+  %45 = icmp ult i32 %44, 8
+  br i1 %45, label %join, label %exit13
+
+join:                                             ; preds = %loop
+  %46 = alloca i32, align 4
+  store i32 0, ptr %46, align 4
+  br label %loop1
+
+loop1:                                            ; preds = %post10, %join
+  %47 = load i32, ptr %46, align 4
+  %48 = icmp ult i32 %47, 12
+  br i1 %48, label %join2, label %exit11
+
+join2:                                            ; preds = %loop1
+  %49 = load i32, ptr %46, align 4
+  %at = getelementptr [12 x i8], ptr %2, i32 0, i32 %49
+  %50 = load i8, ptr %at, align 1
+  %at3 = getelementptr [128 x [8 x i8]], ptr @titan.FONT, i32 0, i8 %50
+  %51 = load i32, ptr %43, align 4
+  %at4 = getelementptr [8 x i8], ptr %at3, i32 0, i32 %51
+  %52 = load i8, ptr %at4, align 1
+  %53 = zext i8 %52 to i32
+  %54 = alloca i32, align 4
+  store i32 %53, ptr %54, align 4
+  %55 = alloca i32, align 4
+  store i32 0, ptr %55, align 4
+  br label %loop5
+
+loop5:                                            ; preds = %post, %join2
+  %56 = load i32, ptr %55, align 4
+  %57 = icmp ult i32 %56, 8
+  br i1 %57, label %join6, label %exit
+
+join6:                                            ; preds = %loop5
+  %58 = load i32, ptr %54, align 4
+  %59 = load i32, ptr %55, align 4
+  %60 = shl i32 1, %59
+  %61 = alloca i32, align 4
+  store i32 %60, ptr %61, align 4
+  %62 = load i32, ptr %61, align 4
+  %63 = and i32 %58, %62
+  %64 = alloca i32, align 4
+  store i32 %63, ptr %64, align 4
+  %65 = load i32, ptr %64, align 4
+  %66 = icmp ne i32 %65, 0
+  br i1 %66, label %then, label %else
+
+then:                                             ; preds = %join6
+  %67 = load ptr, ptr %1, align 8
+  %68 = getelementptr %LimineFramebuffer, ptr %67, i32 0, i32 0
+  %69 = load i64, ptr %42, align 8
+  %70 = load ptr, ptr %1, align 8
+  %71 = getelementptr %LimineFramebuffer, ptr %70, i32 0, i32 1
+  %72 = getelementptr <{ i64, i64 }>, ptr %71, i32 0, i32 0
+  %73 = load i64, ptr %72, align 8
+  %74 = mul i64 %69, %73
+  %75 = load ptr, ptr %68, align 8
+  %at7 = getelementptr i32, ptr %75, i64 %74
+  %76 = alloca ptr, align 8
+  store ptr %at7, ptr %76, align 8
+  %77 = load i64, ptr %40, align 8
+  %78 = load ptr, ptr %76, align 8
+  %at8 = getelementptr i32, ptr %78, i64 %77
+  %79 = load ptr, ptr %1, align 8
+  %80 = call i32 @titan.make_color(ptr %79, i32 255, i32 255, i32 0)
+  store i32 %80, ptr %at8, align 4
+  br label %join9
+
+else:                                             ; preds = %join6
+  br label %join9
+
+join9:                                            ; preds = %else, %then
+  %81 = load i64, ptr %40, align 8
+  %82 = add i64 %81, 1
+  store i64 %82, ptr %40, align 8
+  br label %post
+
+post:                                             ; preds = %join9
+  %83 = load i32, ptr %55, align 4
+  %84 = add i32 %83, 1
+  store i32 %84, ptr %55, align 4
+  br label %loop5
+
+exit:                                             ; preds = %loop5
+  br label %post10
+
+post10:                                           ; preds = %exit
+  %85 = load i32, ptr %46, align 4
+  %86 = add i32 %85, 1
+  store i32 %86, ptr %46, align 4
+  br label %loop1
+
+exit11:                                           ; preds = %loop1
+  %87 = load i64, ptr %42, align 8
+  %88 = add i64 %87, 1
+  store i64 %88, ptr %42, align 8
+  %89 = load i64, ptr %26, align 8
+  store i64 %89, ptr %40, align 8
+  br label %post12
+
+post12:                                           ; preds = %exit11
+  %90 = load i32, ptr %43, align 4
+  %91 = add i32 %90, 1
+  store i32 %91, ptr %43, align 4
+  br label %loop
+
+exit13:                                           ; preds = %loop
+  ret void
+}
+
+define void @titan.init(ptr %0) {
+entry:
+  %1 = alloca ptr, align 8
+  store ptr %0, ptr %1, align 8
+  %2 = alloca [2 x float], align 4
+  %3 = getelementptr [2 x float], ptr %2, i32 0, i32 0
+  store float 1.280000e+02, ptr %3, align 4
+  %4 = getelementptr [2 x float], ptr %2, i32 0, i32 1
+  store float 1.280000e+02, ptr %4, align 4
+  %5 = load ptr, ptr %1, align 8
+  %6 = getelementptr %Sim, ptr %5, i32 0, i32 2
+  %7 = load [2 x float], ptr %2, align 4
+  store [2 x float] %7, ptr %6, align 4
+  %8 = alloca i64, align 8
+  store i64 48, ptr %8, align 8
+  %9 = alloca i64, align 8
+  store i64 48, ptr %9, align 8
+  %10 = load i64, ptr %8, align 8
+  %11 = load i64, ptr %9, align 8
+  %12 = mul i64 %10, %11
+  %13 = alloca i64, align 8
+  store i64 %12, ptr %13, align 8
+  %14 = alloca i64, align 8
+  store i64 258, ptr %14, align 8
+  %15 = load i64, ptr %14, align 8
+  %16 = mul i64 2, %15
+  %17 = alloca i64, align 8
+  store i64 %16, ptr %17, align 8
+  %18 = load ptr, ptr %1, align 8
+  %19 = getelementptr %Sim, ptr %18, i32 0, i32 0
+  %at = getelementptr [2304 x %Particle], ptr %19, i32 0, i32 0
+  %20 = alloca ptr, align 8
+  store ptr %at, ptr %20, align 8
+  %21 = load ptr, ptr %1, align 8
+  %22 = getelementptr %Sim, ptr %21, i32 0, i32 1
+  %at1 = getelementptr [516 x [2 x float]], ptr %22, i32 0, i32 0
+  %23 = alloca ptr, align 8
+  store ptr %at1, ptr %23, align 8
+  %24 = alloca i64, align 8
+  store i64 0, ptr %24, align 8
+  br label %loop
+
+loop:                                             ; preds = %post, %entry
+  %25 = load i64, ptr %24, align 8
+  %26 = icmp slt i64 %25, 130
+  br i1 %26, label %join, label %exit
+
+join:                                             ; preds = %loop
+  %27 = load i64, ptr %24, align 8
+  %28 = load ptr, ptr %23, align 8
+  %at2 = getelementptr [2 x float], ptr %28, i64 %27
+  %29 = alloca [2 x float], align 4
+  %30 = getelementptr [2 x float], ptr %29, i32 0, i32 0
+  %31 = load i64, ptr %24, align 8
+  %32 = sitofp i64 %31 to float
+  %33 = alloca float, align 4
+  store float %32, ptr %33, align 4
+  %34 = load float, ptr %33, align 4
+  %35 = fsub float %34, 5.000000e-01
+  store float %35, ptr %30, align 4
+  %36 = getelementptr [2 x float], ptr %29, i32 0, i32 1
+  store float -5.000000e-01, ptr %36, align 4
+  %37 = load [2 x float], ptr %29, align 4
+  store [2 x float] %37, ptr %at2, align 4
+  %38 = load i64, ptr %24, align 8
+  %39 = add i64 %38, 128
+  %40 = add i64 %39, 2
+  %41 = load ptr, ptr %23, align 8
+  %at3 = getelementptr [2 x float], ptr %41, i64 %40
+  %42 = alloca [2 x float], align 4
+  %43 = getelementptr [2 x float], ptr %42, i32 0, i32 0
+  %44 = load i64, ptr %24, align 8
+  %45 = sitofp i64 %44 to float
+  %46 = alloca float, align 4
+  store float %45, ptr %46, align 4
+  %47 = load float, ptr %46, align 4
+  %48 = fsub float %47, 5.000000e-01
+  store float %48, ptr %43, align 4
+  %49 = getelementptr [2 x float], ptr %42, i32 0, i32 1
+  %at4 = getelementptr [2 x float], ptr %2, i32 0, i32 1
+  %50 = load float, ptr %at4, align 4
+  %51 = fadd float %50, 5.000000e-01
+  store float %51, ptr %49, align 4
+  %52 = load [2 x float], ptr %42, align 4
+  store [2 x float] %52, ptr %at3, align 4
+  br label %post
+
+post:                                             ; preds = %join
+  %53 = load i64, ptr %24, align 8
+  %54 = add i64 %53, 1
+  store i64 %54, ptr %24, align 8
+  br label %loop
+
+exit:                                             ; preds = %loop
+  %55 = alloca i64, align 8
+  store i64 0, ptr %55, align 8
+  br label %loop5
+
+loop5:                                            ; preds = %post10, %exit
+  %56 = load i64, ptr %55, align 8
+  %57 = icmp slt i64 %56, 128
+  br i1 %57, label %join6, label %exit11
+
+join6:                                            ; preds = %loop5
+  %58 = load i64, ptr %55, align 8
+  %59 = alloca i64, align 8
+  store i64 130, ptr %59, align 8
+  %60 = load i64, ptr %59, align 8
+  %61 = mul i64 2, %60
+  %62 = add i64 %58, %61
+  %63 = load ptr, ptr %23, align 8
+  %at7 = getelementptr [2 x float], ptr %63, i64 %62
+  %64 = alloca [2 x float], align 4
+  %65 = getelementptr [2 x float], ptr %64, i32 0, i32 0
+  store float -5.000000e-01, ptr %65, align 4
+  %66 = getelementptr [2 x float], ptr %64, i32 0, i32 1
+  %67 = load i64, ptr %55, align 8
+  %68 = sitofp i64 %67 to float
+  %69 = alloca float, align 4
+  store float %68, ptr %69, align 4
+  %70 = load float, ptr %69, align 4
+  %71 = fadd float %70, 5.000000e-01
+  store float %71, ptr %66, align 4
+  %72 = load [2 x float], ptr %64, align 4
+  store [2 x float] %72, ptr %at7, align 4
+  %73 = load i64, ptr %55, align 8
+  %74 = alloca i64, align 8
+  store i64 130, ptr %74, align 8
+  %75 = load i64, ptr %74, align 8
+  %76 = mul i64 2, %75
+  %77 = add i64 %73, %76
+  %78 = add i64 %77, 128
+  %79 = load ptr, ptr %23, align 8
+  %at8 = getelementptr [2 x float], ptr %79, i64 %78
+  %80 = alloca [2 x float], align 4
+  %81 = getelementptr [2 x float], ptr %80, i32 0, i32 0
+  %at9 = getelementptr [2 x float], ptr %2, i32 0, i32 0
+  %82 = load float, ptr %at9, align 4
+  %83 = fadd float %82, 5.000000e-01
+  store float %83, ptr %81, align 4
+  %84 = getelementptr [2 x float], ptr %80, i32 0, i32 1
+  %85 = load i64, ptr %55, align 8
+  %86 = sitofp i64 %85 to float
+  %87 = alloca float, align 4
+  store float %86, ptr %87, align 4
+  %88 = load float, ptr %87, align 4
+  %89 = fadd float %88, 5.000000e-01
+  store float %89, ptr %84, align 4
+  %90 = load [2 x float], ptr %80, align 4
+  store [2 x float] %90, ptr %at8, align 4
+  br label %post10
+
+post10:                                           ; preds = %join6
+  %91 = load i64, ptr %55, align 8
+  %92 = add i64 %91, 1
+  store i64 %92, ptr %55, align 8
+  br label %loop5
+
+exit11:                                           ; preds = %loop5
+  %93 = alloca float, align 4
+  store float 5.000000e-01, ptr %93, align 4
+  %at12 = getelementptr [2 x float], ptr %2, i32 0, i32 1
+  %94 = load float, ptr %at12, align 4
+  %95 = fmul float 7.500000e-01, %94
+  %96 = fsub float %95, 5.000000e-01
+  %97 = alloca float, align 4
+  store float %96, ptr %97, align 4
+  %98 = alloca i64, align 8
+  store i64 0, ptr %98, align 8
+  br label %loop13
+
+loop13:                                           ; preds = %post22, %exit11
+  %99 = load i64, ptr %98, align 8
+  %100 = load i64, ptr %9, align 8
+  %101 = icmp ult i64 %99, %100
+  br i1 %101, label %join14, label %exit23
+
+join14:                                           ; preds = %loop13
+  %102 = alloca i64, align 8
+  store i64 0, ptr %102, align 8
+  br label %loop15
+
+loop15:                                           ; preds = %post20, %join14
+  %103 = load i64, ptr %102, align 8
+  %104 = load i64, ptr %8, align 8
+  %105 = icmp ult i64 %103, %104
+  br i1 %105, label %join16, label %exit21
+
+join16:                                           ; preds = %loop15
+  %106 = load i64, ptr %98, align 8
+  %107 = load i64, ptr %8, align 8
+  %108 = mul i64 %106, %107
+  %109 = load i64, ptr %102, align 8
+  %110 = add i64 %108, %109
+  %111 = load ptr, ptr %20, align 8
+  %at17 = getelementptr %Particle, ptr %111, i64 %110
+  %112 = alloca ptr, align 8
+  store ptr %at17, ptr %112, align 8
+  %113 = load ptr, ptr %112, align 8
+  %114 = getelementptr %Particle, ptr %113, i32 0, i32 1
+  %at18 = getelementptr [2 x float], ptr %114, i32 0, i32 0
+  %115 = load float, ptr %93, align 4
+  %116 = load i64, ptr %102, align 8
+  %117 = uitofp i64 %116 to float
+  %118 = alloca float, align 4
+  store float %117, ptr %118, align 4
+  %119 = load float, ptr %118, align 4
+  %120 = fadd float %115, %119
+  store float %120, ptr %at18, align 4
+  %121 = load ptr, ptr %112, align 8
+  %122 = getelementptr %Particle, ptr %121, i32 0, i32 1
+  %at19 = getelementptr [2 x float], ptr %122, i32 0, i32 1
+  %123 = load float, ptr %97, align 4
+  %124 = load i64, ptr %98, align 8
+  %125 = uitofp i64 %124 to float
+  %126 = alloca float, align 4
+  store float %125, ptr %126, align 4
+  %127 = load float, ptr %126, align 4
+  %128 = fsub float %123, %127
+  store float %128, ptr %at19, align 4
+  br label %post20
+
+post20:                                           ; preds = %join16
+  %129 = load i64, ptr %102, align 8
+  %130 = add i64 %129, 1
+  store i64 %130, ptr %102, align 8
+  br label %loop15
+
+exit21:                                           ; preds = %loop15
+  br label %post22
+
+post22:                                           ; preds = %exit21
+  %131 = load i64, ptr %98, align 8
+  %132 = add i64 %131, 1
+  store i64 %132, ptr %98, align 8
+  br label %loop13
+
+exit23:                                           ; preds = %loop13
+  ret void
+}
+
+define void @titan.step(ptr %0) {
+entry:
+  %1 = alloca ptr, align 8
+  store ptr %0, ptr %1, align 8
+  %2 = alloca i64, align 8
+  store i64 2304, ptr %2, align 8
+  %3 = alloca i64, align 8
+  store i64 258, ptr %3, align 8
+  %4 = load i64, ptr %3, align 8
+  %5 = mul i64 2, %4
+  %6 = alloca i64, align 8
+  store i64 %5, ptr %6, align 8
+  %7 = load ptr, ptr %1, align 8
+  %8 = getelementptr %Sim, ptr %7, i32 0, i32 0
+  %at = getelementptr [2304 x %Particle], ptr %8, i32 0, i32 0
+  %9 = alloca ptr, align 8
+  store ptr %at, ptr %9, align 8
+  %10 = load ptr, ptr %1, align 8
+  %11 = getelementptr %Sim, ptr %10, i32 0, i32 1
+  %at1 = getelementptr [516 x [2 x float]], ptr %11, i32 0, i32 0
+  %12 = alloca ptr, align 8
+  store ptr %at1, ptr %12, align 8
+  %13 = alloca i64, align 8
+  store i64 0, ptr %13, align 8
+  br label %loop
+
+loop:                                             ; preds = %post, %entry
+  %14 = load i64, ptr %13, align 8
+  %15 = load i64, ptr %2, align 8
+  %16 = icmp ult i64 %14, %15
+  br i1 %16, label %join, label %exit
+
+join:                                             ; preds = %loop
+  %17 = load i64, ptr %13, align 8
+  %18 = load ptr, ptr %9, align 8
+  %at2 = getelementptr %Particle, ptr %18, i64 %17
+  %19 = alloca ptr, align 8
+  store ptr %at2, ptr %19, align 8
+  %20 = load ptr, ptr %19, align 8
+  %21 = getelementptr %Particle, ptr %20, i32 0, i32 0
+  %22 = load ptr, ptr %19, align 8
+  %23 = getelementptr %Particle, ptr %22, i32 0, i32 1
+  %24 = load [2 x float], ptr %23, align 4
+  store [2 x float] %24, ptr %21, align 4
+  %25 = load ptr, ptr %19, align 8
+  %26 = getelementptr %Particle, ptr %25, i32 0, i32 2
+  %at3 = getelementptr [2 x float], ptr %26, i32 0, i32 1
+  %27 = load float, ptr @titan.GRAVITY, align 4
+  %28 = load float, ptr %at3, align 4
+  %29 = fadd float %28, %27
+  store float %29, ptr %at3, align 4
+  %30 = load ptr, ptr %19, align 8
+  %31 = getelementptr %Particle, ptr %30, i32 0, i32 1
+  %at4 = getelementptr [2 x float], ptr %31, i32 0, i32 0
+  %32 = load ptr, ptr %19, align 8
+  %33 = getelementptr %Particle, ptr %32, i32 0, i32 2
+  %at5 = getelementptr [2 x float], ptr %33, i32 0, i32 0
+  %34 = load float, ptr %at5, align 4
+  %35 = load float, ptr %at4, align 4
+  %36 = fadd float %35, %34
+  store float %36, ptr %at4, align 4
+  %37 = load ptr, ptr %19, align 8
+  %38 = getelementptr %Particle, ptr %37, i32 0, i32 1
+  %at6 = getelementptr [2 x float], ptr %38, i32 0, i32 1
+  %39 = load ptr, ptr %19, align 8
+  %40 = getelementptr %Particle, ptr %39, i32 0, i32 2
+  %at7 = getelementptr [2 x float], ptr %40, i32 0, i32 1
+  %41 = load float, ptr %at7, align 4
+  %42 = load float, ptr %at6, align 4
+  %43 = fadd float %42, %41
+  store float %43, ptr %at6, align 4
+  br label %post
+
+post:                                             ; preds = %join
+  %44 = load i64, ptr %13, align 8
+  %45 = add i64 %44, 1
+  store i64 %45, ptr %13, align 8
+  br label %loop
+
+exit:                                             ; preds = %loop
+  %46 = alloca i64, align 8
+  store i64 0, ptr %46, align 8
+  br label %loop8
+
+loop8:                                            ; preds = %post41, %exit
+  %47 = load i64, ptr %46, align 8
+  %48 = load i64, ptr %2, align 8
+  %49 = icmp ult i64 %47, %48
+  br i1 %49, label %join9, label %exit42
+
+join9:                                            ; preds = %loop8
+  %50 = load i64, ptr %46, align 8
+  %51 = load ptr, ptr %9, align 8
+  %at10 = getelementptr %Particle, ptr %51, i64 %50
+  %52 = alloca ptr, align 8
+  store ptr %at10, ptr %52, align 8
+  %53 = load ptr, ptr %52, align 8
+  %54 = getelementptr %Particle, ptr %53, i32 0, i32 3
+  store float 0.000000e+00, ptr %54, align 4
+  %55 = alloca i64, align 8
+  store i64 0, ptr %55, align 8
+  br label %loop11
+
+loop11:                                           ; preds = %post23, %join9
+  %56 = load i64, ptr %55, align 8
+  %57 = load i64, ptr %2, align 8
+  %58 = icmp ult i64 %56, %57
+  br i1 %58, label %join12, label %exit24
+
+join12:                                           ; preds = %loop11
+  %59 = load i64, ptr %55, align 8
+  %60 = load ptr, ptr %9, align 8
+  %at13 = getelementptr %Particle, ptr %60, i64 %59
+  %61 = alloca ptr, align 8
+  store ptr %at13, ptr %61, align 8
+  %62 = alloca [2 x float], align 4
+  %63 = getelementptr [2 x float], ptr %62, i32 0, i32 0
+  %64 = load ptr, ptr %52, align 8
+  %65 = getelementptr %Particle, ptr %64, i32 0, i32 1
+  %at14 = getelementptr [2 x float], ptr %65, i32 0, i32 0
+  %66 = load float, ptr %at14, align 4
+  %67 = load ptr, ptr %61, align 8
+  %68 = getelementptr %Particle, ptr %67, i32 0, i32 1
+  %at15 = getelementptr [2 x float], ptr %68, i32 0, i32 0
+  %69 = load float, ptr %at15, align 4
+  %70 = fsub float %66, %69
+  store float %70, ptr %63, align 4
+  %71 = getelementptr [2 x float], ptr %62, i32 0, i32 1
+  %72 = load ptr, ptr %52, align 8
+  %73 = getelementptr %Particle, ptr %72, i32 0, i32 1
+  %at16 = getelementptr [2 x float], ptr %73, i32 0, i32 1
+  %74 = load float, ptr %at16, align 4
+  %75 = load ptr, ptr %61, align 8
+  %76 = getelementptr %Particle, ptr %75, i32 0, i32 1
+  %at17 = getelementptr [2 x float], ptr %76, i32 0, i32 1
+  %77 = load float, ptr %at17, align 4
+  %78 = fsub float %74, %77
+  store float %78, ptr %71, align 4
+  %at18 = getelementptr [2 x float], ptr %62, i32 0, i32 0
+  %79 = load float, ptr %at18, align 4
+  %at19 = getelementptr [2 x float], ptr %62, i32 0, i32 0
+  %80 = load float, ptr %at19, align 4
+  %81 = fmul float %79, %80
+  %at20 = getelementptr [2 x float], ptr %62, i32 0, i32 1
+  %82 = load float, ptr %at20, align 4
+  %at21 = getelementptr [2 x float], ptr %62, i32 0, i32 1
+  %83 = load float, ptr %at21, align 4
+  %84 = fmul float %82, %83
+  %85 = fadd float %81, %84
+  %86 = call float @llvm.sqrt.f32(float %85)
+  %87 = alloca float, align 4
+  store float %86, ptr %87, align 4
+  %88 = load float, ptr %87, align 4
+  %89 = load float, ptr @titan.H, align 4
+  %90 = fcmp olt float %88, %89
+  br i1 %90, label %then, label %join22
+
+then:                                             ; preds = %join12
+  %91 = load ptr, ptr %52, align 8
+  %92 = getelementptr %Particle, ptr %91, i32 0, i32 3
+  %93 = load float, ptr %87, align 4
+  %94 = call float @titan.sph_kernel(float %93)
+  %95 = load float, ptr %92, align 4
+  %96 = fadd float %95, %94
+  store float %96, ptr %92, align 4
+  br label %join22
+
+join22:                                           ; preds = %then, %join12
+  br label %post23
+
+post23:                                           ; preds = %join22
+  %97 = load i64, ptr %55, align 8
+  %98 = add i64 %97, 1
+  store i64 %98, ptr %55, align 8
+  br label %loop11
+
+exit24:                                           ; preds = %loop11
+  %99 = alloca i64, align 8
+  store i64 0, ptr %99, align 8
+  br label %loop25
+
+loop25:                                           ; preds = %post39, %exit24
+  %100 = load i64, ptr %99, align 8
+  %101 = load i64, ptr %6, align 8
+  %102 = icmp ult i64 %100, %101
+  br i1 %102, label %join26, label %exit40
+
+join26:                                           ; preds = %loop25
+  %103 = alloca [2 x float], align 4
+  %104 = getelementptr [2 x float], ptr %103, i32 0, i32 0
+  %105 = load ptr, ptr %52, align 8
+  %106 = getelementptr %Particle, ptr %105, i32 0, i32 1
+  %at27 = getelementptr [2 x float], ptr %106, i32 0, i32 0
+  %107 = load float, ptr %at27, align 4
+  %108 = load i64, ptr %99, align 8
+  %109 = load ptr, ptr %12, align 8
+  %at28 = getelementptr [2 x float], ptr %109, i64 %108
+  %at29 = getelementptr [2 x float], ptr %at28, i32 0, i32 0
+  %110 = load float, ptr %at29, align 4
+  %111 = fsub float %107, %110
+  store float %111, ptr %104, align 4
+  %112 = getelementptr [2 x float], ptr %103, i32 0, i32 1
+  %113 = load ptr, ptr %52, align 8
+  %114 = getelementptr %Particle, ptr %113, i32 0, i32 1
+  %at30 = getelementptr [2 x float], ptr %114, i32 0, i32 1
+  %115 = load float, ptr %at30, align 4
+  %116 = load i64, ptr %99, align 8
+  %117 = load ptr, ptr %12, align 8
+  %at31 = getelementptr [2 x float], ptr %117, i64 %116
+  %at32 = getelementptr [2 x float], ptr %at31, i32 0, i32 1
+  %118 = load float, ptr %at32, align 4
+  %119 = fsub float %115, %118
+  store float %119, ptr %112, align 4
+  %at33 = getelementptr [2 x float], ptr %103, i32 0, i32 0
+  %120 = load float, ptr %at33, align 4
+  %at34 = getelementptr [2 x float], ptr %103, i32 0, i32 0
+  %121 = load float, ptr %at34, align 4
+  %122 = fmul float %120, %121
+  %at35 = getelementptr [2 x float], ptr %103, i32 0, i32 1
+  %123 = load float, ptr %at35, align 4
+  %at36 = getelementptr [2 x float], ptr %103, i32 0, i32 1
+  %124 = load float, ptr %at36, align 4
+  %125 = fmul float %123, %124
+  %126 = fadd float %122, %125
+  %127 = call float @llvm.sqrt.f32(float %126)
+  %128 = alloca float, align 4
+  store float %127, ptr %128, align 4
+  %129 = load float, ptr %128, align 4
+  %130 = load float, ptr @titan.H, align 4
+  %131 = fcmp olt float %129, %130
+  br i1 %131, label %then37, label %join38
+
+then37:                                           ; preds = %join26
+  %132 = load ptr, ptr %52, align 8
+  %133 = getelementptr %Particle, ptr %132, i32 0, i32 3
+  %134 = load float, ptr %128, align 4
+  %135 = call float @titan.sph_kernel(float %134)
+  %136 = load float, ptr %133, align 4
+  %137 = fadd float %136, %135
+  store float %137, ptr %133, align 4
+  br label %join38
+
+join38:                                           ; preds = %then37, %join26
+  br label %post39
+
+post39:                                           ; preds = %join38
+  %138 = load i64, ptr %99, align 8
+  %139 = add i64 %138, 1
+  store i64 %139, ptr %99, align 8
+  br label %loop25
+
+exit40:                                           ; preds = %loop25
+  br label %post41
+
+post41:                                           ; preds = %exit40
+  %140 = load i64, ptr %46, align 8
+  %141 = add i64 %140, 1
+  store i64 %141, ptr %46, align 8
+  br label %loop8
+
+exit42:                                           ; preds = %loop8
+  %142 = alloca i64, align 8
+  store i64 0, ptr %142, align 8
+  br label %loop43
+
+loop43:                                           ; preds = %post112, %exit42
+  %143 = load i64, ptr %142, align 8
+  %144 = load i64, ptr %2, align 8
+  %145 = icmp ult i64 %143, %144
+  br i1 %145, label %join44, label %exit113
+
+join44:                                           ; preds = %loop43
+  %146 = load i64, ptr %142, align 8
+  %147 = load ptr, ptr %9, align 8
+  %at45 = getelementptr %Particle, ptr %147, i64 %146
+  %148 = alloca ptr, align 8
+  store ptr %at45, ptr %148, align 8
+  %149 = load ptr, ptr %148, align 8
+  %150 = call float @titan.particle_pressure(ptr %149)
+  %151 = load ptr, ptr %148, align 8
+  %152 = getelementptr %Particle, ptr %151, i32 0, i32 3
+  %153 = load float, ptr %152, align 4
+  %154 = load ptr, ptr %148, align 8
+  %155 = getelementptr %Particle, ptr %154, i32 0, i32 3
+  %156 = load float, ptr %155, align 4
+  %157 = fmul float %153, %156
+  %158 = alloca float, align 4
+  store float %157, ptr %158, align 4
+  %159 = load float, ptr %158, align 4
+  %160 = fdiv float %150, %159
+  %161 = alloca float, align 4
+  store float %160, ptr %161, align 4
+  %162 = alloca [2 x float], align 4
+  store [2 x float] zeroinitializer, ptr %162, align 4
+  %163 = alloca i64, align 8
+  store i64 0, ptr %163, align 8
+  br label %loop46
+
+loop46:                                           ; preds = %post77, %join44
+  %164 = load i64, ptr %163, align 8
+  %165 = load i64, ptr %2, align 8
+  %166 = icmp ult i64 %164, %165
+  br i1 %166, label %join47, label %exit78
+
+join47:                                           ; preds = %loop46
+  %167 = load i64, ptr %142, align 8
+  %168 = load i64, ptr %163, align 8
+  %169 = icmp ne i64 %167, %168
+  br i1 %169, label %then48, label %join76
+
+then48:                                           ; preds = %join47
+  %170 = load i64, ptr %163, align 8
+  %171 = load ptr, ptr %9, align 8
+  %at49 = getelementptr %Particle, ptr %171, i64 %170
+  %172 = alloca ptr, align 8
+  store ptr %at49, ptr %172, align 8
+  %173 = alloca [2 x float], align 4
+  %174 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  %175 = load ptr, ptr %148, align 8
+  %176 = getelementptr %Particle, ptr %175, i32 0, i32 1
+  %at50 = getelementptr [2 x float], ptr %176, i32 0, i32 0
+  %177 = load float, ptr %at50, align 4
+  %178 = load ptr, ptr %172, align 8
+  %179 = getelementptr %Particle, ptr %178, i32 0, i32 1
+  %at51 = getelementptr [2 x float], ptr %179, i32 0, i32 0
+  %180 = load float, ptr %at51, align 4
+  %181 = fsub float %177, %180
+  store float %181, ptr %174, align 4
+  %182 = getelementptr [2 x float], ptr %173, i32 0, i32 1
+  %183 = load ptr, ptr %148, align 8
+  %184 = getelementptr %Particle, ptr %183, i32 0, i32 1
+  %at52 = getelementptr [2 x float], ptr %184, i32 0, i32 1
+  %185 = load float, ptr %at52, align 4
+  %186 = load ptr, ptr %172, align 8
+  %187 = getelementptr %Particle, ptr %186, i32 0, i32 1
+  %at53 = getelementptr [2 x float], ptr %187, i32 0, i32 1
+  %188 = load float, ptr %at53, align 4
+  %189 = fsub float %185, %188
+  store float %189, ptr %182, align 4
+  %at54 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  %190 = load float, ptr %at54, align 4
+  %at55 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  %191 = load float, ptr %at55, align 4
+  %192 = fmul float %190, %191
+  %at56 = getelementptr [2 x float], ptr %173, i32 0, i32 1
+  %193 = load float, ptr %at56, align 4
+  %at57 = getelementptr [2 x float], ptr %173, i32 0, i32 1
+  %194 = load float, ptr %at57, align 4
+  %195 = fmul float %193, %194
+  %196 = fadd float %192, %195
+  %197 = call float @llvm.sqrt.f32(float %196)
+  %198 = alloca float, align 4
+  store float %197, ptr %198, align 4
+  %199 = load float, ptr %198, align 4
+  %200 = load float, ptr @titan.H, align 4
+  %201 = fcmp olt float %199, %200
+  br i1 %201, label %then58, label %join75
+
+then58:                                           ; preds = %then48
+  %202 = load float, ptr %198, align 4
+  %203 = fcmp ole float %202, 0x3F50624DE0000000
+  br i1 %203, label %then59, label %else65
+
+then59:                                           ; preds = %then58
+  %204 = load i64, ptr %163, align 8
+  %205 = load i64, ptr %142, align 8
+  %206 = icmp ult i64 %204, %205
+  br i1 %206, label %then60, label %else
+
+then60:                                           ; preds = %then59
+  %at61 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  store float 1.000000e+00, ptr %at61, align 4
+  br label %join63
+
+else:                                             ; preds = %then59
+  %at62 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  store float -1.000000e+00, ptr %at62, align 4
+  br label %join63
+
+join63:                                           ; preds = %else, %then60
+  %at64 = getelementptr [2 x float], ptr %173, i32 0, i32 1
+  store float 0.000000e+00, ptr %at64, align 4
+  store float 1.000000e+00, ptr %198, align 4
+  br label %join70
+
+else65:                                           ; preds = %then58
+  %at66 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  %at67 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  %207 = load float, ptr %at67, align 4
+  %208 = load float, ptr %198, align 4
+  %209 = fdiv float %207, %208
+  store float %209, ptr %at66, align 4
+  %at68 = getelementptr [2 x float], ptr %173, i32 0, i32 1
+  %at69 = getelementptr [2 x float], ptr %173, i32 0, i32 1
+  %210 = load float, ptr %at69, align 4
+  %211 = load float, ptr %198, align 4
+  %212 = fdiv float %210, %211
+  store float %212, ptr %at68, align 4
+  br label %join70
+
+join70:                                           ; preds = %else65, %join63
+  %213 = load float, ptr @titan.H, align 4
+  %214 = load float, ptr %198, align 4
+  %215 = fsub float %213, %214
+  %216 = alloca float, align 4
+  store float %215, ptr %216, align 4
+  %217 = load float, ptr %216, align 4
+  %218 = fmul float %217, 0x3FCE8EC8A0000000
+  store float %218, ptr %216, align 4
+  %219 = load ptr, ptr %172, align 8
+  %220 = call float @titan.particle_pressure(ptr %219)
+  %221 = load ptr, ptr %172, align 8
+  %222 = getelementptr %Particle, ptr %221, i32 0, i32 3
+  %223 = load float, ptr %222, align 4
+  %224 = load ptr, ptr %172, align 8
+  %225 = getelementptr %Particle, ptr %224, i32 0, i32 3
+  %226 = load float, ptr %225, align 4
+  %227 = fmul float %223, %226
+  %228 = alloca float, align 4
+  store float %227, ptr %228, align 4
+  %229 = load float, ptr %228, align 4
+  %230 = fdiv float %220, %229
+  %231 = alloca float, align 4
+  store float %230, ptr %231, align 4
+  %232 = load float, ptr %161, align 4
+  %233 = load float, ptr %231, align 4
+  %234 = fadd float %232, %233
+  %235 = alloca float, align 4
+  store float %234, ptr %235, align 4
+  %236 = load float, ptr %235, align 4
+  %237 = load float, ptr %216, align 4
+  %238 = fmul float %236, %237
+  %239 = alloca float, align 4
+  store float %238, ptr %239, align 4
+  %at71 = getelementptr [2 x float], ptr %162, i32 0, i32 0
+  %240 = load float, ptr %239, align 4
+  %at72 = getelementptr [2 x float], ptr %173, i32 0, i32 0
+  %241 = load float, ptr %at72, align 4
+  %242 = fmul float %240, %241
+  %243 = load float, ptr %at71, align 4
+  %244 = fadd float %243, %242
+  store float %244, ptr %at71, align 4
+  %at73 = getelementptr [2 x float], ptr %162, i32 0, i32 1
+  %245 = load float, ptr %239, align 4
+  %at74 = getelementptr [2 x float], ptr %173, i32 0, i32 1
+  %246 = load float, ptr %at74, align 4
+  %247 = fmul float %245, %246
+  %248 = load float, ptr %at73, align 4
+  %249 = fadd float %248, %247
+  store float %249, ptr %at73, align 4
+  br label %join75
+
+join75:                                           ; preds = %join70, %then48
+  br label %join76
+
+join76:                                           ; preds = %join75, %join47
+  br label %post77
+
+post77:                                           ; preds = %join76
+  %250 = load i64, ptr %163, align 8
+  %251 = add i64 %250, 1
+  store i64 %251, ptr %163, align 8
+  br label %loop46
+
+exit78:                                           ; preds = %loop46
+  %252 = alloca i64, align 8
+  store i64 0, ptr %252, align 8
+  br label %loop79
+
+loop79:                                           ; preds = %post106, %exit78
+  %253 = load i64, ptr %252, align 8
+  %254 = load i64, ptr %6, align 8
+  %255 = icmp ult i64 %253, %254
+  br i1 %255, label %join80, label %exit107
+
+join80:                                           ; preds = %loop79
+  %256 = alloca [2 x float], align 4
+  %257 = getelementptr [2 x float], ptr %256, i32 0, i32 0
+  %258 = load ptr, ptr %148, align 8
+  %259 = getelementptr %Particle, ptr %258, i32 0, i32 1
+  %at81 = getelementptr [2 x float], ptr %259, i32 0, i32 0
+  %260 = load float, ptr %at81, align 4
+  %261 = load i64, ptr %252, align 8
+  %262 = load ptr, ptr %12, align 8
+  %at82 = getelementptr [2 x float], ptr %262, i64 %261
+  %at83 = getelementptr [2 x float], ptr %at82, i32 0, i32 0
+  %263 = load float, ptr %at83, align 4
+  %264 = fsub float %260, %263
+  store float %264, ptr %257, align 4
+  %265 = getelementptr [2 x float], ptr %256, i32 0, i32 1
+  %266 = load ptr, ptr %148, align 8
+  %267 = getelementptr %Particle, ptr %266, i32 0, i32 1
+  %at84 = getelementptr [2 x float], ptr %267, i32 0, i32 1
+  %268 = load float, ptr %at84, align 4
+  %269 = load i64, ptr %252, align 8
+  %270 = load ptr, ptr %12, align 8
+  %at85 = getelementptr [2 x float], ptr %270, i64 %269
+  %at86 = getelementptr [2 x float], ptr %at85, i32 0, i32 1
+  %271 = load float, ptr %at86, align 4
+  %272 = fsub float %268, %271
+  store float %272, ptr %265, align 4
+  %at87 = getelementptr [2 x float], ptr %256, i32 0, i32 0
+  %273 = load float, ptr %at87, align 4
+  %at88 = getelementptr [2 x float], ptr %256, i32 0, i32 0
+  %274 = load float, ptr %at88, align 4
+  %275 = fmul float %273, %274
+  %at89 = getelementptr [2 x float], ptr %256, i32 0, i32 1
+  %276 = load float, ptr %at89, align 4
+  %at90 = getelementptr [2 x float], ptr %256, i32 0, i32 1
+  %277 = load float, ptr %at90, align 4
+  %278 = fmul float %276, %277
+  %279 = fadd float %275, %278
+  %280 = call float @llvm.sqrt.f32(float %279)
+  %281 = alloca float, align 4
+  store float %280, ptr %281, align 4
+  %282 = load float, ptr %281, align 4
+  %283 = load float, ptr @titan.H, align 4
+  %284 = fcmp olt float %282, %283
+  br i1 %284, label %then91, label %join105
+
+then91:                                           ; preds = %join80
+  %285 = load float, ptr %281, align 4
+  %286 = fcmp ole float %285, 0x3F50624DE0000000
+  br i1 %286, label %then92, label %else95
+
+then92:                                           ; preds = %then91
+  %at93 = getelementptr [2 x float], ptr %256, i32 0, i32 0
+  store float 0.000000e+00, ptr %at93, align 4
+  %at94 = getelementptr [2 x float], ptr %256, i32 0, i32 1
+  store float -1.000000e+00, ptr %at94, align 4
+  store float 1.000000e+00, ptr %281, align 4
+  br label %join100
+
+else95:                                           ; preds = %then91
+  %at96 = getelementptr [2 x float], ptr %256, i32 0, i32 0
+  %at97 = getelementptr [2 x float], ptr %256, i32 0, i32 0
+  %287 = load float, ptr %at97, align 4
+  %288 = load float, ptr %281, align 4
+  %289 = fdiv float %287, %288
+  store float %289, ptr %at96, align 4
+  %at98 = getelementptr [2 x float], ptr %256, i32 0, i32 1
+  %at99 = getelementptr [2 x float], ptr %256, i32 0, i32 1
+  %290 = load float, ptr %at99, align 4
+  %291 = load float, ptr %281, align 4
+  %292 = fdiv float %290, %291
+  store float %292, ptr %at98, align 4
+  br label %join100
+
+join100:                                          ; preds = %else95, %then92
+  %293 = load float, ptr @titan.H, align 4
+  %294 = load float, ptr %281, align 4
+  %295 = fsub float %293, %294
+  %296 = alloca float, align 4
+  store float %295, ptr %296, align 4
+  %297 = load float, ptr %296, align 4
+  %298 = fmul float %297, 0x3FCE8EC8A0000000
+  store float %298, ptr %296, align 4
+  %299 = load ptr, ptr %148, align 8
+  %300 = call float @titan.particle_pressure(ptr %299)
+  %301 = load float, ptr @titan.REST_DENSITY, align 4
+  %302 = load float, ptr @titan.REST_DENSITY, align 4
+  %303 = fmul float %301, %302
+  %304 = alloca float, align 4
+  store float %303, ptr %304, align 4
+  %305 = load float, ptr %304, align 4
+  %306 = fdiv float %300, %305
+  %307 = alloca float, align 4
+  store float %306, ptr %307, align 4
+  %308 = load float, ptr %161, align 4
+  %309 = load float, ptr %307, align 4
+  %310 = fadd float %308, %309
+  %311 = alloca float, align 4
+  store float %310, ptr %311, align 4
+  %312 = load float, ptr %311, align 4
+  %313 = load float, ptr %296, align 4
+  %314 = fmul float %312, %313
+  %315 = alloca float, align 4
+  store float %314, ptr %315, align 4
+  %at101 = getelementptr [2 x float], ptr %162, i32 0, i32 0
+  %316 = load float, ptr %315, align 4
+  %at102 = getelementptr [2 x float], ptr %256, i32 0, i32 0
+  %317 = load float, ptr %at102, align 4
+  %318 = fmul float %316, %317
+  %319 = load float, ptr %at101, align 4
+  %320 = fadd float %319, %318
+  store float %320, ptr %at101, align 4
+  %at103 = getelementptr [2 x float], ptr %162, i32 0, i32 1
+  %321 = load float, ptr %315, align 4
+  %at104 = getelementptr [2 x float], ptr %256, i32 0, i32 1
+  %322 = load float, ptr %at104, align 4
+  %323 = fmul float %321, %322
+  %324 = load float, ptr %at103, align 4
+  %325 = fadd float %324, %323
+  store float %325, ptr %at103, align 4
+  br label %join105
+
+join105:                                          ; preds = %join100, %join80
+  br label %post106
+
+post106:                                          ; preds = %join105
+  %326 = load i64, ptr %252, align 8
+  %327 = add i64 %326, 1
+  store i64 %327, ptr %252, align 8
+  br label %loop79
+
+exit107:                                          ; preds = %loop79
+  %328 = load ptr, ptr %148, align 8
+  %329 = getelementptr %Particle, ptr %328, i32 0, i32 2
+  %at108 = getelementptr [2 x float], ptr %329, i32 0, i32 0
+  %at109 = getelementptr [2 x float], ptr %162, i32 0, i32 0
+  %330 = load float, ptr %at109, align 4
+  %331 = load ptr, ptr %148, align 8
+  %332 = getelementptr %Particle, ptr %331, i32 0, i32 3
+  %333 = load float, ptr %332, align 4
+  %334 = fdiv float %330, %333
+  %335 = load float, ptr %at108, align 4
+  %336 = fadd float %335, %334
+  store float %336, ptr %at108, align 4
+  %337 = load ptr, ptr %148, align 8
+  %338 = getelementptr %Particle, ptr %337, i32 0, i32 2
+  %at110 = getelementptr [2 x float], ptr %338, i32 0, i32 1
+  %at111 = getelementptr [2 x float], ptr %162, i32 0, i32 1
+  %339 = load float, ptr %at111, align 4
+  %340 = load ptr, ptr %148, align 8
+  %341 = getelementptr %Particle, ptr %340, i32 0, i32 3
+  %342 = load float, ptr %341, align 4
+  %343 = fdiv float %339, %342
+  %344 = load float, ptr %at110, align 4
+  %345 = fadd float %344, %343
+  store float %345, ptr %at110, align 4
+  br label %post112
+
+post112:                                          ; preds = %exit107
+  %346 = load i64, ptr %142, align 8
+  %347 = add i64 %346, 1
+  store i64 %347, ptr %142, align 8
+  br label %loop43
+
+exit113:                                          ; preds = %loop43
+  %348 = alloca i64, align 8
+  store i64 0, ptr %348, align 8
+  br label %loop114
+
+loop114:                                          ; preds = %post147, %exit113
+  %349 = load i64, ptr %348, align 8
+  %350 = load i64, ptr %2, align 8
+  %351 = icmp ult i64 %349, %350
+  br i1 %351, label %join115, label %exit148
+
+join115:                                          ; preds = %loop114
+  %352 = load i64, ptr %348, align 8
+  %353 = load ptr, ptr %9, align 8
+  %at116 = getelementptr %Particle, ptr %353, i64 %352
+  %354 = alloca ptr, align 8
+  store ptr %at116, ptr %354, align 8
+  %355 = load ptr, ptr %354, align 8
+  %356 = getelementptr %Particle, ptr %355, i32 0, i32 1
+  %at117 = getelementptr [2 x float], ptr %356, i32 0, i32 0
+  %357 = load ptr, ptr %354, align 8
+  %358 = getelementptr %Particle, ptr %357, i32 0, i32 0
+  %at118 = getelementptr [2 x float], ptr %358, i32 0, i32 0
+  %359 = load float, ptr %at118, align 4
+  %360 = load ptr, ptr %354, align 8
+  %361 = getelementptr %Particle, ptr %360, i32 0, i32 2
+  %at119 = getelementptr [2 x float], ptr %361, i32 0, i32 0
+  %362 = load float, ptr %at119, align 4
+  %363 = fadd float %359, %362
+  store float %363, ptr %at117, align 4
+  %364 = load ptr, ptr %354, align 8
+  %365 = getelementptr %Particle, ptr %364, i32 0, i32 1
+  %at120 = getelementptr [2 x float], ptr %365, i32 0, i32 1
+  %366 = load ptr, ptr %354, align 8
+  %367 = getelementptr %Particle, ptr %366, i32 0, i32 0
+  %at121 = getelementptr [2 x float], ptr %367, i32 0, i32 1
+  %368 = load float, ptr %at121, align 4
+  %369 = load ptr, ptr %354, align 8
+  %370 = getelementptr %Particle, ptr %369, i32 0, i32 2
+  %at122 = getelementptr [2 x float], ptr %370, i32 0, i32 1
+  %371 = load float, ptr %at122, align 4
+  %372 = fadd float %368, %371
+  store float %372, ptr %at120, align 4
+  %373 = alloca i64, align 8
+  store i64 0, ptr %373, align 8
+  br label %loop123
+
+loop123:                                          ; preds = %post145, %join115
+  %374 = load i64, ptr %373, align 8
+  %375 = icmp ult i64 %374, 2
+  br i1 %375, label %join124, label %exit146
+
+join124:                                          ; preds = %loop123
+  %376 = load ptr, ptr %354, align 8
+  %377 = getelementptr %Particle, ptr %376, i32 0, i32 1
+  %378 = load i64, ptr %373, align 8
+  %at125 = getelementptr [2 x float], ptr %377, i32 0, i64 %378
+  %379 = load float, ptr %at125, align 4
+  %380 = fcmp olt float %379, 5.000000e-01
+  br i1 %380, label %then126, label %else132
+
+then126:                                          ; preds = %join124
+  %381 = load ptr, ptr %354, align 8
+  %382 = getelementptr %Particle, ptr %381, i32 0, i32 1
+  %383 = load i64, ptr %373, align 8
+  %at127 = getelementptr [2 x float], ptr %382, i32 0, i64 %383
+  store float 5.000000e-01, ptr %at127, align 4
+  %384 = load ptr, ptr %354, align 8
+  %385 = getelementptr %Particle, ptr %384, i32 0, i32 2
+  %386 = load i64, ptr %373, align 8
+  %at128 = getelementptr [2 x float], ptr %385, i32 0, i64 %386
+  %387 = load float, ptr %at128, align 4
+  %388 = fcmp olt float %387, 0.000000e+00
+  br i1 %388, label %then129, label %join131
+
+then129:                                          ; preds = %then126
+  %389 = load ptr, ptr %354, align 8
+  %390 = getelementptr %Particle, ptr %389, i32 0, i32 2
+  %391 = load i64, ptr %373, align 8
+  %at130 = getelementptr [2 x float], ptr %390, i32 0, i64 %391
+  %392 = load float, ptr @titan.RESTITUTION, align 4
+  %393 = fneg float %392
+  %394 = load float, ptr %at130, align 4
+  %395 = fmul float %394, %393
+  store float %395, ptr %at130, align 4
+  br label %join131
+
+join131:                                          ; preds = %then129, %then126
+  br label %join144
+
+else132:                                          ; preds = %join124
+  %396 = load ptr, ptr %354, align 8
+  %397 = getelementptr %Particle, ptr %396, i32 0, i32 1
+  %398 = load i64, ptr %373, align 8
+  %at133 = getelementptr [2 x float], ptr %397, i32 0, i64 %398
+  %399 = load float, ptr %at133, align 4
+  %400 = load ptr, ptr %1, align 8
+  %401 = getelementptr %Sim, ptr %400, i32 0, i32 2
+  %402 = load i64, ptr %373, align 8
+  %at134 = getelementptr [2 x float], ptr %401, i32 0, i64 %402
+  %403 = load float, ptr %at134, align 4
+  %404 = fsub float %403, 5.000000e-01
+  %405 = fcmp ogt float %399, %404
+  br i1 %405, label %then135, label %join143
+
+then135:                                          ; preds = %else132
+  %406 = load ptr, ptr %354, align 8
+  %407 = getelementptr %Particle, ptr %406, i32 0, i32 1
+  %408 = load i64, ptr %373, align 8
+  %at136 = getelementptr [2 x float], ptr %407, i32 0, i64 %408
+  %409 = load ptr, ptr %1, align 8
+  %410 = getelementptr %Sim, ptr %409, i32 0, i32 2
+  %411 = load i64, ptr %373, align 8
+  %at137 = getelementptr [2 x float], ptr %410, i32 0, i64 %411
+  %412 = load float, ptr %at137, align 4
+  %413 = fsub float %412, 5.000000e-01
+  store float %413, ptr %at136, align 4
+  %414 = load ptr, ptr %354, align 8
+  %415 = getelementptr %Particle, ptr %414, i32 0, i32 2
+  %416 = load i64, ptr %373, align 8
+  %at138 = getelementptr [2 x float], ptr %415, i32 0, i64 %416
+  %417 = load float, ptr %at138, align 4
+  %418 = fcmp ogt float %417, 0.000000e+00
+  br i1 %418, label %then139, label %join142
+
+then139:                                          ; preds = %then135
+  %419 = load ptr, ptr %354, align 8
+  %420 = getelementptr %Particle, ptr %419, i32 0, i32 2
+  %421 = load i64, ptr %373, align 8
+  %at140 = getelementptr [2 x float], ptr %420, i32 0, i64 %421
+  %422 = load ptr, ptr %354, align 8
+  %423 = getelementptr %Particle, ptr %422, i32 0, i32 2
+  %424 = load i64, ptr %373, align 8
+  %at141 = getelementptr [2 x float], ptr %423, i32 0, i64 %424
+  %425 = load float, ptr %at141, align 4
+  %426 = load float, ptr @titan.RESTITUTION, align 4
+  %427 = fneg float %426
+  %428 = fmul float %425, %427
+  store float %428, ptr %at140, align 4
+  br label %join142
+
+join142:                                          ; preds = %then139, %then135
+  br label %join143
+
+join143:                                          ; preds = %join142, %else132
+  br label %join144
+
+join144:                                          ; preds = %join143, %join131
+  br label %post145
+
+post145:                                          ; preds = %join144
+  %429 = load i64, ptr %373, align 8
+  %430 = add i64 %429, 1
+  store i64 %430, ptr %373, align 8
+  br label %loop123
+
+exit146:                                          ; preds = %loop123
+  br label %post147
+
+post147:                                          ; preds = %exit146
+  %431 = load i64, ptr %348, align 8
+  %432 = add i64 %431, 1
+  store i64 %432, ptr %348, align 8
+  br label %loop114
+
+exit148:                                          ; preds = %loop114
+  ret void
+}
+
+define void @titan.render(ptr %0, ptr %1) {
+entry:
+  %2 = alloca ptr, align 8
+  store ptr %0, ptr %2, align 8
+  %3 = alloca ptr, align 8
+  store ptr %1, ptr %3, align 8
+  %4 = alloca i64, align 8
+  store i64 2304, ptr %4, align 8
+  %5 = alloca i64, align 8
+  store i64 258, ptr %5, align 8
+  %6 = load i64, ptr %5, align 8
+  %7 = mul i64 2, %6
+  %8 = alloca i64, align 8
+  store i64 %7, ptr %8, align 8
+  %9 = load ptr, ptr %2, align 8
+  %10 = getelementptr %Sim, ptr %9, i32 0, i32 0
+  %at = getelementptr [2304 x %Particle], ptr %10, i32 0, i32 0
+  %11 = alloca ptr, align 8
+  store ptr %at, ptr %11, align 8
+  %12 = load ptr, ptr %2, align 8
+  %13 = getelementptr %Sim, ptr %12, i32 0, i32 1
+  %at1 = getelementptr [516 x [2 x float]], ptr %13, i32 0, i32 0
+  %14 = alloca ptr, align 8
+  store ptr %at1, ptr %14, align 8
+  %15 = load ptr, ptr %3, align 8
+  %16 = getelementptr %LimineFramebuffer, ptr %15, i32 0, i32 1
+  %17 = getelementptr <{ i64, i64 }>, ptr %16, i32 0, i32 0
+  %18 = load i64, ptr %17, align 8
+  %19 = sub i64 %18, 512
+  %20 = alloca i64, align 8
+  store i64 %19, ptr %20, align 8
+  %21 = load i64, ptr %20, align 8
+  %22 = sdiv i64 %21, 2
+  %23 = load ptr, ptr %3, align 8
+  %24 = getelementptr %LimineFramebuffer, ptr %23, i32 0, i32 1
+  %25 = getelementptr <{ i64, i64 }>, ptr %24, i32 0, i32 1
+  %26 = load i64, ptr %25, align 8
+  %27 = sub i64 %26, 512
+  %28 = alloca i64, align 8
+  store i64 %27, ptr %28, align 8
+  %29 = load i64, ptr %28, align 8
+  %30 = sdiv i64 %29, 2
+  %31 = alloca <{ i64, i64 }>, align 8
+  %32 = getelementptr <{ i64, i64 }>, ptr %31, i32 0, i32 0
+  store i64 %22, ptr %32, align 8
+  %33 = getelementptr <{ i64, i64 }>, ptr %31, i32 0, i32 1
+  store i64 %30, ptr %33, align 8
+  %34 = alloca i64, align 8
+  store i64 0, ptr %34, align 8
+  br label %loop
+
+loop:                                             ; preds = %post, %entry
+  %35 = load i64, ptr %34, align 8
+  %36 = load i64, ptr %4, align 8
+  %37 = icmp ult i64 %35, %36
+  br i1 %37, label %join, label %exit
+
+join:                                             ; preds = %loop
+  %38 = load i64, ptr %34, align 8
+  %39 = load ptr, ptr %11, align 8
+  %at2 = getelementptr %Particle, ptr %39, i64 %38
+  %40 = getelementptr %Particle, ptr %at2, i32 0, i32 1
+  %at3 = getelementptr [2 x float], ptr %40, i32 0, i32 0
+  %41 = load float, ptr %at3, align 4
+  %42 = fadd float %41, 5.000000e-01
+  %43 = alloca float, align 4
+  store float %42, ptr %43, align 4
+  %44 = load float, ptr %43, align 4
+  %45 = fptosi float %44 to i64
+  %46 = alloca i64, align 8
+  store i64 %45, ptr %46, align 8
+  %47 = load i64, ptr %34, align 8
+  %48 = load ptr, ptr %11, align 8
+  %at4 = getelementptr %Particle, ptr %48, i64 %47
+  %49 = getelementptr %Particle, ptr %at4, i32 0, i32 1
+  %at5 = getelementptr [2 x float], ptr %49, i32 0, i32 1
+  %50 = load float, ptr %at5, align 4
+  %51 = fadd float %50, 5.000000e-01
+  %52 = alloca float, align 4
+  store float %51, ptr %52, align 4
+  %53 = load float, ptr %52, align 4
+  %54 = fptosi float %53 to i64
+  %55 = alloca i64, align 8
+  store i64 %54, ptr %55, align 8
+  %56 = alloca <{ i32, i32, i32 }>, align 4
+  %57 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 0
+  store i32 0, ptr %57, align 4
+  %58 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 1
+  store i32 255, ptr %58, align 4
+  %59 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 2
+  store i32 255, ptr %59, align 4
+  %60 = load i64, ptr %34, align 8
+  %61 = load ptr, ptr %11, align 8
+  %at6 = getelementptr %Particle, ptr %61, i64 %60
+  %62 = getelementptr %Particle, ptr %at6, i32 0, i32 3
+  %63 = load float, ptr %62, align 4
+  %64 = load float, ptr @titan.REST_DENSITY, align 4
+  %65 = fsub float %63, %64
+  %66 = alloca float, align 4
+  store float %65, ptr %66, align 4
+  %67 = load float, ptr %66, align 4
+  %68 = fcmp ogt float %67, 0.000000e+00
+  br i1 %68, label %then, label %else
+
+then:                                             ; preds = %join
+  %69 = load float, ptr %66, align 4
+  %70 = fcmp ogt float %69, 1.000000e+00
+  br i1 %70, label %then7, label %join8
+
+then7:                                            ; preds = %then
+  store float 1.000000e+00, ptr %66, align 4
+  br label %join8
+
+join8:                                            ; preds = %then7, %then
+  %71 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 0
+  store i32 0, ptr %71, align 4
+  %72 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 1
+  store i32 255, ptr %72, align 4
+  %73 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 2
+  %74 = load float, ptr %66, align 4
+  %75 = fsub float 1.000000e+00, %74
+  %76 = alloca float, align 4
+  store float %75, ptr %76, align 4
+  %77 = load float, ptr %76, align 4
+  %78 = fmul float %77, 2.550000e+02
+  %79 = alloca float, align 4
+  store float %78, ptr %79, align 4
+  %80 = load float, ptr %79, align 4
+  %81 = fptoui float %80 to i32
+  store i32 %81, ptr %73, align 4
+  br label %join11
+
+else:                                             ; preds = %join
+  %82 = load float, ptr %66, align 4
+  %83 = fneg float %82
+  store float %83, ptr %66, align 4
+  %84 = load float, ptr %66, align 4
+  %85 = fcmp ogt float %84, 1.000000e+00
+  br i1 %85, label %then9, label %join10
+
+then9:                                            ; preds = %else
+  store float 1.000000e+00, ptr %66, align 4
+  br label %join10
+
+join10:                                           ; preds = %then9, %else
+  %86 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 0
+  %87 = load float, ptr %66, align 4
+  %88 = fmul float %87, 2.550000e+02
+  %89 = alloca float, align 4
+  store float %88, ptr %89, align 4
+  %90 = load float, ptr %89, align 4
+  %91 = fptoui float %90 to i32
+  store i32 %91, ptr %86, align 4
+  %92 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 1
+  %93 = load float, ptr %66, align 4
+  %94 = fsub float 1.000000e+00, %93
+  %95 = alloca float, align 4
+  store float %94, ptr %95, align 4
+  %96 = load float, ptr %95, align 4
+  %97 = fmul float %96, 2.550000e+02
+  %98 = alloca float, align 4
+  store float %97, ptr %98, align 4
+  %99 = load float, ptr %98, align 4
+  %100 = fptoui float %99 to i32
+  store i32 %100, ptr %92, align 4
+  %101 = getelementptr <{ i32, i32, i32 }>, ptr %56, i32 0, i32 2
+  %102 = load float, ptr %66, align 4
+  %103 = fsub float 1.000000e+00, %102
+  %104 = alloca float, align 4
+  store float %103, ptr %104, align 4
+  %105 = load float, ptr %104, align 4
+  %106 = fmul float %105, 2.550000e+02
+  %107 = alloca float, align 4
+  store float %106, ptr %107, align 4
+  %108 = load float, ptr %107, align 4
+  %109 = fptoui float %108 to i32
+  store i32 %109, ptr %101, align 4
+  br label %join11
+
+join11:                                           ; preds = %join10, %join8
+  %110 = load ptr, ptr %3, align 8
+  %111 = load <{ i64, i64 }>, ptr %31, align 8
+  %112 = load i64, ptr %46, align 8
+  %113 = load i64, ptr %55, align 8
+  %114 = load ptr, ptr %3, align 8
+  %115 = load <{ i32, i32, i32 }>, ptr %56, align 4
+  %116 = extractvalue <{ i32, i32, i32 }> %115, 0
+  %117 = extractvalue <{ i32, i32, i32 }> %115, 1
+  %118 = extractvalue <{ i32, i32, i32 }> %115, 2
+  %119 = call i32 @titan.make_color(ptr %114, i32 %116, i32 %117, i32 %118)
+  call void @titan.draw_scaled_particle(ptr %110, <{ i64, i64 }> %111, i64 %112, i64 %113, i32 %119)
+  br label %post
+
+post:                                             ; preds = %join11
+  %120 = load i64, ptr %34, align 8
+  %121 = add i64 %120, 1
+  store i64 %121, ptr %34, align 8
+  br label %loop
+
+exit:                                             ; preds = %loop
+  %122 = alloca i64, align 8
+  store i64 0, ptr %122, align 8
+  br label %loop12
+
+loop12:                                           ; preds = %post18, %exit
+  %123 = load i64, ptr %122, align 8
+  %124 = load i64, ptr %8, align 8
+  %125 = icmp ult i64 %123, %124
+  br i1 %125, label %join13, label %exit19
+
+join13:                                           ; preds = %loop12
+  %126 = load i64, ptr %122, align 8
+  %127 = load ptr, ptr %14, align 8
+  %at14 = getelementptr [2 x float], ptr %127, i64 %126
+  %at15 = getelementptr [2 x float], ptr %at14, i32 0, i32 0
+  %128 = load float, ptr %at15, align 4
+  %129 = fadd float %128, 5.000000e-01
+  %130 = alloca float, align 4
+  store float %129, ptr %130, align 4
+  %131 = load float, ptr %130, align 4
+  %132 = fptosi float %131 to i64
+  %133 = alloca i64, align 8
+  store i64 %132, ptr %133, align 8
+  %134 = load i64, ptr %122, align 8
+  %135 = load ptr, ptr %14, align 8
+  %at16 = getelementptr [2 x float], ptr %135, i64 %134
+  %at17 = getelementptr [2 x float], ptr %at16, i32 0, i32 1
+  %136 = load float, ptr %at17, align 4
+  %137 = fadd float %136, 5.000000e-01
+  %138 = alloca float, align 4
+  store float %137, ptr %138, align 4
+  %139 = load float, ptr %138, align 4
+  %140 = fptosi float %139 to i64
+  %141 = alloca i64, align 8
+  store i64 %140, ptr %141, align 8
+  %142 = load ptr, ptr %3, align 8
+  %143 = load <{ i64, i64 }>, ptr %31, align 8
+  %144 = load i64, ptr %133, align 8
+  %145 = load i64, ptr %141, align 8
+  %146 = load ptr, ptr %3, align 8
+  %147 = call i32 @titan.make_color(ptr %146, i32 0, i32 0, i32 0)
+  call void @titan.draw_scaled_pixel(ptr %142, <{ i64, i64 }> %143, i64 %144, i64 %145, i32 %147)
+  br label %post18
+
+post18:                                           ; preds = %join13
+  %148 = load i64, ptr %122, align 8
+  %149 = add i64 %148, 1
+  store i64 %149, ptr %122, align 8
+  br label %loop12
+
+exit19:                                           ; preds = %loop12
+  ret void
+}
+
+attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #1 = { noredzone alignstack=16 }
+Could not verify module: Incorrect number of arguments passed to called function!
+  call void @titan.init()
+Incorrect number of arguments passed to called function!
+  call void @titan.step()
+Incorrect number of arguments passed to called function!
+  call void @titan.render(ptr %19)
+

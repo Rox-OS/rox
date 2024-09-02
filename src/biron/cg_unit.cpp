@@ -58,7 +58,14 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		name = cg.nameof(m_name);
 	}
 
-	auto fn_v = cg.llvm.AddFunction(cg.module, name, fn_t->ref());
+	LLVM::ValueRef fn_v = nullptr;
+	StringView builtin = "__biron_runtime_";
+	if (m_name.starts_with(builtin)) {
+		fn_v = cg.intrinsic(m_name.slice(builtin.length()))->ref();
+	} else {
+		fn_v = cg.llvm.AddFunction(cg.module, name, fn_t->ref());
+	}
+
 	if (!fn_v) {
 		return false;
 	}

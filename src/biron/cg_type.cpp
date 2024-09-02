@@ -132,11 +132,24 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		break;
 	case Kind::FN:
 		{
-			const auto& args = at(0)->types();
-			const auto& rets = at(1)->types();
+			Bool f;
 			builder.append("fn");
+			if (at(0)) {
+				// selfs
+				const auto& selfs = at(0)->types();
+				f = true;
+				for (const auto& self : selfs) {
+					if (!f) {
+						builder.append(", ");
+					}
+					self->dump(builder);
+					f = false;
+				}
+				builder.append(')');
+			}
 			builder.append('(');
-			Bool f = true;
+			const auto& args = at(1)->types();
+			f = true;
 			for (const auto& arg : args) {
 				if (!f) {
 					builder.append(", ");
@@ -147,6 +160,7 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 			builder.append(')');
 			builder.append(" -> ");
 			builder.append('(');
+			const auto& rets = at(2)->types();
 			f = true;
 			for (const auto& ret : rets) {
 				if (!f) {
@@ -291,7 +305,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	auto value = m_extent->eval();
+	auto value = m_extent->eval_value();
 	if (!value || !value->is_integral()) {
 		cg.error(m_extent->range(), "Expected integer constant expression");
 		return nullptr;

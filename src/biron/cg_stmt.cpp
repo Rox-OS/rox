@@ -168,7 +168,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
-	auto eval = m_init->eval();
+	auto eval = m_init->eval_value();
 	if (!eval) {
 		cg.error(m_init->range(), "Expected constant expression");
 		return false;

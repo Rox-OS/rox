@@ -152,6 +152,12 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 	case Kind::STRING:
 		// TODO(dweiler): implement
 		return None{};
+	case Kind::UNTYPED_INT:
+		cg.error(range(), "Untyped integer value must be typed");
+		break;
+	case Kind::UNTYPED_REAL:
+		cg.error(range(), "Untyped floating-point value must be typed");
+		break;
 	}
 	return None{};
 }

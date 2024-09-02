@@ -23,6 +23,26 @@ fn(lhs: @(aliasable(false)) *Rect, rhs: @(aliasable(false)) *Rect) collide() -> 
 }
 
 @(export(true))
+fn __biron_runtime_memory_ne(lhs: *Uint8, rhs: *Uint8, len: Uint64) -> Bool32 {
+  for let i = 0_u64; i < len; i += 1_u64 {
+    if lhs[i] != rhs[i] {
+      return true;
+    }
+  }
+  return false;
+}
+
+@(export(true))
+fn __biron_runtime_memory_eq(lhs: *Uint8, rhs: *Uint8, len: Uint64) -> Bool32 {
+  for let i = 0_u64; i < len; i += 1_u64 {
+    if lhs[i] != rhs[i] {
+      return false;
+    }
+  }
+  return true;
+}
+
+@(export(true))
 fn main() -> Sint32 {
   let lhs = &Rect{10, 10, 0, 10};
   let rhs = &Rect{10, 10, 0,  0};

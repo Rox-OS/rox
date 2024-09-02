@@ -38,6 +38,12 @@ AstConst::AstConst(AstConst&& other) noexcept
 	case Kind::STRING:
 		new (&m_as_string, Nat{}) StringView{move(other.m_as_string)};
 		break;
+	case Kind::UNTYPED_INT:
+		m_as_uint = exchange(other.m_as_uint, 0);
+		break;
+	case Kind::UNTYPED_REAL:
+		m_as_f64 = exchange(other.m_as_f64, 0.0);
+		break;
 	}
 }
 
@@ -101,6 +107,8 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 			}
 			return AstConst { range(), ConstArray { m_as_array.type, move(values) } };
 		}
+	case Kind::UNTYPED_INT:  return AstConst { range(), AstConst::UntypedInt { m_as_uint } };
+	case Kind::UNTYPED_REAL: return AstConst { range(), AstConst::UntypedReal { m_as_f64 } };
 	}
 	return None{};
 }

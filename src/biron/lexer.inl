@@ -48,6 +48,7 @@ KIND(KW_FALSE)    // false
 KIND(KW_FN)       // 'fn'
 KIND(KW_IF)       // 'if'
 KIND(KW_AS)       // 'as'
+KIND(KW_OF)       // 'of'
 KIND(KW_LET)      // 'let'
 KIND(KW_FOR)      // 'for'
 KIND(KW_ELSE)     // 'else'

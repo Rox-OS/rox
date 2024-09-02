@@ -137,6 +137,10 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
+		if (dump_ir && !cg->dump()) {
+			return 1;
+		}
+
 		auto machine = CgMachine::make(terminal, *llvm, "x86_64-unknown-none");
 		if (!machine) {
 			return 1;
@@ -146,9 +150,7 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		if (dump_ir && !cg->dump()) {
-			return 1;
-		}
+
 
 		// Strip everything up to including '.'
 		auto dot = source.name.find_last_of('.');

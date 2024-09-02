@@ -27,6 +27,8 @@ struct AstConst {
 		TUPLE,             // (...)
 		STRING,            // ".*"
 		ARRAY,             // {}
+		UNTYPED_REAL,
+		UNTYPED_INT,
 	};
 
 	struct ConstArray {
@@ -50,6 +52,14 @@ struct AstConst {
 		AstType*                        type;
 		Array<AstConst>                 values;
 		Maybe<Array<Maybe<StringView>>> fields;
+	};
+
+	struct UntypedReal {
+		Float64 value;
+	};
+
+	struct UntypedInt {
+		Uint128 value;
 	};
 
 	constexpr AstConst(Range range) noexcept
@@ -103,6 +113,10 @@ struct AstConst {
 	constexpr AstConst(Range range, StringView string) noexcept
 		: m_range{range}, m_kind{Kind::STRING}, m_as_string{string} {}
 
+	constexpr AstConst(Range range, UntypedReal real) noexcept
+		: m_range{range}, m_kind{Kind::UNTYPED_REAL}, m_as_f64{real.value} {}
+	constexpr AstConst(Range range, UntypedInt real) noexcept
+		: m_range{range}, m_kind{Kind::UNTYPED_INT}, m_as_uint{real.value} {}
 
 	AstConst(AstConst&& other) noexcept;
 	~AstConst() noexcept { drop(); }
@@ -110,10 +124,17 @@ struct AstConst {
 	[[nodiscard]] constexpr Kind kind() const noexcept { return m_kind; }
 	[[nodiscard]] constexpr Range range() const noexcept { return m_range; }
 
-	[[nodiscard]] constexpr Bool is_uint() const noexcept { return m_kind >= Kind::U8 && m_kind <= Kind::U64; }
-	[[nodiscard]] constexpr Bool is_sint() const noexcept { return m_kind >= Kind::S8 && m_kind <= Kind::S64; }
+	[[nodiscard]] constexpr Bool is_uint() const noexcept {
+		return (m_kind >= Kind::U8 && m_kind <= Kind::U64) || m_kind == Kind::UNTYPED_INT;
+	}
+	[[nodiscard]] constexpr Bool is_sint() const noexcept {
+		return (m_kind >= Kind::S8 && m_kind <= Kind::S64) || m_kind == Kind::UNTYPED_INT;
+	}
+	[[nodiscard]] constexpr Bool is_real() const noexcept {
+		return (m_kind >= Kind::F32 && m_kind <= Kind::F64) || m_kind == Kind::UNTYPED_REAL;
+	}
 	[[nodiscard]] constexpr Bool is_bool() const noexcept { return m_kind >= Kind::B8 && m_kind <= Kind::B64; }
-	[[nodiscard]] constexpr Bool is_real() const noexcept { return m_kind >= Kind::F32 && m_kind <= Kind::F64; }
+	
 	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
 	[[nodiscard]] constexpr Bool is_array() const noexcept { return m_kind == Kind::ARRAY; }
 
@@ -176,21 +197,23 @@ private:
 template<typename T>
 Maybe<T> AstConst::to() const noexcept {
 	switch (m_kind) {
-	case Kind::NONE: return None{};
-	case Kind::U8:   return T(m_as_uint);
-	case Kind::U16:  return T(m_as_uint);
-	case Kind::U32:  return T(m_as_uint);
-	case Kind::U64:  return T(m_as_uint);
-	case Kind::S8:   return T(m_as_sint);
-	case Kind::S16:  return T(m_as_sint);
-	case Kind::S32:  return T(m_as_sint);
-	case Kind::S64:  return T(m_as_sint);
-	case Kind::B8:   return T(m_as_bool ? true : false);
-	case Kind::B16:  return T(m_as_bool ? true : false);
-	case Kind::B32:  return T(m_as_bool ? true : false);
-	case Kind::B64:  return T(m_as_bool ? true : false);
-	case Kind::F32:  return T(m_as_f64);
-	case Kind::F64:  return T(m_as_f32);
+	case Kind::NONE:         return None{};
+	case Kind::U8:           return T(m_as_uint);
+	case Kind::U16:          return T(m_as_uint);
+	case Kind::U32:          return T(m_as_uint);
+	case Kind::U64:          return T(m_as_uint);
+	case Kind::S8:           return T(m_as_sint);
+	case Kind::S16:          return T(m_as_sint);
+	case Kind::S32:          return T(m_as_sint);
+	case Kind::S64:          return T(m_as_sint);
+	case Kind::B8:           return T(m_as_bool ? true : false);
+	case Kind::B16:          return T(m_as_bool ? true : false);
+	case Kind::B32:          return T(m_as_bool ? true : false);
+	case Kind::B64:          return T(m_as_bool ? true : false);
+	case Kind::F32:          return T(m_as_f64);
+	case Kind::F64:          return T(m_as_f32);
+	case Kind::UNTYPED_INT:  return T(m_as_uint);
+	case Kind::UNTYPED_REAL: return T(m_as_f64);
 	default:
 		// Cannot perform constant compile time cast
 		return None{};

@@ -111,6 +111,7 @@ AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexc
 		                        .include(rhs->range());
 		switch (kind) {
 		/***/  case Token::Kind::KW_AS:  lhs = new_node<AstBinExpr>(Op::AS,     lhs, rhs, range);
+		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(Op::OF,     lhs, rhs, range);
 		break; case Token::Kind::STAR:   lhs = new_node<AstBinExpr>(Op::MUL,    lhs, rhs, range);
 		break; case Token::Kind::FSLASH: lhs = new_node<AstBinExpr>(Op::DIV,    lhs, rhs, range);
 		break; case Token::Kind::PLUS:   lhs = new_node<AstBinExpr>(Op::ADD,    lhs, rhs, range);
@@ -474,13 +475,7 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 		}
 	}
 
-	// The untyped integer literal is the same as Sint32 like C.
-	if (n > 0x7fff'ffff_u64) {
-		ERROR("Untyped integer literal is too large. Consider typing it");
-		return nullptr;
-	}
-
-	return new_node<AstIntExpr>(Sint32(n), token.range);
+	return new_node<AstIntExpr>(AstIntExpr::Untyped{n}, token.range);
 }
 
 // ChrExpr
@@ -531,9 +526,13 @@ AstFltExpr* Parser::parse_flt_expr() noexcept {
 	char* end = nullptr;
 	auto value = strtod(builder.data(), &end);
 	if (!strncmp(end, "_f64", 3)) {
-		return new_node<AstFltExpr>(value, token.range);
+		const Float64 v = value;
+		return new_node<AstFltExpr>(v, token.range);
+	} else if (!strncmp(end, "_f32", 3)) {
+		const Float32 v = value;
+		return new_node<AstFltExpr>(v, token.range);
 	}
-	return new_node<AstFltExpr>(static_cast<Float32>(value), token.range);
+	return new_node<AstFltExpr>(AstFltExpr::Untyped{value}, token.range);
 }
 
 // StrExpr
@@ -1434,7 +1433,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		auto range = token.range.include(args->range());
 		if (name == "section") {
 			auto expr = args->at(0);
-			auto value = expr->eval();
+			auto value = expr->eval_value();
 			if (!value || value->kind() != AstConst::Kind::STRING) {
 				ERROR(expr->range(), "Expected constant string expression for section name");
 				return None{};
@@ -1446,7 +1445,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			}
 		} else if (name == "align" || name == "alignstack") {
 			auto expr = args->at(0);
-			auto value = expr->eval();
+			auto value = expr->eval_value();
 			if (!value || !value->is_integral()) {
 				ERROR("Expected constant integer expression for alignment");
 				return None{};
@@ -1468,7 +1467,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			}
 		} else if (name == "used" || name == "inline" || name == "aliasable" || name == "redzone" || name == "export") {
 			auto expr = args->at(0);
-			auto value = expr->eval();
+			auto value = expr->eval_value();
 			if (!value || !value->is_bool()) {
 				ERROR("Expected constant boolean expression for used attribute");
 				return None{};
