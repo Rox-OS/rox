@@ -10,6 +10,8 @@
 namespace Biron {
 
 struct Allocator;
+struct Terminal;
+
 struct Diagnostic;
 
 struct AstUnit;
@@ -27,9 +29,9 @@ struct CgScope {
 	{
 	}
 	Bool emit_defers(Cg& cg) const noexcept;
-	Array<CgVar> vars;
+	Array<CgVar>    vars;
 	Array<AstStmt*> defers;
-	Maybe<Loop> loop;
+	Maybe<Loop>     loop;
 };
 
 struct CgMachine {
@@ -44,7 +46,10 @@ struct CgMachine {
 
 	using TargetMachineRef = LLVM::TargetMachineRef;
 
-	static Maybe<CgMachine> make(const System& system, LLVM& llvm, StringView triple) noexcept;
+	static Maybe<CgMachine> make(const System& system,
+	                             Terminal& terminal,
+	                             LLVM& llvm,
+	                             StringView triple) noexcept;
 
 	TargetMachineRef ref() const noexcept { return m_machine; }
 
@@ -63,7 +68,11 @@ struct Cg {
 	using BuilderRef = LLVM::BuilderRef;
 	using ModuleRef  = LLVM::ModuleRef;
 
-	static Maybe<Cg> make(const System& system, Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept;
+	static Maybe<Cg> make(const System& system,
+	                      Terminal& terminal,
+	                      Allocator& allocator,
+	                      LLVM& llvm,
+	                      Diagnostic& diagnostic) noexcept;
 
 	[[nodiscard]] Bool optimize(CgMachine& machine, Ulen level) noexcept;
 	[[nodiscard]] Bool verify() noexcept;
@@ -81,13 +90,13 @@ struct Cg {
 	}
 
 	template<typename... Ts>
-	void error(Range range, StringView message, Ts&&... args) const noexcept {
-		diagnostic.error(range, message, forward<Ts>(args)...);
+	void error(Range range, StringView fmt, Ts&&... args) const noexcept {
+		diagnostic.error(range, fmt, forward<Ts>(args)...);
 	}
 
 	template<typename... Ts>
-	void fatal(Range range, StringView message, Ts&&... args) const noexcept {
-		diagnostic.fatal(range, message, forward<Ts>(args)...);
+	void fatal(Range range, StringView fmt, Ts&&... args) const noexcept {
+		diagnostic.fatal(range, fmt, forward<Ts>(args)...);
 	}
 
 	None oom() const noexcept {
@@ -106,6 +115,7 @@ struct Cg {
 	const char* nameof(StringView name) const noexcept;
 
 	const System&     system;
+	Terminal&         terminal;
 	Allocator&        allocator;
 	LLVM&             llvm;
 	ScratchAllocator* scratch;
@@ -124,6 +134,7 @@ struct Cg {
 
 	constexpr Cg(Cg&& other) noexcept
 		: system{other.system}
+		, terminal{other.terminal}
 		, allocator{other.allocator}
 		, llvm{other.llvm}
 		, scratch{exchange(other.scratch, nullptr)}
@@ -146,6 +157,7 @@ struct Cg {
 
 private:
 	constexpr Cg(const System&     system,
+	             Terminal&         terminal,
 	             Allocator&        allocator,
 	             LLVM&             llvm,
 	             ScratchAllocator* scratch,
@@ -155,6 +167,7 @@ private:
 	             CgTypeCache&&     types,
 	             Diagnostic&       diagnostic) noexcept
 		: system{system}
+		, terminal{terminal}
 		, allocator{allocator}
 		, llvm{llvm}
 		, scratch{scratch}

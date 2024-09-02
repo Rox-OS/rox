@@ -2,27 +2,38 @@
 #include <biron/cg_value.h>
 
 #include <biron/util/system.inl>
+#include <biron/util/terminal.inl>
 
 namespace Biron {
 
 // [CgMachine]
-static LLVM::TargetRef target_from_triple(const System& system, LLVM& llvm, const char* triple) noexcept {
+static LLVM::TargetRef target_from_triple(Terminal& terminal,
+                                          LLVM& llvm,
+                                          const char* triple) noexcept
+{
 	LLVM::TargetRef target;
 	char* error = nullptr;
 	if (llvm.GetTargetFromTriple(triple, &target, &error) != 0) {
-		system.term_err(system, "Could not find target: ");
-		system.term_err(system, error);
-		system.term_err(system, "\n");
+		terminal.err("Could not find target: %s\n", error);
 		llvm.DisposeMessage(error);
 		return nullptr;
 	}
 	return target;
 }
 
-Maybe<CgMachine> CgMachine::make(const System& system, LLVM& llvm, StringView target_triple) noexcept {
+Maybe<CgMachine> CgMachine::make(const System& system,
+                                 Terminal& terminal,
+                                 LLVM& llvm,
+                                 StringView target_triple) noexcept
+{
+	// Target triple cannot get too large so use an on-stack inline allocator.
 	InlineAllocator<1024> scratch;
 	auto triple = target_triple.terminated(scratch);
-	auto target = target_from_triple(system, llvm, triple);
+	if (!triple) {
+		return None{};
+	}
+
+	auto target = target_from_triple(terminal, llvm, triple);
 	if (!target) {
 		return None{};
 	}
@@ -49,7 +60,12 @@ CgMachine::~CgMachine() noexcept {
 }
 
 // [Cg]
-Maybe<Cg> Cg::make(const System& system, Allocator& allocator, LLVM& llvm, Diagnostic& diagnostic) noexcept {
+Maybe<Cg> Cg::make(const System& system,
+                   Terminal& terminal,
+                   Allocator& allocator,
+                   LLVM& llvm,
+                   Diagnostic& diagnostic) noexcept
+{
 	auto context = llvm.ContextCreate();
 	auto builder = llvm.CreateBuilderInContext(context);
 	auto module  = llvm.ModuleCreateWithNameInContext("Biron", context);
@@ -73,6 +89,7 @@ Maybe<Cg> Cg::make(const System& system, Allocator& allocator, LLVM& llvm, Diagn
 
 	return Cg {
 		system,
+		terminal,
 		allocator,
 		llvm,
 		scratch,
@@ -118,8 +135,7 @@ Bool Cg::verify() noexcept {
 	                      LLVM::VerifierFailureAction::ReturnStatus,
 	                      &error) != 0)
 	{
-		system.term_err(system, "Could not verify module: ");
-		system.term_err(system, error);
+		terminal.err("Could not verify module: %s\n", error);
 		llvm.DisposeMessage(error);
 		return false;
 	}
@@ -139,7 +155,7 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	}
 	auto terminated = name.terminated(*scratch);
 	if (!terminated) {
-		system.term_err(system, "Out of memory\n");
+		terminal.err("Out of memory\n");
 		return false;
 	}
 	if (llvm.TargetMachineEmitToFile(machine.ref(),
@@ -148,11 +164,7 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	                                 LLVM::CodeGenFileType::Object,
 	                                 &error) != 0)
 	{
-		system.term_err(system, "Could not compile module '");
-		system.term_err(system, name);
-		system.term_err(system, "': ");
-		system.term_err(system, error);
-		system.term_err(system, "\n");
+		terminal.err("Could not compile module '%S': %s\n", name, error);
 		llvm.DisposeMessage(error);
 		return false;
 	}

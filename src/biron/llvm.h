@@ -5,6 +5,8 @@
 
 namespace Biron {
 
+struct System;
+
 struct LLVM {
 	LLVM(LLVM&&) noexcept = default;
 	LLVM(const LLVM&) noexcept = delete;
@@ -53,11 +55,17 @@ struct LLVM {
 	#include <biron/llvm.inl>
 	#undef FN
 
-	static Maybe<LLVM> load() noexcept;
+	static Maybe<LLVM> load(const System& system) noexcept;
 
 private:
-	constexpr LLVM() noexcept = default;
-	void* m_lib;
+	constexpr LLVM(const System& system) noexcept 
+		: m_system{system}
+		, m_lib{nullptr}
+	{
+	}
+
+	const System& m_system;
+	void*         m_lib;
 };
 
 } // namespace Biron

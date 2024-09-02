@@ -1,15 +1,14 @@
-#include <dlfcn.h> // dlopen, dlclose, dlsym
-#include <stdio.h> // fprintf, stderr
-
 #include <biron/llvm.h>
+#include <biron/util/system.inl>
+#include <biron/util/terminal.inl>
 
 namespace Biron {
 
 template<typename T>
-static Bool link(void *lib, T*& p, const char *name) noexcept {
-	void *sym = dlsym(lib, name);
+static Bool link(const System& system, Terminal& terminal, void *lib, T*& p, StringView name) noexcept {
+	auto sym = system.lib_symbol(system, lib, name);
 	if (!sym) {
-		fprintf(stderr, "Could not find symbol: %s\n", name);
+		terminal.err("Could not find symbol: %S\n", name);
 		return false;
 	}
 	*reinterpret_cast<void **>(&p) = sym;
@@ -21,24 +20,25 @@ LLVM::~LLVM() noexcept {
 		Shutdown();
 	}
 	if (m_lib) {
-		dlclose(m_lib);
+		m_system.lib_close(m_system, m_lib);
 	}
 }
 
-Maybe<LLVM> LLVM::load() noexcept {
-	LLVM llvm;
+Maybe<LLVM> LLVM::load(const System& system) noexcept {
+	LLVM llvm{system};
 
 	// We only support LLVM-19, LLVM-18, and LLVM-17
-	if (!(llvm.m_lib = dlopen("libLLVM-19.so", RTLD_NOW))) {
-		if (!(llvm.m_lib = dlopen("libLLVM-18.so", RTLD_NOW))) {
-			if (!(llvm.m_lib = dlopen("libLLVM-17.so", RTLD_NOW))) {
+	if (!(llvm.m_lib = system.lib_open(system, "libLLVM-19.so"))) {
+		if (!(llvm.m_lib = system.lib_open(system, "libLLVM-18.so"))) {
+			if (!(llvm.m_lib = system.lib_open(system, "libLLVM-17.so"))) {
 				return None{};
 			}
 		}
 	}
 
+	Terminal terminal{system};
 	#define FN(RETURN, NAME, ...) \
-		if (!link(llvm.m_lib, llvm.NAME, "LLVM" #NAME)) { \
+		if (!link(system, terminal, llvm.m_lib, llvm.NAME, "LLVM" #NAME)) { \
 			return None{}; \
 		}
 	#include "llvm.inl"

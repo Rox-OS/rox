@@ -1,9 +1,9 @@
-#include <stdio.h> // fprintf, stderr
 #include <string.h> // strlen, memcpy
 #include <stdlib.h> // system
 
 #include <biron/util/allocator.h>
 #include <biron/util/file.h>
+#include <biron/util/terminal.inl>
 
 #include <biron/parser.h>
 #include <biron/llvm.h>
@@ -13,16 +13,17 @@ using namespace Biron;
 
 namespace Biron {
 	// The system interface.
-	extern const System SYSTEM_STDC;
+	extern const System SYSTEM_LINUX;
 }
 
 int main(int argc, char **argv) {
-	SystemAllocator allocator{SYSTEM_STDC};
+	SystemAllocator allocator{SYSTEM_LINUX};
+	Terminal terminal{SYSTEM_LINUX};
 
 	argc--;
 	argv++;
 	if (argc == 0) {
-		fprintf(stderr, "Usage: %s file.biron\n", argv[-1]);
+		terminal.err("Usage: %s file.biron\n", argv[-1]);
 		return 1;
 	}
 
@@ -35,7 +36,7 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < argc; i++) {
 		if (argv[i][0] != '-') {
 			if (!filenames.emplace_back(argv[i], strlen(argv[i]))) {
-				fprintf(stderr, "Out of memory\n");
+				terminal.err("Out of memory\n");
 				return 1;
 			}
 		} else if (argv[i][0] == '-') {
@@ -48,7 +49,7 @@ int main(int argc, char **argv) {
 				case '2': opt = 2; break;
 				case '3': opt = 3; break;
 				default:
-					fprintf(stderr, "Unknown option %s\n", argv[i]);
+					terminal.err("Unknown option %s\n", argv[i]);
 					return 1;
 				}
 			} else if (argv[i][1] == 'd') {
@@ -62,13 +63,13 @@ int main(int argc, char **argv) {
 	}
 
 	if (filenames.empty()) {
-		fprintf(stderr, "Missing files\n");
+		terminal.err("Missing files\n");
 		return 1;
 	}
 
-	auto llvm = LLVM::load();
+	auto llvm = LLVM::load(SYSTEM_LINUX);
 	if (!llvm) {
-		fprintf(stderr, "Could not load libLLVM\n");
+		terminal.err("Could not load libLLVM\n");
 		return 1;
 	}
 
@@ -81,14 +82,12 @@ int main(int argc, char **argv) {
 	for (auto filename : filenames) {
 		auto dot = filename.find_last_of('.');
 		if (!dot) {
-			fprintf(stderr, "Unknown source file '%.*s'\n",
-				Sint32(filename.length()), filename.data());
+			terminal.err("Unknown source file '%S'\n", filename);
 			return 1;
 		}
-		auto file = File::open(SYSTEM_STDC, filename);
+		auto file = File::open(SYSTEM_LINUX, filename);
 		if (!file) {
-			fprintf(stderr, "Could not open file: '%.*s'\n",
-				Sint32(filename.length()), filename.data());
+			terminal.err("Could not open file: '%S'\n", filename);
 			return 1;
 		}
 		Array<char> data{allocator};
@@ -118,32 +117,27 @@ int main(int argc, char **argv) {
 		Parser parser{lexer, diagnostic, allocator};
 		auto unit = parser.parse();
 		if (!unit) {
-			fprintf(stderr, "Could not parse unit\n");
+			terminal.err("Could not parse unit\n");
 			return 1;
 		}
 
-		auto cg = Cg::make(SYSTEM_STDC, allocator, *llvm, diagnostic);
+		auto cg = Cg::make(SYSTEM_LINUX, terminal, allocator, *llvm, diagnostic);
 		if (!cg) {
-			fprintf(stderr, "Could not initialize code generator\n");
+			terminal.err("Could not initialize code generator\n");
 			return 1;
 		}
 
 		if (dump_ast) {
 			StringBuilder builder{allocator};
 			unit->dump(builder);
-			if (builder.valid()) {
-				fwrite(builder.data(), builder.length(), 1, stderr);
-				fflush(stderr);
-			} else {
-				return 1;
-			}
+			terminal.err(builder.view());
 		}
 
 		if (!unit->codegen(*cg)) {
 			return 1;
 		}
 
-		auto machine = CgMachine::make(SYSTEM_STDC, *llvm, "x86_64-unknown-none");
+		auto machine = CgMachine::make(SYSTEM_LINUX, terminal, *llvm, "x86_64-unknown-none");
 		if (!machine) {
 			return 1;
 		}
@@ -166,13 +160,12 @@ int main(int argc, char **argv) {
 		obj.append('.');
 		obj.append('o');
 		if (!obj.valid()) {
-			fprintf(stderr, "Out of memory\n");
+			terminal.err("Out of memory\n");
 			return 1;
 		}
 
 		if (auto name = obj.view(); !cg->emit(*machine, name)) {
-			fprintf(stderr, "Could not write object file: '%.*s'\n",
-				Sint32(name.length()), name.data());
+			terminal.err("Could not write object file: '%S'\n", name);
 			return 1;
 		}
 	}
@@ -193,13 +186,13 @@ int main(int argc, char **argv) {
 		link.append("-o a.out");
 		link.append('\0');
 		if (!link.valid()) {
-			fprintf(stderr, "Out of memory\n");
+			terminal.err("Out of memory\n");
 			return 1;
 		}
 
 		// We should have an executable now.
 		if (system(link.data()) != 0) {
-			fprintf(stderr, "Could not link executable\n");
+			terminal.err("Could not link executable\n");
 			return 1;
 		}
 	}
