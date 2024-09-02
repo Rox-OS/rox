@@ -249,65 +249,6 @@ fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32
          (b << fb.b_mask.shift as Uint32);
 }
 
-fn draw_scaled_pixel(fb: *LimineFramebuffer, offset: (Sint64, Sint64), x: Sint64, y: Sint64, color: Uint32) {
-  x *= 4_s64;
-  y *= 4_s64;
-  x += offset.0;
-  y += offset.1;
-  for let p = 0_s64; p < 16_s64; p += 1_s64 {
-    let py = p / 4_s64;
-    let px = p - 4_s64 * py;
-    fb.address[(y + py) * (fb.dimensions.0 as Sint64) + (x + px)] = color;
-  }
-}
-
-fn draw_scaled_particle(fb: *LimineFramebuffer, offset: (Sint64, Sint64), x: Sint64, y: Sint64, color: Uint32) {
-  x *= 4_s64;
-  y *= 4_s64;
-  x += offset.0;
-  y += offset.1;
-  fb.address[(y + 1_s64) * (fb.dimensions.0 as Sint64) + (x + 1_s64)] = color;
-}
-
-type Sim = (
-  particles: [48_u64 * 48_u64]Particle,
-  boundary_particles: [2 * 128 + 2 * 128 + 2 * 2][2]Real32,
-  world_size: [2]Real32
-);
-
-type Particle = (
-  initial_position: [2]Real32,
-  position: [2]Real32,
-  velocity: [2]Real32,
-  density:  Real32
-);
-
-let H = 2.0_f32;
-let REST_DENSITY = 1.0_f32;
-let GRAVITY = 0.05_f32;
-let STIFFNESS = 1.70_f32;
-let RESTITUTION = 0.05_f32;
-
-fn sph_kernel(r: Real32) -> Real32 {
-  let result = 0.45472841_f32; // 40 / (7 * pi * h^2)
-  let q = r / H;
-  if q <= 0.5_f32 {
-    result = result * (6_f32 * (q*q*q - q*q) + 1_f32);
-  } else {
-    let a = 1.0_f32 - q;
-    result = result * 2.0_f32 * a*a*a;
-  }
-  return result;
-}
-
-fn particle_pressure(p: *Particle) -> Real32 {
-  let pressure = STIFFNESS * (p.density - REST_DENSITY);
-  if pressure < 0_f32 {
-    pressure = 0_f32;
-  }
-  return pressure;
-}
-
 // When in the kernel we do not want the Redzone and we want Biron to always
 // setup the stack so it's 16-byte aligned. This behavior is required by SysV
 // and will be true of all other functions but not necessarily the entry point.
@@ -376,6 +317,46 @@ fn hello(fb: *LimineFramebuffer) {
   }
 }
 
+type Sim = (
+  particles: [48_u64 * 48_u64]Particle,
+  boundary_particles: [2 * 128 + 2 * 128 + 2 * 2][2]Real32,
+  world_size: [2]Real32
+);
+
+type Particle = (
+  initial_position: [2]Real32,
+  position: [2]Real32,
+  velocity: [2]Real32,
+  density:  Real32
+);
+
+let H = 2.0_f32;
+let REST_DENSITY = 1.0_f32;
+let GRAVITY = 0.05_f32;
+let STIFFNESS = 1.75_f32;
+let RESTITUTION = 0.05_f32;
+
+fn sph_kernel(r: Real32) -> Real32 {
+  let result = 0.45472841_f32; // 40 / (7 * pi * h^2)
+  let q = r / H;
+  if q <= 0.5_f32 {
+    result = result * (6_f32 * (q*q*q - q*q) + 1_f32);
+  } else {
+    let a = 1.0_f32 - q;
+    result = result * 2.0_f32 * a*a*a;
+  }
+  return result;
+}
+
+fn particle_pressure(p: *Particle) -> Real32 {
+  let pressure = STIFFNESS * (p.density - REST_DENSITY);
+  if pressure < 0_f32 {
+    pressure = 0_f32;
+  }
+  return pressure;
+}
+
+
 fn (sim: *Sim) init() {
   let world_size = [2]Real32{128_f32, 128_f32};
   sim.world_size = world_size;
@@ -399,7 +380,7 @@ fn (sim: *Sim) init() {
   }
 
   let block_x = 0.5_f32;
-  let block_y = 0.75_f32 * world_size[1] - 0.5_f32;
+  let block_y = 0.75 * world_size[1] - 0.5_f32;
 
   for let y = 0_u64; y < n_particles_y; y = y + 1_u64 {
     for let x = 0_u64; x < n_particles_x; x = x + 1_u64 {
@@ -477,7 +458,7 @@ fn (sim: *Sim) step() {
         };
         let r = sqrt(d[0]*d[0] + d[1]*d[1]);
         if r < H {
-          if r <= 0.001_f32 {
+          if r <= 0.01_f32 {
             if j < i {
               d[0] = 1_f32;
             } else {
@@ -493,7 +474,6 @@ fn (sim: *Sim) step() {
           w *= 0.23873241; // 12 / (pi * h^4)
           let f_n = particle_pressure(neighbor) / (neighbor.density * neighbor.density);
           let f = (f_p + f_n) * w;
-
           force[0] += f * d[0];
           force[1] += f * d[1];
         }
@@ -507,19 +487,10 @@ fn (sim: *Sim) step() {
       };
       let r = sqrt(d[0]*d[0] + d[1]*d[1]);
       if r < H {
-        if r <= 0.001_f32 {
-          d[0] = 0_f32;
-          d[1] = -1_f32;
-          r = 1_f32;
-        } else {
-          d[0] = d[0] / r;
-          d[1] = d[1] / r;
-        }
         let w = H - r;
         w *= 0.23873241; // 12 / (pi * h^4)
         let f_n = particle_pressure(particle) / (REST_DENSITY * REST_DENSITY);
         let f = (f_p + f_n) * w;
-
         force[0] += f * d[0];
         force[1] += f * d[1];
       }
@@ -559,42 +530,39 @@ fn (sim: *Sim) render(fb: *LimineFramebuffer) {
   let particles = &sim.particles[0];
   let boundary_particles = &sim.boundary_particles[0];
 
-  let sim_bounds_offset = (
-    (fb.dimensions.0 as Sint64 - 4_s64 * 128_s64) / 2_s64,
-    (fb.dimensions.1 as Sint64 - 4_s64 * 128_s64) / 2_s64
-  );
-
   // Draw the particles.
   for let i = 0_u64; i < n_particles; i += 1_u64 {
-    let x = (particles[i].position[0] + 0.5_f32) as Sint64;
-    let y = (particles[i].position[1] + 0.5_f32) as Sint64;
-
-    let color = (0_u32, 0xff_u32, 0xff_u32);
-
-    let density = particles[i].density - REST_DENSITY;
-    if density > 0_f32 {
-      if density > 1_f32 {
-        density = 1_f32;
-      }
-      color.0 = 0x00_u32;
-      color.1 = 0xff_u32;
-      color.2 = ((1_f32 - density) * 255_f32) as Uint32;
-    } else {
-      density = -density;
-      if density > 1_f32 {
-        density = 1_f32;
-      }
-      color.0 = (density * 255_f32) as Uint32;
-      color.1 = ((1_f32 - density) * 255_f32) as Uint32;
-      color.2 = ((1_f32 - density) * 255_f32) as Uint32;
+    let pressure = particle_pressure(&particles[i]) / STIFFNESS;
+    if pressure > 1_f32 {
+      pressure = 1_f32;
     }
-
-    draw_scaled_particle(fb, sim_bounds_offset, x, y, make_color(fb, ...color));
+    let color = (0, 255, ((1.0 - pressure) * 255.0) as Uint32);
+    draw_scaled_particle(fb, particles[i].position, make_color(fb, ...color));
   }
 
   for let i = 0_u64; i < n_boundary_particles; i += 1_u64 {
     let x = (boundary_particles[i][0] + 0.5_f32) as Sint64;
     let y = (boundary_particles[i][1] + 0.5_f32) as Sint64;
-    draw_scaled_pixel(fb, sim_bounds_offset, x, y, make_color(fb, 0, 0, 0));
+    draw_scaled_pixel(fb, x, y, make_color(fb, 0, 0, 0));
   }
+}
+
+fn draw_scaled_pixel(fb: *LimineFramebuffer, x: Sint64, y: Sint64, color: Uint32) {
+  x *= 4_s64;
+  y *= 4_s64;
+  x += (fb.dimensions.0 as Sint64 - 4_s64 * 128_s64) / 2_s64;
+  y += (fb.dimensions.1 as Sint64 - 4_s64 * 128_s64) / 2_s64;
+  for let p = 0_s64; p < 16_s64; p += 1_s64 {
+    let py = p & 3_s64;
+    let px = p >> 2_s64;
+    fb.address[(y + py - 3_s64) * (fb.dimensions.0 as Sint64) + (x + px - 3_s64)] = color;
+  }
+}
+
+fn draw_scaled_particle(fb: *LimineFramebuffer, p: [2]Real32, color: Uint32) {
+  let x = (4.0 * p[0] + 0.5) as Sint64;
+  let y = (4.0 * p[1] + 0.5) as Sint64;
+  x += (fb.dimensions.0 as Sint64 - 4_s64 * 128_s64) / 2_s64;
+  y += (fb.dimensions.1 as Sint64 - 4_s64 * 128_s64) / 2_s64;
+  fb.address[y * (fb.dimensions.0 as Sint64) + x] = color;
 }
