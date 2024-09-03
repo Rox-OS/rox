@@ -69,13 +69,16 @@ static Bool term_err(const System&, StringView content) noexcept {
 static void* lib_open(const System& system, StringView filename) noexcept {
 	SystemAllocator allocator{system};
 	ScratchAllocator scratch{allocator};
-	char* name = filename.terminated(scratch);
-	if (!name) {
+	// Append ".so" to filename
+	StringBuilder builder{scratch};
+	builder.append(filename);
+	builder.append('.');
+	builder.append("so");
+	builder.append('\0');
+	if (!builder.valid()) {
 		return nullptr;
 	}
-	void* lib = dlopen(name, RTLD_NOW);
-	scratch.deallocate(name, filename.length() + 1);
-	return lib;
+	return dlopen(builder.data(), RTLD_NOW);
 }
 
 static void lib_close(const System&, void* lib) noexcept {
@@ -94,7 +97,7 @@ static void* lib_symbol(const System& system, void* lib, StringView name) noexce
 	return addr;
 }
 
-extern const System SYSTEM_LINUX = {
+extern const System SYSTEM = {
 	mem_allocate,
 	mem_deallocate,
 	file_open,

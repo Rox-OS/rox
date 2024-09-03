@@ -28,9 +28,9 @@ Maybe<LLVM> LLVM::load(const System& system) noexcept {
 	LLVM llvm{system};
 
 	// We only support LLVM-19, LLVM-18, and LLVM-17
-	if (!(llvm.m_lib = system.lib_open(system, "libLLVM-19.so"))) {
-		if (!(llvm.m_lib = system.lib_open(system, "libLLVM-18.so"))) {
-			if (!(llvm.m_lib = system.lib_open(system, "libLLVM-17.so"))) {
+	if (!(llvm.m_lib = system.lib_open(system, "libLLVM-19"))) {
+		if (!(llvm.m_lib = system.lib_open(system, "libLLVM-18"))) {
+			if (!(llvm.m_lib = system.lib_open(system, "libLLVM-17"))) {
 				return None{};
 			}
 		}

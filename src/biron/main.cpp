@@ -13,12 +13,14 @@ using namespace Biron;
 
 namespace Biron {
 	// The system interface.
-	extern const System SYSTEM_LINUX;
+	extern const System SYSTEM;
 }
 
 int main(int argc, char **argv) {
-	SystemAllocator allocator{SYSTEM_LINUX};
-	Terminal terminal{SYSTEM_LINUX};
+	const System& sys = SYSTEM;
+
+	SystemAllocator allocator{sys};
+	Terminal terminal{sys};
 
 	argc--;
 	argv++;
@@ -67,7 +69,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	auto llvm = LLVM::load(SYSTEM_LINUX);
+	auto llvm = LLVM::load(sys);
 	if (!llvm) {
 		terminal.err("Could not load libLLVM\n");
 		return 1;
@@ -85,7 +87,7 @@ int main(int argc, char **argv) {
 			terminal.err("Unknown source file '%S'\n", filename);
 			return 1;
 		}
-		auto file = File::open(SYSTEM_LINUX, filename);
+		auto file = File::open(sys, filename);
 		if (!file) {
 			terminal.err("Could not open file: '%S'\n", filename);
 			return 1;
@@ -121,7 +123,7 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		auto cg = Cg::make(SYSTEM_LINUX, terminal, allocator, *llvm, diagnostic);
+		auto cg = Cg::make(sys, terminal, allocator, *llvm, diagnostic);
 		if (!cg) {
 			terminal.err("Could not initialize code generator\n");
 			return 1;
