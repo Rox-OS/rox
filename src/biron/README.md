@@ -42,7 +42,7 @@ $ make
 ### Windows
 On Windows you can build with
 ```
-$ cl.exe /I:..\ /std:c++20 unity.cxx
+$ cl.exe /I..\ /std:c++20 Zc:__cplusplus unity.cxx
 ```
 
 
