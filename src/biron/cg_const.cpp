@@ -53,7 +53,10 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			Ulen i = 0;
 			for (const auto& elem : tuple.values) {
 				auto value = elem.codegen(cg, type->at(i));
-				if (!value || !values.push_back(move(*value))) {
+				if (!value) {
+					return None{};
+				}
+				if (!values.push_back(move(*value))) {
 					return cg.oom();
 				}
 				i++;
@@ -77,7 +80,10 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 				auto field_type = type->at(i);
 				if (field_type->is_padding()) {
 					auto zero = CgValue::zero(field_type, cg);
-					if (!zero || !consts.push_back(zero->ref())) {
+					if (!zero) {
+						return None{};
+					}
+					if (!consts.push_back(zero->ref())) {
 						return cg.oom();
 					}
 					continue;
@@ -85,7 +91,10 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 				if (j >= values.length()) {
 					// Zero initialize everything else not specified in the aggregate.
 					auto zero = CgValue::zero(field_type, cg);
-					if (!zero || !consts.push_back(zero->ref())) {
+					if (!zero) {
+						return None{};
+					}
+					if (!consts.push_back(zero->ref())) {
 						return cg.oom();
 					}
 				} else if (!consts.push_back(values[j].ref())) {
@@ -104,9 +113,6 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 				                                 consts.data(),
 				                                 consts.length());
 			}
-			if (!value) {
-				return cg.oom();
-			}
 			return CgValue { type, value };
 		}
 		break;
@@ -124,7 +130,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			for (const auto& elem : m_as_array.elems) {
 				auto value = elem.codegen(cg, array_type->deref());
 				if (!value) {
-					return cg.oom();
+					return None{};
 				}
 				if (!values.push_back(move(*value))) {
 					return cg.oom();
@@ -142,10 +148,6 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			auto value = cg.llvm.ConstArray2(array_type->deref()->ref(),
 			                                 consts.data(),
 			                                 consts.length());
-			if (!value) {
-				return cg.oom();
-			}
-
 			return CgValue { type, value };
 		}
 		break;

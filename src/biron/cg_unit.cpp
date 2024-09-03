@@ -66,10 +66,6 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		fn_v = cg.llvm.AddFunction(cg.module, name, fn_t->ref());
 	}
 
-	if (!fn_v) {
-		return false;
-	}
-
 	if (m_attrs) for (auto base : *m_attrs) {
 		if (base->is_attr<AstBoolAttr>()) {
 			auto attr = static_cast<const AstBoolAttr *>(base);
@@ -124,9 +120,6 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	// Construct the entry basic-block, append it to the function and position
 	// the IR builder at the end of the basic-block.
 	auto block = cg.llvm.CreateBasicBlockInContext(cg.context, "entry");
-	if (!block) {
-		return false;
-	}
 	cg.llvm.AppendExistingBasicBlock(addr->ref(), block);
 	cg.llvm.PositionBuilderAtEnd(cg.builder, block);
 
@@ -330,12 +323,12 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "__biron_runtime_memory_ne", fn_t->ref());
-		if (!fn_v || !cg.intrinsics.emplace_back("memory_ne", CgAddr { fn_t->addrof(cg), fn_v })) {
+		if (!cg.intrinsics.emplace_back("memory_ne", CgAddr { fn_t->addrof(cg), fn_v })) {
 			return false;
 		}
 		// We can just reuse all of the same things
 		fn_v = cg.llvm.AddFunction(cg.module, "__biron_runtime_memory_eq", fn_t->ref());
-		if (!fn_v || !cg.intrinsics.emplace_back("memory_eq", CgAddr { fn_t->addrof(cg), fn_v })) {
+		if (!cg.intrinsics.emplace_back("memory_eq", CgAddr { fn_t->addrof(cg), fn_v })) {
 			return false;
 		}
 	}

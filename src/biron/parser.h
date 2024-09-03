@@ -112,8 +112,6 @@ struct Parser {
 	Maybe<AstUnit> parse() noexcept;
 
 private:
-	Bool has_symbol(StringView name) const noexcept;
-
 	template<typename... Ts>
 	void error(Range range, StringView message, Ts&&... args) noexcept {
 		m_diagnostic.error(range, message, forward<Ts>(args)...);

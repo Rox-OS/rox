@@ -26,6 +26,15 @@ static Bool is_alnum(int ch) noexcept {
 	return is_alpha(ch) || is_digit(ch);
 }
 
+const char* Token::name() const noexcept {
+	switch (kind) {
+	#define KIND(NAME) case Kind::NAME: return #NAME;
+	#include <biron/lexer.inl>
+	#undef KIND
+	}
+	return "";
+}
+
 Token Lexer::next() noexcept {
 	using Kind = Token::Kind;
 	auto token = read();

@@ -42,6 +42,11 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::Con
 }
 
 void CgType::dump(StringBuilder& builder) const noexcept {
+	if (m_name) {
+		builder.append(*m_name);
+		return;
+	}
+
 	switch (m_kind) {
 	case Kind::U8:
 		builder.append("Uint8");
@@ -106,7 +111,7 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		break;
 	case Kind::PADDING:
 		builder.append(".Pad");
-		builder.append(m_size);
+		builder.append(m_layout.size);
 		break;
 	case Kind::TUPLE:
 		{
@@ -357,15 +362,15 @@ CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
 	case 1:
 		ref = m_llvm.Int8TypeInContext(m_context);
 		kind = info.sign ? CgType::Kind::S8 : CgType::Kind::U8;
-	}
-	if (!ref) {
+		break;
+	default:
 		return nullptr;
 	}
 	return m_cache.make<CgType>(
 		kind,
-		info.size,
-		info.align,
+		info,
 		0_ulen,
+		None{},
 		None{},
 		None{},
 		ref
@@ -384,15 +389,14 @@ CgType* CgTypeCache::make(CgType::RealInfo info) noexcept {
 		ref = m_llvm.FloatTypeInContext(m_context);
 		kind = CgType::Kind::F32;
 		break;
-	}
-	if (!ref) {
+	default:
 		return nullptr;
 	}
 	return m_cache.make<CgType>(
 		kind,
-		info.size,
-		info.align,
+		info,
 		0_ulen,
+		None{},
 		None{},
 		None{},
 		ref
@@ -405,15 +409,12 @@ CgType* CgTypeCache::make(CgType::PtrInfo info) noexcept {
 		return nullptr;
 	}
 	auto ref = m_llvm.PointerTypeInContext(m_context, 0);
-	if (!ref) {
-		return nullptr;
-	}
 	return m_cache.make<CgType>(
 		CgType::Kind::POINTER,
-		info.size,
-		info.align,
+		info,
 		0_ulen,
 		move(types),
+		None{},
 		None{},
 		ref
 	);
@@ -421,9 +422,6 @@ CgType* CgTypeCache::make(CgType::PtrInfo info) noexcept {
 
 CgType* CgTypeCache::make(CgType::BoolInfo info) noexcept {
 	auto ref = m_llvm.Int1TypeInContext(m_context);
-	if (!ref) {
-		return nullptr;
-	}
 	CgType::Kind kind;
 	switch (info.size) {
 	case 8:
@@ -443,9 +441,9 @@ CgType* CgTypeCache::make(CgType::BoolInfo info) noexcept {
 	}
 	return m_cache.make<CgType>(
 		kind,
-		info.size,
-		info.align,
+		info,
 		0_ulen,
+		None{},
 		None{},
 		None{},
 		ref
@@ -474,10 +472,13 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 	types[1] = u64();
 	return m_cache.make<CgType>(
 		CgType::Kind::STRING,
-		sum(ptr()->size(), u64()->size()),
-		max(ptr()->align(), u64()->align()),
+		CgType::Layout {
+			sum(ptr()->size(), u64()->size()),
+			max(ptr()->align(), u64()->align())
+		},
 		0_ulen,
 		move(types),
+		None{},
 		None{},
 		ref
 	);
@@ -532,6 +533,7 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 		offset = aligned_offset;
 	}
 	LLVM::TypeRef ref = nullptr;
+	Maybe<StringView> name = info.named;
 	if (padded.empty()) {
 		ref = m_llvm.VoidTypeInContext(m_context);
 	} else {
@@ -545,26 +547,24 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 				return nullptr;
 			}
 		}
-		if (info.named) {
-			ref = m_llvm.StructCreateNamed(m_context, info.named->terminated(scratch));
-			if (!ref) {
+		if (name) {
+			auto terminated = name->terminated(scratch);
+			if (!terminated) {
 				return nullptr;
 			}
+			ref = m_llvm.StructCreateNamed(m_context, terminated);
 			m_llvm.StructSetBody(ref, types.data(), types.length(), true);
 		} else {
 			ref = m_llvm.StructTypeInContext(m_context, types.data(), types.length(), true);
-			if (!ref) {
-				return nullptr;
-			}
 		}
 	}
 	return m_cache.make<CgType>(
 		CgType::Kind::TUPLE,
-		offset,
-		alignment,
+		CgType::Layout { offset, alignment },
 		0_ulen,
 		move(padded),
 		move(fields),
+		move(name),
 		ref
 	);
 }
@@ -621,10 +621,10 @@ CgType* CgTypeCache::make(CgType::UnionInfo info) noexcept {
 	
 	return m_cache.make<CgType>(
 		CgType::Kind::UNION,
-		size,
-		align,
+		CgType::Layout { size, align },
 		0_ulen,
 		move(padded),
+		None{},
 		None{},
 		ref
 	);
@@ -636,15 +636,15 @@ CgType* CgTypeCache::make(CgType::ArrayInfo info) noexcept {
 		return nullptr;
 	}
 	auto ref = m_llvm.ArrayType2(info.base->ref(), info.extent);
-	if (!ref) {
-		return nullptr;
-	}
 	return m_cache.make<CgType>(
 		CgType::Kind::ARRAY,
-		info.base->size() * info.extent,
-		info.base->align(),
+		CgType::Layout {
+			info.base->size() * info.extent,
+			info.base->align()
+		},
 		info.extent,
 		move(types),
+		None{},
 		None{},
 		ref
 	);
@@ -672,10 +672,13 @@ CgType* CgTypeCache::make(CgType::SliceInfo info) noexcept {
 	types[1] = u64();
 	return m_cache.make<CgType>(
 		CgType::Kind::SLICE,
-		sum(ptr()->size(), u64()->size()),
-		max(ptr()->align(), u64()->align()),
+		CgType::Layout {
+			sum(ptr()->size(), u64()->size()),
+			max(ptr()->align(), u64()->align())
+		},
 		0_ulen,
 		move(types),
+		None{},
 		None{},
 		ref
 	);
@@ -696,14 +699,13 @@ CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
 	LLVM::TypeRef ref = nullptr;
 	if (auto find = m_llvm.GetTypeByName2(m_context, name.data())) {
 		ref = find;
-	} else if (auto type = m_llvm.StructCreateNamed(m_context, name.data())) {
+	} else {
+		auto type = m_llvm.StructCreateNamed(m_context, name.data());
 		LLVM::TypeRef types[1] = {
 			array->ref()
 		};
 		m_llvm.StructSetBody(type, types, countof(types), true);
 		ref = type;
-	} else {
-		return nullptr;
 	}
 	Array<CgType*> types{m_cache.allocator()};
 	if (!types.push_back(array)) {
@@ -711,10 +713,10 @@ CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
 	}
 	return m_cache.make<CgType>(
 		CgType::Kind::PADDING,
-		info.padding,
-		1_ulen,
+		CgType::Layout { info.padding, 1_ulen },
 		0_ulen,
 		move(types),
+		None{},
 		None{},
 		ref
 	);
@@ -770,10 +772,10 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	}
 	return m_cache.make<CgType>(
 		CgType::Kind::FN,
-		0_ulen,
-		0_ulen,
+		CgType::Layout { 8_ulen, 8_ulen },
 		0_ulen,
 		move(types),
+		None{},
 		None{},
 		ref
 	);
@@ -782,9 +784,9 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 CgType* CgTypeCache::make(CgType::VaInfo) noexcept {
 	return m_cache.make<CgType>(
 		CgType::Kind::VA,
+		CgType::Layout { 0_ulen, 0_ulen },
 		0_ulen,
-		0_ulen,
-		0_ulen,
+		None{},
 		None{},
 		None{},
 		nullptr

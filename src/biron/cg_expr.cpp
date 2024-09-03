@@ -172,6 +172,16 @@ CgType* AstTupleExpr::gen_type(Cg& cg) const noexcept {
 	return cg.types.make(CgType::TupleInfo { move(types), None{}, None{} });
 }
 
+Bool AstTupleExpr::prepend(Array<AstExpr*>&& exprs) noexcept {
+	for (auto expr : m_exprs) {
+		if (!exprs.push_back(expr)) {
+			return false;
+		}
+	}
+	m_exprs = move(exprs);
+	return true;
+}
+
 CgType* AstCallExpr::gen_type(Cg& cg) const noexcept {
 	auto fn = m_callee->gen_type(cg);
 	if (!fn || !fn->is_fn()) {
@@ -191,6 +201,17 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		return None{};
 	}
 
+	if (!callee->type()->deref()->is_fn()) {
+		cg.error(m_callee->range(), "Callee is not a function");
+		return None{};
+	}
+
+	// 0 = objs
+	// 1 = args
+	// 2 = rets
+
+	auto expected = callee->type()->deref()->at(1);
+
 	Array<LLVM::ValueRef> values{*cg.scratch};
 	Ulen reserve = 0;
 	if (prepend) {
@@ -207,6 +228,7 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 			}
 		}
 	}
+	Ulen k = 0;
 	for (Ulen l = m_args->length(), i = 0; i < l; i++) {
 		auto arg = m_args->at(i);
 		if (arg->is_expr<AstExplodeExpr>()) {
@@ -217,6 +239,19 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 			}
 			for (Ulen l = args->type()->length(), i = 0; i < l; i++) {
 				auto value = cg.llvm.BuildExtractValue(cg.builder, args->ref(), i, "");
+				auto have_type = args->type()->at(i);
+				auto want_type = expected->at(k);
+				if (*have_type != *want_type) {
+					auto have_type_string = have_type->to_string(*cg.scratch);
+					auto want_type_string = want_type->to_string(*cg.scratch);
+					cg.error(m_args->range(),
+					         "Expected expression of type '%S' in expansion of tuple for argument '%zu'. Got '%S' instead",
+					         want_type_string,
+					         k + 1,
+					         have_type_string);
+					return None{};
+				}
+				k++;
 				if (!value || !values.push_back(value)) {
 					return None{};
 				}
@@ -225,6 +260,18 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		} 
 		auto value = arg->gen_value(cg);
 		if (!value) {
+			return None{};
+		}
+		auto have_type = value->type();
+		auto want_type = expected->at(k);
+		if (*have_type != *want_type) {
+			auto have_type_string = have_type->to_string(*cg.scratch);
+			auto want_type_string = want_type->to_string(*cg.scratch);
+			cg.error(arg->range(),
+			         "Expected expression of type '%S' for argument '%zu'. Got '%S' instead",
+			         want_type_string,
+			         k + 1,
+			         have_type_string);
 			return None{};
 		}
 		// When we're calling a C abi function we destructure the String type and
@@ -238,6 +285,7 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		} else {
 			ref = value->ref();
 		}
+		k++;
 		if (!values.push_back(ref)) {
 			return cg.oom();
 		}
@@ -1223,7 +1271,10 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 						if (value->type()->is_pointer()) {
 							value = value->to_addr().load(cg);
 						}
-						if (!value || !values.push_back(*value)) {
+						if (!value) {
+							return None{};
+						}
+						if (!values.push_back(*value)) {
 							return cg.oom();
 						}
 					}
@@ -1243,7 +1294,10 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 								// Implicit dereference behavior for when a copy is wanted.
 								value = value->to_addr().load(cg);
 							}
-							if (!value || !values.push_back(*value)) {
+							if (!value) {
+								return None{};
+							}
+							if (!values.push_back(*value)) {
 								return cg.oom();
 							}
 						}

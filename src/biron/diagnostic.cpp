@@ -53,7 +53,13 @@ void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept
 	const auto line_len = line_end - line_beg;
 	fwrite(&m_lexer[line_beg], line_len, 1, stderr);
 	fprintf(stderr, "\n");
-	// Then print some swiggles underneath the offense.
+
+	// Then print some swiggles underneath the offense if the offense is on one
+	// line.
+	if (range.offset > line_end) {
+		return;
+	}
+
 	for (Ulen i = line_beg; i < range.offset; i++) {
 		fprintf(stderr, " ");
 	}

@@ -17,14 +17,7 @@ struct Token {
 		, range{range}
 	{
 	}
-	constexpr const char *name() const noexcept {
-		switch (kind) {
-		#define KIND(NAME) case Kind::NAME: return #NAME;
-		#include <biron/lexer.inl>
-		#undef KIND
-		}
-		return "";
-	}
+	const char *name() const noexcept;
 	Bool eof() const noexcept { return kind == Kind::END; }
 
 	Sint32 binary_prec_() const noexcept {

@@ -4,6 +4,7 @@ TSAN ?= 0
 UBSAN ?= 0
 DEBUG ?= 0
 UNUSED ?= 1
+TIME ?= 0
 
 BIN := bironc
 
@@ -58,6 +59,11 @@ CXXFLAGS += -Wextra
 CXXFLAGS += -fno-exceptions
 CXXFLAGS += -fno-rtti
 CXXFLAGS += -std=c++20
+
+# Report compilation timing stats
+ifeq ($(TIME),1)
+	CXXFLAGS += -ftime-report
+endif
 
 # Give each function and data it's own section so the linker can remove unused
 # references to each, producing smaller, tighter binaries.

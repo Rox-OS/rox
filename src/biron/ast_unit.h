@@ -102,23 +102,8 @@ struct AstUnit {
 	[[nodiscard]] Bool add_typedef(AstTypedef* type) noexcept {
 		return m_typedefs.push_back(type);
 	}
-	[[nodiscard]] Bool add_import(AstImport* import) noexcept {
-		for (auto existing : m_imports) {
-			if (existing->name() == import->name()) {
-				// Duplicate import
-				return false;
-			}
-		}
-		return m_imports.push_back(import);
-	}
-	[[nodiscard]] Bool assign_module(AstModule* module) noexcept {
-		if (m_module) {
-			// Cannot have more than once instance of 'module' in a unit.
-			return false;
-		}
-		m_module = module;
-		return true;
-	}
+	[[nodiscard]] Bool add_import(AstImport* import) noexcept;
+	[[nodiscard]] Bool assign_module(AstModule* module) noexcept;
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 	void dump(StringBuilder& builder) const noexcept;
 private:

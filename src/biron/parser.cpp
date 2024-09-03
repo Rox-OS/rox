@@ -43,15 +43,6 @@ Bool Scope::add_let(AstLetStmt* let) noexcept {
 	return m_lets.push_back(let);
 }
 
-Bool Parser::has_symbol(StringView name) const noexcept {
-	for (auto scope = m_scope; scope; scope = scope->prev()) {
-		if (scope->find(name)) {
-			return true;
-		}
-	}
-	return false;
-}
-
 Parser::~Parser() noexcept {
 	for (auto& cache : m_caches) {
 		for (auto node : cache) {
@@ -1115,11 +1106,6 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	}
 	auto token = next();
 	auto name = m_lexer.string(token.range);
-	if (has_symbol(name)) {
-		// We should move this to the CG
-		ERROR("Duplicate symbol '%S'", name);
-		return nullptr;
-	}
 	AstExpr* init = nullptr;
 	if (peek().kind != Token::Kind::EQ) {
 		ERROR("Expected expression");

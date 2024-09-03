@@ -50,8 +50,8 @@ struct CgType {
 		return (*m_fields);
 	}
 
-	[[nodiscard]] constexpr Ulen size() const noexcept { return m_size; }
-	[[nodiscard]] constexpr Ulen align() const noexcept { return m_align; }
+	[[nodiscard]] constexpr Ulen size() const noexcept { return m_layout.size; }
+	[[nodiscard]] constexpr Ulen align() const noexcept { return m_layout.align; }
 	[[nodiscard]] constexpr Ulen length() const noexcept { return m_types ? m_types->length() : 0; };
 	[[nodiscard]] constexpr Ulen extent() const noexcept { return m_extent; };
 
@@ -75,8 +75,7 @@ struct CgType {
 
 	Bool operator==(const CgType& other) const noexcept {
 		if (other.m_kind   != m_kind)   return false;
-		if (other.m_size   != m_size)   return false;
-		if (other.m_align  != m_align)  return false;
+		if (other.m_layout != m_layout) return false;
 		if (other.m_extent != m_extent) return false;
 		if (other.m_types  != m_types)  return false;
 		// We do not compare m_ref
@@ -84,26 +83,28 @@ struct CgType {
 	}
 
 	// Custom make tags for the type cache
-	struct Info {
+	struct Layout {
 		Ulen size;
 		Ulen align;
+		constexpr Bool operator==(const Layout&) const noexcept = default;
+		constexpr Bool operator!=(const Layout&) const noexcept = default;
 	};
 
-	struct IntInfo : Info {
+	struct IntInfo : Layout {
 		Bool sign;
 	};
 
-	struct RealInfo : Info {
+	struct RealInfo : Layout {
 	};
 
-	struct PtrInfo : Info {
+	struct PtrInfo : Layout {
 		CgType* base;
 	};
 
-	struct BoolInfo : Info {
+	struct BoolInfo : Layout {
 	};
 
-	struct StringInfo : Info {
+	struct StringInfo : Layout {
 	};
 
 	struct TupleInfo {
@@ -141,23 +142,29 @@ private:
 	friend struct CgTypeCache;
 	friend struct Cache;
 
-	CgType(Kind kind, Ulen size, Ulen align, Ulen extent, Maybe<Array<CgType*>>&& types, Maybe<Array<Field>>&& fields, LLVM::TypeRef ref) noexcept
+	CgType(Kind kind,
+	       Layout layout,
+	       Ulen extent,
+	       Maybe<Array<CgType*>>&& types,
+	       Maybe<Array<Field>>&& fields,
+	       Maybe<StringView> name,
+	       LLVM::TypeRef ref) noexcept
 		: m_kind{kind}
-		, m_size{size}
-		, m_align{align}
+		, m_layout{layout}
 		, m_extent{extent}
 		, m_types{move(types)}
 		, m_fields{move(fields)}
+		, m_name{move(name)}
 		, m_ref{ref}
 	{
 	}
 
 	Kind m_kind;
-	Ulen m_size;
-	Ulen m_align;
+	Layout m_layout;
 	Ulen m_extent;
 	Maybe<Array<CgType*>> m_types;
 	Maybe<Array<Field>> m_fields;
+	Maybe<StringView> m_name;
 	LLVM::TypeRef m_ref;
 };
 

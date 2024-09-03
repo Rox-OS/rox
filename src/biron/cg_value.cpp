@@ -7,18 +7,12 @@ namespace Biron {
 Maybe<CgValue> CgAddr::load(Cg& cg) const noexcept {
 	auto type = m_type->deref();
 	auto load = cg.llvm.BuildLoad2(cg.builder, type->ref(), m_ref, "");
-	if (!load) {
-		return None{};
-	}
 	cg.llvm.SetAlignment(load, type->align());
 	return CgValue { type, load };
 }
 
 Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
 	auto store = cg.llvm.BuildStore(cg.builder, value.ref(), m_ref);
-	if (!store) {
-		return false;
-	}
 	cg.llvm.SetAlignment(store, value.type()->align());
 	return true;
 }
@@ -68,10 +62,6 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 	                             countof(indices) - is_ptr,
 	                             "at");
 
-	if (!gep) {
-		return None{};
-	}
-
 	// Since we're working with slices or arrays here: type->at(0) produces the
 	// base type of the slice or array and addrof adds the pointer back on that
 	// type. To borrow the example above: [2]Uint32 -> Uint32 -> *Uint32.
@@ -101,9 +91,6 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	                             indices + is_ptr,
 	                             countof(indices) - is_ptr,
 	                             "");
-	if (!gep) {
-		return None{};
-	}
 
 	// When working with arrays the base type is in 0 and no other indices are
 	// actually valid.
@@ -113,146 +100,8 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 
 Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 	auto& llvm = cg.llvm;
-	
 	auto value = llvm.ConstNull(type->ref());
-	if (!value) {
-		return None{};
-	}
-
 	return CgValue { type, value };
-
-/*
-	switch (type->kind()) {
-	case CgType::Kind::U8:  case CgType::Kind::S8:
-	case CgType::Kind::U16: case CgType::Kind::S16:
-	case CgType::Kind::U32: case CgType::Kind::S32:
-	case CgType::Kind::U64: case CgType::Kind::S64:
-		{
-			auto value = llvm.ConstInt(type->ref(), 0, false);
-			auto name = StringView(".ZeroInt");
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-	case CgType::Kind::B8:
-	case CgType::Kind::B16:
-	case CgType::Kind::B32:
-	case CgType::Kind::B64:
-		{
-			auto value = llvm.ConstInt(type->ref(), 0, false);
-			auto name = StringView(".ZeroBool");
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-	case CgType::Kind::F32:
-	case CgType::Kind::F64:
-		{
-			auto value = llvm.ConstReal(type->ref(), 0.0);
-			auto name = StringView(".ZeroReal");
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-	case CgType::Kind::POINTER:
-		{
-			auto value = llvm.ConstPointerNull(type->ref());
-			auto name = StringView(".ZeroPtr");
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-	case CgType::Kind::STRING:
-		[[fallthrough]];
-	case CgType::Kind::SLICE:
-		{
-			LLVM::ValueRef values[] = {
-				zero(type->at(0), cg)->ref(),
-				zero(type->at(1), cg)->ref(),
-			};
-			auto value = llvm.ConstStructInContext(cg.context,
-			                                       values,
-			                                       countof(values),
-			                                       false);
-			StringView name;
-			if (type->kind() == CgType::Kind::STRING) {
-				name = ".ZeroString";
-			} else {
-				name = ".ZeroSlice";
-			}
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-		break;
-	case CgType::Kind::ARRAY:
-		{
-			Array<LLVM::ValueRef> zeros{*cg.scratch};
-			auto zero_elem = zero(type->deref(), cg);
-			if (!zero_elem) {
-				return None{};
-			}
-			if (!zeros.reserve(type->length())) {
-				return None{};
-			}
-			for (Ulen l = type->length(), i = 0; i < l; i++) {
-				if (!zeros.push_back(zero_elem->ref())) {
-					return None{};
-				}
-			}
-			auto value = llvm.ConstArray2(type->deref()->ref(),
-			                              zeros.data(),
-			                              zeros.length());
-			auto name = StringView(".ZeroArray");
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-	case CgType::Kind::PADDING:
-		{
-			// Use type->at(0) to obtain the nested array and make a zero initialized
-			// value of that type.
-			LLVM::ValueRef values[] = {
-				zero(type->at(0), cg)->ref()
-			};
-			// Then construct a constant structure with that zero initialized array
-			// to produce the zero initialized padding.
-			auto value = llvm.ConstNamedStruct(type->ref(), values, countof(values));
-			auto name = StringView(".ZeroPad");
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-	case CgType::Kind::TUPLE:
-		{
-			Array<LLVM::ValueRef> zeros{*cg.scratch};
-			if (!zeros.reserve(type->length())) {
-				return None{};
-			}
-			for (Ulen l = type->length(), i = 0; i < l; i++) {
-				auto zero_elem = zero(type->at(i), cg);
-				if (!zero_elem || !zeros.push_back(zero_elem->ref())) {
-					return None{};
-				}
-			}
-			auto value = llvm.ConstStructInContext(cg.context,
-				                                     zeros.data(),
-				                                     zeros.length(),
-				                                     false);
-			StringView name = ".ZeroTuple";
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-		break;
-	case CgType::Kind::UNION:
-		// TODO(dweiler): Implement
-		break;
-	case CgType::Kind::FN:
-		{
-			auto value = llvm.ConstPointerNull(type->ref());
-			auto name = StringView(".ZeroFn");
-			llvm.SetValueName2(value, name.data(), name.length());
-			return CgValue { type, value };
-		}
-	case CgType::Kind::VA:
-		BIRON_ASSERT(!"Cannot generate zero value for '...'");
-		return None{};
-	}
-	return None{};
-*/
 }
 
 } // namespace Biron

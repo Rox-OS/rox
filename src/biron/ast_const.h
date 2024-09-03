@@ -176,21 +176,7 @@ private:
 		StringView m_as_string;
 	};
 
-	void drop() noexcept {
-		// GCC is actually quite silly here.
-		#if defined(BIRON_COMPILER_GCC)
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-		#endif
-		if (m_kind == Kind::TUPLE) {
-			m_as_tuple.~ConstTuple();
-		} else if (m_kind == Kind::ARRAY) {
-			m_as_array.~ConstArray();
-		}
-		#if defined(BIRON_COMPILER_GCC)
-		#pragma GCC diagnostic pop
-		#endif
-	}
+	void drop() noexcept;
 };
 
 // Compile time casting logic for AstConst
