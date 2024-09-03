@@ -8,7 +8,7 @@ namespace Biron {
 struct System;
 
 struct LLVM {
-	LLVM(LLVM&&) noexcept = default;
+	LLVM(LLVM&& other) noexcept;
 	LLVM(const LLVM&) noexcept = delete;
 	~LLVM() noexcept;
 

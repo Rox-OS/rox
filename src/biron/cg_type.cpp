@@ -105,13 +105,13 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		break;
 	case Kind::ARRAY:
 		builder.append('[');
-		builder.append(m_extent);
+		builder.append(Uint64(m_extent));
 		builder.append(']');
 		at(0)->dump(builder);
 		break;
 	case Kind::PADDING:
 		builder.append(".Pad");
-		builder.append(m_layout.size);
+		builder.append(Uint64(m_layout.size));
 		break;
 	case Kind::TUPLE:
 		{
@@ -687,7 +687,7 @@ CgType* CgTypeCache::make(CgType::SliceInfo info) noexcept {
 CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
 	StringBuilder name{m_cache.allocator()};
 	name.append(".Pad");
-	name.append(info.padding);
+	name.append(Uint64(info.padding));
 	name.append('\0');
 	if (!name.valid()) {
 		return nullptr;

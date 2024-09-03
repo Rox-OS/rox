@@ -15,6 +15,16 @@ static Bool link(const System& system, Terminal& terminal, void *lib, T*& p, Str
 	return true;
 }
 
+LLVM::LLVM(LLVM&& llvm) noexcept
+	: m_system{llvm.m_system}
+	, m_lib{exchange(llvm.m_lib, nullptr)}
+{
+	#define FN(_, NAME, ...) \
+		NAME = exchange(llvm.NAME, nullptr);
+	#include "llvm.inl"
+	#undef FN
+}
+
 LLVM::~LLVM() noexcept {
 	if (Shutdown) {
 		Shutdown();
