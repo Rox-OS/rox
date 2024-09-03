@@ -76,7 +76,6 @@ struct StringBuilder {
 	}
 	void pop() noexcept { m_buffer.pop_back(); }
 	Bool append(char ch) noexcept;
-	Bool append(Ulen value) noexcept { return append(static_cast<Uint64>(value)); }
 	Bool append(Sint32 value) noexcept { return append(static_cast<Sint64>(value)); }
 	Bool append(Uint32 value) noexcept { return append(static_cast<Uint64>(value)); }
 	Bool append(Sint64 value) noexcept;

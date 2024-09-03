@@ -86,8 +86,12 @@ struct CgType {
 	struct Layout {
 		Ulen size;
 		Ulen align;
-		constexpr Bool operator==(const Layout&) const noexcept = default;
-		constexpr Bool operator!=(const Layout&) const noexcept = default;
+		constexpr Bool operator==(const Layout& other) const noexcept {
+			return size == other.size && align == other.align;
+		}
+		constexpr Bool operator!=(const Layout& other) const noexcept {
+			return size != other.size || align != other.align;
+		}
 	};
 
 	struct IntInfo : Layout {

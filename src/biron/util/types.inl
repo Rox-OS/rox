@@ -4,11 +4,11 @@
 namespace Biron {
 
 #if !defined(__has_builtin)
-#define __has_builtin(...)
+#define __has_builtin(...) 0
 #endif // !defined(__has_builtin)
 
 #if !defined(__has_feature)
-#define __has_feature(...)
+#define __has_feature(...) 0
 #endif // !defined(__has_feature)
 
 #if defined(__clang__)

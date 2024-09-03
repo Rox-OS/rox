@@ -24,7 +24,6 @@
 #include <biron/main.cpp>
 #include <biron/parser.cpp>
 #if defined(_WIN32)
-#error Please implement system_windows.cpp
 #include <biron/system_windows.cpp>
 #else
 #include <biron/system_linux.cpp>

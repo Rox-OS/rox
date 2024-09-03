@@ -26,8 +26,12 @@ struct Pool {
 			do ++m_index; while (m_index < m_pool->m_object_count && !m_pool->test(m_index));
 			return *this;
 		}
-		[[nodiscard]] constexpr Bool operator!=(const SelectIterator& other) const noexcept = default;
-		[[nodiscard]] constexpr Bool operator==(const SelectIterator& other) const noexcept = default;
+		[[nodiscard]] constexpr Bool operator!=(const SelectIterator& other) const noexcept {
+			return m_pool != other.m_pool || m_index != other.m_index;
+		}
+		[[nodiscard]] constexpr Bool operator==(const SelectIterator& other) const noexcept {
+			return m_pool == other.m_pool && m_index == other.m_index;
+		}
 		[[nodiscard]] constexpr void* operator*() const noexcept {
 			// NOTE(dweiler): There should be a cleaner way to express this without
 			// checking each dereference since iterators are not dereferenced when the
