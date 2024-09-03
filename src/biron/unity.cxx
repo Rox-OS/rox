@@ -1,4 +1,9 @@
 #if __cplusplus >= 202002L
+#if defined(_WIN32)
+#include <biron/system_windows.cpp>
+#else
+#include <biron/system_linux.cpp>
+#endif
 #include <biron/util/allocator.cpp>
 #include <biron/util/file.cpp>
 #include <biron/util/format.cpp>
@@ -23,11 +28,6 @@
 #include <biron/llvm.cpp>
 #include <biron/main.cpp>
 #include <biron/parser.cpp>
-#if defined(_WIN32)
-#include <biron/system_windows.cpp>
-#else
-#include <biron/system_linux.cpp>
-#endif
 #else
 #error C++20 compiler is required to build Biron
 #endif
