@@ -31,6 +31,21 @@ Biron is an experimental toy systems programming language built for Rox.
     * Requires LLVM-17 or LLVM-18.
   * Does not require C++ standard library or C++ runtime support library.
 
+## Building
+
+### Linux
+On Linux you can build with
+```
+$ make
+```
+
+### Windows
+On Windows you can build with
+```
+$ cl.exe /I:..\ /std:c++20 unity.cxx
+```
+
+
 ## Example
 ```
 type Rect = (x: Real32, y: Real32, w: Real32, h: Real32);
