@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
 
 	auto llvm = LLVM::load(sys);
 	if (!llvm) {
-		terminal.err("Could not load libLLVM\n");
+		terminal.err("Could not load libLLVM. Ensure a dynamic libLLVM library is installed on your system or in the current working directory\n");
 		return 1;
 	}
 
