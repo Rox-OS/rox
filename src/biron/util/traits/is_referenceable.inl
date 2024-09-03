@@ -1,6 +1,7 @@
 #ifndef BIRON_IS_REFERENCEABLE_INL
 #define BIRON_IS_REFERENCEABLE_INL
 #include <biron/util/traits/is_same.inl>
+#include <biron/util/types.inl>
 
 namespace Biron {
 
