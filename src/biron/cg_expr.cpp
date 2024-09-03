@@ -262,9 +262,21 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		if (!value) {
 			return None{};
 		}
+		// When we're calling a C abi function we destructure the String type and
+		// pick out the pointer to the string to pass along instead.
 		auto have_type = value->type();
-		auto want_type = expected->at(k);
-		if (*have_type != *want_type) {
+		LLVM::ValueRef ref = nullptr;
+		if (m_c && value->type()->is_string()) {
+			// We want to extract the 0th element of the String CgValue which contains
+			// the raw string pointer. Since it's a pointer we do not need to create
+			// an alloca to extract it.
+			ref = cg.llvm.BuildExtractValue(cg.builder, value->ref(), 0, "");
+			have_type = cg.types.ptr();
+		} else {
+			ref = value->ref();
+		}
+		auto want_type = expected->at(min(k, expected->length() - 1));
+		if (!want_type->is_va() && *have_type != *want_type) {
 			auto have_type_string = have_type->to_string(*cg.scratch);
 			auto want_type_string = want_type->to_string(*cg.scratch);
 			cg.error(arg->range(),
@@ -273,17 +285,6 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 			         k + 1,
 			         have_type_string);
 			return None{};
-		}
-		// When we're calling a C abi function we destructure the String type and
-		// pick out the pointer to the string to pass along instead.
-		LLVM::ValueRef ref = nullptr;
-		if (m_c && value->type()->is_string()) {
-			// We want to extract the 0th element of the String CgValue which contains
-			// the raw string pointer. Since it's a pointer we do not need to create
-			// an alloca to extract it.
-			ref = cg.llvm.BuildExtractValue(cg.builder, value->ref(), 0, "");
-		} else {
-			ref = value->ref();
 		}
 		k++;
 		if (!values.push_back(ref)) {

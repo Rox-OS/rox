@@ -44,8 +44,8 @@ fn __biron_runtime_memory_eq(lhs: *Uint8, rhs: *Uint8, len: Uint64) -> Bool32 {
 
 @(export(true))
 fn main() -> Sint32 {
-  let lhs = &Rect{10, 10, 0, 10};
-  let rhs = &Rect{10, 10, 0,  0};
+  let lhs = &Rect{10_s32, 10_s32, 0_s32, 10_s32};
+  let rhs = &Rect{10_s32, 10_s32, 0_s32,  0_s32};
   lhs.print("lhs");
   rhs.print("rhs");
   if (lhs, rhs).collide() {
