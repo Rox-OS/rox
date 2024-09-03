@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
 	for (const auto& source : sources) {
 		StringView code{source.data.data(), source.data.length()};
 		Lexer lexer{source.name, code};
-		Diagnostic diagnostic{lexer, allocator};
+		Diagnostic diagnostic{lexer, terminal, allocator};
 		Parser parser{lexer, diagnostic, allocator};
 		auto unit = parser.parse();
 		if (!unit) {

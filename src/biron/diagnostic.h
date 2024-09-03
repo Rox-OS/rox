@@ -7,6 +7,7 @@ namespace Biron {
 
 struct Allocator;
 struct Lexer;
+struct Terminal;
 
 struct Diagnostic {
 	enum class Kind {
@@ -15,9 +16,10 @@ struct Diagnostic {
 		FATAL,
 	};
 
-	constexpr Diagnostic(Lexer& lexer, Allocator& allocator) noexcept
+	constexpr Diagnostic(Lexer& lexer, Terminal& terminal, Allocator& allocator) noexcept
 		: m_lexer{lexer}
-		, m_allocator{allocator}
+		, m_terminal{terminal}
+		, m_scratch{allocator}
 	{
 	}
 
@@ -25,7 +27,7 @@ struct Diagnostic {
 	void error(Range range, StringView message, Ts&&... args) noexcept {
 		if constexpr (sizeof...(Ts) == 0) {
 			diagnostic(range, Kind::ERROR, message);
-		} else if (auto fmt = format(m_allocator, message, forward<Ts>(args)...)) {
+		} else if (auto fmt = format(m_scratch, message, forward<Ts>(args)...)) {
 			StringView view{fmt->data(), fmt->length()};
 			diagnostic(range, Kind::ERROR, view);
 		} else {
@@ -37,7 +39,7 @@ struct Diagnostic {
 	void fatal(Range range, StringView message, Ts&&... args) noexcept {
 		if constexpr (sizeof...(Ts) == 0) {
 			diagnostic(range, Kind::FATAL, message);
-		} else if (auto fmt = format(m_allocator, message, forward<Ts>(args)...)) {
+		} else if (auto fmt = format(m_scratch, message, forward<Ts>(args)...)) {
 			StringView view{fmt->data(), fmt->length()};
 			diagnostic(range, Kind::FATAL, view);
 		} else {
@@ -48,8 +50,9 @@ struct Diagnostic {
 	void diagnostic(Range range, Kind kind, StringView message) noexcept;
 
 private:
-	Lexer&     m_lexer;
-	Allocator& m_allocator;
+	Lexer&           m_lexer;
+	Terminal&        m_terminal;
+	ScratchAllocator m_scratch;
 };
 
 } // namespace Biron

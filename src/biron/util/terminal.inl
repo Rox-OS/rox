@@ -37,6 +37,14 @@ struct Terminal {
 		}
 	}
 
+	constexpr Bool ansi_colors() const noexcept {
+	#if defined(_WIN32)
+		return false;
+	#else
+		return true;
+	#endif
+	}
+
 private:
 	const System& m_system;
 	SystemAllocator m_allocator;

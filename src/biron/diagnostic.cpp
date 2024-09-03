@@ -1,7 +1,6 @@
-#include <stdio.h> // fprintf, stderr
-
 #include <biron/diagnostic.h>
 #include <biron/lexer.h>
+#include <biron/util/terminal.inl>
 
 namespace Biron {
 
@@ -27,14 +26,29 @@ void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept
 		range.offset--;
 	}
 
-	fprintf(stderr, "\033[1;37m%.*s:%zu:%zu:\033[0m \033[1;31m%s:\033[0m %.*s\n",
-	        Sint32(m_lexer.name().length()),
-	        m_lexer.name().data(),
-	        line_number,
-	        this_column,
-	        kind == Kind::FATAL ? "fatal" : "error",
-	        Sint32(message.length()),
-	        message.data());
+	Maybe<Array<char>> msg;
+	if (m_terminal.ansi_colors()) {
+		msg = format(m_scratch,
+		             "\033[1;37m%S:%zu:%zu:\033[0m \033[1;31m%s:\033[0m %S\n",
+		             m_lexer.name(),
+		             line_number,
+		             this_column,
+		             kind == Kind::FATAL ? "fatal" : "error",
+		             message);
+	} else {
+		msg = format(m_scratch,
+		             "%S:%zu:%zu: %s: %S\n",
+		             m_lexer.name(),
+		             line_number,
+		             this_column,
+		             kind == Kind::FATAL ? "fatal" : "error",
+		             message);
+	}
+	if (!msg) {
+		return;
+	}
+
+	m_terminal.err(StringView { msg->data(), msg->length() });
 
 	// Print the offending line.
 	if (range.offset == 0) {
@@ -51,8 +65,9 @@ void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept
 		line_end++;
 	}
 	const auto line_len = line_end - line_beg;
-	fwrite(&m_lexer[line_beg], line_len, 1, stderr);
-	fprintf(stderr, "\n");
+
+	m_terminal.err(m_lexer.string({ line_beg, line_len }));
+	m_terminal.err("\n");
 
 	// Then print some swiggles underneath the offense if the offense is on one
 	// line.
@@ -61,12 +76,12 @@ void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept
 	}
 
 	for (Ulen i = line_beg; i < range.offset; i++) {
-		fprintf(stderr, " ");
+		m_terminal.err(" ");
 	}
 	for (Ulen i = 0; i < range.length; i++) {
-		fprintf(stderr, "~");
+		m_terminal.err("~");
 	}
-	fprintf(stderr, "\n");
+	m_terminal.err("\n");
 }
 
 } // namespace Biron
