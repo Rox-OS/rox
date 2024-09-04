@@ -46,50 +46,108 @@ On Windows you can build with
 $ cl.exe /I..\ /std:c++20 Zc:__cplusplus unity.cxx
 ```
 
+## Reference
 
-## Example
+The following is a mostly incomplete reference of the language
+
+### Lexical elements and literals
+#### Comments
+Comments can be anywhere outside of a string or character literal.
+  
+Single line comments begin with `//`
+```rust
+// This is a line comment
+
+let x = 0_u32; // Document this variable
 ```
-type Rect = (x: Real32, y: Real32, w: Real32, h: Real32);
-fn(self: *Rect) area() -> Real32 {
-  return self.w * self.h;
-}
-fn(self: *Rect) print_area(title: String) {
-  printf("%s: area = %f\n", self.area());
-}
-fn(lhs: *Rect, rhs: *Rect) collide() -> Bool32 {
-  return (lhs.x >= rhs.x && lhs.x <= rhs.x + rhs.w) ||
-         (rhs.x >= lhs.x && rhs.x <= lhs.x + lhs.w) ||
-         (lhs.y >= rhs.y && lhs.y <= rhs.y + rhs.h) ||
-         (rhs.y >= lhs.y && rhs.y <= lhs.y + lhs.h);
-}
-fn main() {
-  let lhs = Rect{10, 10, 0, 10};
-  let rhs = Rect{10, 10, 0,  0};
-  lhs.print_area("lhs");
-  rhs.print_area("rhs");
-  if (lhs, rhs).collide() {
-    printf("collision detected\n");
-  } else {
-    printf("no collision\n");
-  }
-}
+
+Block comments begin with `/*` and end with `*/` like C. Unlike C however, block comments can be nested.
+```rust
+/* You can put anything inside here including code
+  /* And other block comments */
+  // And other line comments
+*/
 ```
-This example packs quite a lot of punch. The first line defines a custom composite type called `Rect` which is a tuple of four fields describing the position and size of the rectangle. This is what named structures look like in Biron.
 
-The next line defines a function `area` which takes no arguments but one reciever of type `*Rect`. This is how methods look in Biron. They're free-form and can be defined in the global scope for any set of recievers of any type.
+Comments are lexed as actual tokens.
 
-The next function `print_area` shows that the reciever list and the argument list are separate. This function takes one argument of type `String`. You can see that it also calls `area` on the `self` reciever passed in.
+#### String literals
+String literals are enclosed in double quotes `"Like this"`. Special characters can be escaped with the backslash `\` character.
+```rust
+"Hello, World"
+"\n" // This is a newline character
+```
+> To encode the backslash chracter literally you escape it as well `\\`.
 
-The next function `area` shows Biron's static multi-dispatch capablities as it takes two arguments to collide two `Rect`.
+#### Character literals
+Character literals are enclosed in single quotes. Special characters can be escaped with the backslash `\` character like string literals.
+```rust
+'A'
+'\n'
+```
 
-The `main` function is a regular function as it takes no recievers. The first two lines of `main` establishes two rectangles using the aggregate initializer syntax. Here you can see that Biron is a "right-typed" language. The types of `lhs` and `rhs` are infered from the expression on the right-hand side. There is no explicit type annotations in Biron. The next two lines we call the `print_area` methods. Here you can see that `lhs` and `rhs` are the recievers of `print_area`. The next line constructs a tuple of `(lhs, rhs)` and calls off the tuple a method `collide` which will match the `collide` function.
+#### Integer literals
+Integer literals come in two variants in Biron: typed and untyped. Single quotes are allowed in integer literals for better readability.
+```rust
+1'000'000'000'000 // One billion as an untyped integer
+```
 
-One thing to note is in Biron there is two forms of implicit behavior done for you
-  * Implicit dereferencing
-  * Implicit referencing
+Literals can be explicitly typed with a type suffix
+```rust
+1'000'000'000'000_u64 // One billion as a Uint64
+```
 
-The type of `lhs` and `rhs` is `Rect` but when you call methods which take `*Rect` Biron will implicitly pass `lhs` and `rhs` by pointer.
+* When an integer literal begins with `0x` it's treated as a base-16 literal
+* When an integer literal begins with `0b` it's treated as a base-2 literal
 
-Likewise, the recievers need not be typed as `*Rect` they can be typed as `Rect` in which case Biron will pass `lhs` and `rhs` by copy.
+> There are no base-8 (octal) literals.
 
-If `lhs` and `rhs` are already pointer type as-in `*Rect`, the `.` syntax still works and Biron will perform an implicit dereference for you. Unlike C and C++ which defer this to a special `->` operator.
+There are sixteen explicit type suffixes for integer literals
+| Suffix | Type    |
+|--------|---------|
+| `_u8`  | Uint8   |
+| `_s8`  | Sint8   |
+| `_u16` | Uint16  |
+| `_s16` | Sint16  |
+| `_u32` | Uint32  |
+| `_s32` | Sint32  |
+| `_u64` | Uint64  |
+| `_s64` | Sint64  |
+
+#### Floating-point Literals
+Floating-point literals come in two variants in Biron: typed and untyped. Single quotes are allowed in floating-point literals for better readability just like integer literals.
+```rust
+100'000.0
+```
+
+Literals can be explicitly typed with a type suffix
+```rust
+100'000.0_f64
+```
+
+There are two explicit type suffixes for floating-point literals
+| Suffix | Type   |
+|--------|--------|
+| `_f32` | Real32 |
+| `_f64` | Real64 |
+
+### Let statement
+A `let` statement declares a new variable in the current scope.
+```rust
+let x = 10_u32;
+```
+
+There is no way to specify a type on a `let` statement. It's always inferred from the expression on the right-hand side.
+
+The declaration of a variable must be unique within a scope
+```rust
+let x = 10_u32;
+let x = 20_u32; // Not allowed since 'x' is already declared
+```
+
+### Assignment statements
+The assignment statement assigns a new value to a variable.
+```rust
+let x = 123_u32;
+x = 637_u32; // Assigns a new value to 'x'
+```

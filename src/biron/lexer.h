@@ -17,7 +17,7 @@ struct Token {
 		, range{range}
 	{
 	}
-	const char *name() const noexcept;
+	StringView name() const noexcept;
 	Bool eof() const noexcept { return kind == Kind::END; }
 
 	Sint32 binary_prec_() const noexcept {

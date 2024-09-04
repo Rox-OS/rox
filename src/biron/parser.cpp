@@ -123,7 +123,7 @@ AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexc
 		break; case Token::Kind::LOR:    lhs = new_node<AstBinExpr>(Op::LOR,    lhs, rhs, range);
 		break;
 		default:
-			ERROR(token.range, "Unexpected token '%s' in binary expression", token.name());
+			ERROR(token.range, "Unexpected token '%S'", token.name());
 			return nullptr;
 		}
 	}
@@ -287,7 +287,7 @@ AstExpr* Parser::parse_primary_expr(Bool simple) noexcept {
 	default:
 		break;
 	}
-	ERROR("Unknown token '%s' in primary expression", peek().name());
+	ERROR("Unknown token '%S' in primary expression", peek().name());
 	return nullptr;
 }
 
@@ -642,7 +642,7 @@ AstType* Parser::parse_type() noexcept {
 			type = parse_fn_type(move(attrs));
 			break;
 		default:
-			ERROR("Unexpected token '%s' in type", peek().name());
+			ERROR("Unexpected token '%S'", peek().name());
 			return nullptr;
 		}
 		if (!type || !types.push_back(type)) {
@@ -1332,7 +1332,6 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 
 	AstBlockStmt* body = parse_block_stmt();
 	if (!body) {
-		ERROR("Could not parse function body");
 		return nullptr;
 	}
 	auto range = beg_token.range.include(body->range());
@@ -1547,7 +1546,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 	case Token::Kind::END:
 		return unit;
 	default:
-		ERROR("Unexpected token '%s' in top-level", peek().name());
+		ERROR("Unexpected token '%S'", peek().name());
 		return None{};
 	}
 	BIRON_UNREACHABLE();
