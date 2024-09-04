@@ -37,6 +37,8 @@ struct Token {
 		case Kind::LTE:      return 9;  // Less than equal     (LTR)
 		case Kind::GT:       return 9;  // Greater than        (LTR)
 		case Kind::GTE:      return 9;  // Greater than equal  (LTR)
+		case Kind::MIN:      return 9;  // Minimum             (LTR)
+		case Kind::MAX:      return 9;  // Maximum             (LTR)
 		case Kind::EQEQ:     return 10; // Equal               (LTR)
 		case Kind::NEQ:      return 10; // Not equal           (LTR)
 		case Kind::BAND:     return 11; // Bitwise AND         (LTR)

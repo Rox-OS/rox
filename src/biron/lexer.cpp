@@ -138,6 +138,7 @@ Token Lexer::read() noexcept {
 		switch (peek()) {
 		case '<': fwd(); return {Kind::LSHIFT, {n, 2}};
 		case '=': fwd(); return {Kind::LTE,    {n, 2}};
+		case '?': fwd(); return {Kind::MIN,    {n, 2}};
 		default:         return {Kind::LT,     {n, 1}};
 		}
 		break;
@@ -146,6 +147,7 @@ Token Lexer::read() noexcept {
 		switch (peek()) {
 		case '>': fwd(); return {Kind::RSHIFT, {n, 2}};
 		case '=': fwd(); return {Kind::GTE,    {n, 2}};
+		case '?': fwd(); return {Kind::MAX,    {n, 2}};
 		default:         return {Kind::GT,     {n, 1}};
 		}
 		break;

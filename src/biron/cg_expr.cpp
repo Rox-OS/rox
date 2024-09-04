@@ -846,6 +846,16 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			return cg.emit_div(*lhs, *rhs, range());
 		}
 		break;
+	case Op::MIN:
+		if (gen_values()) {
+			return cg.emit_min(*lhs, *rhs, range());
+		}
+		break;
+	case Op::MAX:
+		if (gen_values()) {
+			return cg.emit_max(*lhs, *rhs, range());
+		}
+		break;
 	case Op::EQ:
 		if (lhs_type->is_sint() || lhs_type->is_uint() || lhs_type->is_pointer()) {
 			if (gen_values()) {
@@ -914,82 +924,22 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		break;
 	case Op::GT:
 		if (gen_values()){
-			if (lhs_type->is_sint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::SGT, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_uint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::UGT, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_real()) {
-				auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::OGT, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else {
-				auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-				cg.error(range(),
-				         "Operands to '>=' operator must have numeric type. Got '%S' instead",
-				         lhs_type_string);
-				return None{};
-			}
+			return cg.emit_gt(*lhs, *rhs, range());
 		}
 		break;
 	case Op::GE:
 		if (gen_values()) {
-			if (lhs_type->is_sint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::SGE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_uint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::UGE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_real()) {
-				auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::OGE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else {
-				auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-				cg.error(range(),
-				         "Operands to '>=' operator must have numeric type. Got '%S' instead",
-				         lhs_type_string);
-				return None{};
-			}
+			return cg.emit_ge(*lhs, *rhs, range());
 		}
 		break;
 	case Op::LT:
 		if (gen_values()) {
-			if (lhs_type->is_sint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::SLT, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_uint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::ULT, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_real()) {
-				auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::OLT, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			}else {
-				auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-				cg.error(range(),
-				         "Operands to '<' operator must have numeric type. Got '%S' instead",
-				         lhs_type_string);
-				return None{};
-			}
+			return cg.emit_lt(*lhs, *rhs, range());
 		}
 		break;
 	case Op::LE:
 		if (gen_values()) {
-			if (lhs_type->is_sint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::SLE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_uint()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::ULE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else if (lhs_type->is_real()) {
-				auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::OLE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			} else {
-				auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-				cg.error(range(),
-				         "Operands to '<=' operator must have numeric type. Got '%S' instead",
-				         lhs_type_string);
-				return None{};
-			}
+			return cg.emit_le(*lhs, *rhs, range());
 		}
 		break;
 	case Op::LOR:
@@ -1334,6 +1284,8 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 		return m_lhs->gen_type(cg);
 	case Op::EQ: case Op::NE: case Op::GT: case Op::GE: case Op::LT: case Op::LE:
 		return cg.types.b8();
+	case Op::MIN: case Op::MAX:
+		return m_lhs->gen_type(cg);
 	case Op::LOR: case Op::LAND:
 		return cg.types.b8();
 	case Op::BOR: case Op::BAND:

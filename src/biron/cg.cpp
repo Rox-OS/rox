@@ -180,6 +180,82 @@ Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
 	return None{};
 }
 
+Maybe<CgValue> Cg::emit_lt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_sint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::SLT, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_uint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::ULT, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_real()) {
+		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OLT, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else {
+		auto lhs_type_string = lhs.type()->to_string(*scratch);
+		error(range,
+		      "Operands to '<' operator must have numeric type. Got '%S' instead",
+		      lhs_type_string);
+		return None{};
+	}
+}
+
+Maybe<CgValue> Cg::emit_le(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_sint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::SLE, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_uint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::ULE, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_real()) {
+		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OLE, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else {
+		auto lhs_type_string = lhs.type()->to_string(*scratch);
+		error(range,
+		      "Operands to '<=' operator must have numeric type. Got '%S' instead",
+		      lhs_type_string);
+		return None{};
+	}
+}
+
+Maybe<CgValue> Cg::emit_gt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_sint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::SGT, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_uint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::UGT, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_real()) {
+		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OGT, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else {
+		auto lhs_type_string = lhs.type()->to_string(*scratch);
+		error(range,
+		      "Operands to '>' operator must have numeric type. Got '%S' instead",
+		      lhs_type_string);
+		return None{};
+	}
+}
+
+Maybe<CgValue> Cg::emit_ge(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (lhs.type()->is_sint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::SGE, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_uint()) {
+		auto value = llvm.BuildICmp(builder, LLVM::IntPredicate::UGE, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else if (lhs.type()->is_real()) {
+		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OGE, lhs.ref(), rhs.ref(), "");
+		return CgValue { types.b32(), value };
+	} else {
+		auto lhs_type_string = lhs.type()->to_string(*scratch);
+		error(range,
+		      "Operands to '>=' operator must have numeric type. Got '%S' instead",
+		      lhs_type_string);
+		return None{};
+	}
+}
+
 Maybe<CgValue> Cg::emit_add(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
 	if (lhs.type()->is_sint() || lhs.type()->is_uint()) {
 		return CgValue { lhs.type(), llvm.BuildAdd(builder, lhs.ref(), rhs.ref(), "") };
@@ -239,6 +315,22 @@ Maybe<CgValue> Cg::emit_div(const CgValue& lhs, const CgValue& rhs, Range range)
 	error(range,
 	      "Operands to '/' operator must have numeric type. Got '%S' instead",
 	      lhs_type_string);
+	return None{};
+}
+
+Maybe<CgValue> Cg::emit_min(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (auto cmp = emit_lt(lhs, rhs, range)) {
+		// lhs < rhs ? lhs : rhs
+		return CgValue { lhs.type(), llvm.BuildSelect(builder, cmp->ref(), lhs.ref(), rhs.ref(), "") };
+	}
+	return None{};
+}
+
+Maybe<CgValue> Cg::emit_max(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
+	if (auto cmp = emit_gt(lhs, rhs, range)) {
+		// lhs > rhs ? lhs : rhs
+		return CgValue { lhs.type(), llvm.BuildSelect(builder, cmp->ref(), lhs.ref(), rhs.ref(), "") };
+	}
 	return None{};
 }
 

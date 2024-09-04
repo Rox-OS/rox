@@ -111,8 +111,10 @@ AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexc
 		break; case Token::Kind::RSHIFT: lhs = new_node<AstBinExpr>(Op::RSHIFT, lhs, rhs, range);
 		break; case Token::Kind::LT:     lhs = new_node<AstBinExpr>(Op::LT,     lhs, rhs, range);
 		break; case Token::Kind::LTE:    lhs = new_node<AstBinExpr>(Op::LE,     lhs, rhs, range);
+		break; case Token::Kind::MIN:    lhs = new_node<AstBinExpr>(Op::MIN,    lhs, rhs, range);
 		break; case Token::Kind::GT:     lhs = new_node<AstBinExpr>(Op::GT,     lhs, rhs, range);
 		break; case Token::Kind::GTE:    lhs = new_node<AstBinExpr>(Op::GE,     lhs, rhs, range);
+		break; case Token::Kind::MAX:    lhs = new_node<AstBinExpr>(Op::MAX,    lhs, rhs, range);
 		break; case Token::Kind::EQEQ:   lhs = new_node<AstBinExpr>(Op::EQ,     lhs, rhs, range);
 		break; case Token::Kind::NEQ:    lhs = new_node<AstBinExpr>(Op::NE,     lhs, rhs, range);
 		break; case Token::Kind::BAND:   lhs = new_node<AstBinExpr>(Op::BAND,   lhs, rhs, range);
@@ -1257,7 +1259,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 		break; case Token::Kind::MINUSEQ:  op = StoreOp::SUB;
 		break; case Token::Kind::STAREQ:   op = StoreOp::MUL;
 		break; case Token::Kind::FSLASHEQ: op = StoreOp::DIV;
-		break; default:
+		break; default: return nullptr;
 		break;
 		}
 		assignment = new_node<AstAssignStmt>(expr, value, op, range);

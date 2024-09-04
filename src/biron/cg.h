@@ -106,10 +106,16 @@ struct Cg {
 	Maybe<CgAddr> intrinsic(StringView name) const noexcept;
 
 	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
+	Maybe<CgValue> emit_lt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
+	Maybe<CgValue> emit_le(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
+	Maybe<CgValue> emit_gt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
+	Maybe<CgValue> emit_ge(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_add(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_sub(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_mul(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_div(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
+	Maybe<CgValue> emit_min(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
+	Maybe<CgValue> emit_max(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_for_array(const CgValue& lhs,
 	                              const CgValue& rhs,
 	                              Range range,

@@ -124,8 +124,10 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Op::NE:     builder.append(" != ");
 	break; case Op::GT:     builder.append(" > ");
 	break; case Op::GE:     builder.append(" >= ");
+	break; case Op::MAX:    builder.append(" >? ");
 	break; case Op::LT:     builder.append(" < ");
 	break; case Op::LE:     builder.append(" <= ");
+	break; case Op::MIN:    builder.append(" <? ");
 	break; case Op::AS:     builder.append(" as ");
 	break; case Op::OF:     builder.append(" of" );
 	break; case Op::LOR:    builder.append(" || ");

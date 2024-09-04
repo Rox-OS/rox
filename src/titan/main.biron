@@ -349,10 +349,7 @@ fn sph_kernel(r: Real32) -> Real32 {
 }
 
 fn particle_pressure(p: *Particle) -> Real32 {
-  let pressure = STIFFNESS * (p.density - REST_DENSITY);
-  if pressure < 0_f32 {
-    pressure = 0_f32;
-  }
+  let pressure = STIFFNESS * (p.density - REST_DENSITY) >? 0_f32;
   return pressure;
 }
 
@@ -457,8 +454,7 @@ fn (sim: *Sim) step() {
             d[1] = 0_f32;
             r = 1_f32;
           } else {
-            d[0] = d[0] / r;
-            d[1] = d[1] / r;
+            d /= [2]Real32{r, r};
           }
           let w = H - r;
           w *= 0.23873241_f32; // 12 / (pi * h^4)
@@ -515,10 +511,7 @@ fn (sim: *Sim) render(fb: *LimineFramebuffer) {
 
   // Draw the particles.
   for let i = 0_u64; i < n_particles; i += 1_u64 {
-    let pressure = particle_pressure(&particles[i]) / STIFFNESS;
-    if pressure > 1_f32 {
-      pressure = 1_f32;
-    }
+    let pressure = particle_pressure(&particles[i]) / STIFFNESS <? 1_f32;
     let color = (0_u32, 255_u32, ((1.0_f32 - pressure) * 255.0_f32) as Uint32);
     draw_scaled_particle(fb, particles[i].position, make_color(fb, ...color));
   }

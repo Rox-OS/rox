@@ -236,6 +236,7 @@ struct AstBinExpr : AstExpr {
 	enum class Op {
 		ADD, SUB, MUL, DIV,
 		EQ, NE, GT, GE, LT, LE,
+		MIN, MAX,
 		LOR, LAND,
 		BOR, BAND,
 		LSHIFT, RSHIFT,

@@ -136,6 +136,7 @@ FN(ValueRef,              BuildFCmp,                     BuilderRef, RealPredica
 /// Miscellaneous
 FN(ValueRef,              BuildPhi,                      BuilderRef, TypeRef, const char*)
 FN(ValueRef,              BuildCall2,                    BuilderRef, TypeRef, ValueRef, ValueRef*, unsigned, const char*)
+FN(ValueRef,              BuildSelect,                   BuilderRef, ValueRef, ValueRef, ValueRef, const char*)
 FN(ValueRef,              BuildExtractValue,             BuilderRef, ValueRef, unsigned, const char*)
 
 //
