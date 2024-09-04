@@ -19,6 +19,7 @@ Biron is an experimental toy systems programming language built for Rox.
   * Non-NUL-terminated UTF-8 string: `String`
 * Structured control flow:
   * `if` `else` `else if` `for` `break` `continue`
+* Array programming
 * Free-form methods with static multiple-dispatch
 * Designed to run on baremetal
 * Small: ~10k lines of freestanding C++ with no build dependencies

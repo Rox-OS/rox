@@ -11,7 +11,6 @@ namespace Biron {
 
 template<MoveConstructible LHS, MoveConstructible RHS>
 struct Either {
-	constexpr Either() noexcept : m_as_nat{}, m_kind{KIND_NIL} {}
 	constexpr Either(LHS&& lhs) noexcept : m_as_lhs{move(lhs)}, m_kind{KIND_LHS} {}
 	constexpr Either(RHS&& rhs) noexcept : m_as_rhs{move(rhs)}, m_kind{KIND_RHS} {}
 	constexpr Either(Either&& other) noexcept

@@ -41,6 +41,7 @@ KIND(IDENT)       // [a-z][A-Z]([a-z][A-Z][0-9]_)+
 KIND(PLUSEQ)      // '+='
 KIND(MINUSEQ)     // '-='
 KIND(STAREQ)      // '*='
+KIND(FSLASHEQ)    // '/='
 
 KIND(KW_TRUE)     // true
 KIND(KW_FALSE)    // false

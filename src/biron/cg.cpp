@@ -185,6 +185,8 @@ Maybe<CgValue> Cg::emit_add(const CgValue& lhs, const CgValue& rhs, Range range)
 		return CgValue { lhs.type(), llvm.BuildAdd(builder, lhs.ref(), rhs.ref(), "") };
 	} else if (lhs.type()->is_real()) {
 		return CgValue { lhs.type(), llvm.BuildFAdd(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_array()) {
+		return emit_for_array(lhs, rhs, range, &Cg::emit_add);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
 	error(range,
@@ -198,6 +200,8 @@ Maybe<CgValue> Cg::emit_sub(const CgValue& lhs, const CgValue& rhs, Range range)
 		return CgValue { lhs.type(), llvm.BuildSub(builder, lhs.ref(), rhs.ref(), "") };
 	} else if (lhs.type()->is_real()) {
 		return CgValue { lhs.type(), llvm.BuildFSub(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_array()) {
+		return emit_for_array(lhs, rhs, range, &Cg::emit_sub);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
 	error(range,
@@ -211,6 +215,8 @@ Maybe<CgValue> Cg::emit_mul(const CgValue& lhs, const CgValue& rhs, Range range)
 		return CgValue { lhs.type(), llvm.BuildMul(builder, lhs.ref(), rhs.ref(), "") };
 	} else if (lhs.type()->is_real()) {
 		return CgValue { lhs.type(), llvm.BuildFMul(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_array()) {
+		return emit_for_array(lhs, rhs, range, &Cg::emit_mul);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
 	error(range,
@@ -226,12 +232,44 @@ Maybe<CgValue> Cg::emit_div(const CgValue& lhs, const CgValue& rhs, Range range)
 		return CgValue { lhs.type(), llvm.BuildSDiv(builder, lhs.ref(), rhs.ref(), "") };
 	} else if (lhs.type()->is_uint()) {
 		return CgValue { lhs.type(), llvm.BuildUDiv(builder, lhs.ref(), rhs.ref(), "") };
+	} else if (lhs.type()->is_array()) {
+		return emit_for_array(lhs, rhs, range, &Cg::emit_div);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
 	error(range,
 	      "Operands to '/' operator must have numeric type. Got '%S' instead",
 	      lhs_type_string);
 	return None{};
+}
+
+Maybe<CgValue> Cg::emit_for_array(const CgValue& lhs,
+                                  const CgValue& rhs,
+                                  Range range,
+                                  Maybe<CgValue> (Cg::*emit)(const CgValue&,
+                                                             const CgValue&,
+                                                             Range))
+{
+	Array<CgValue> values{*scratch};
+	for (Ulen l = lhs.type()->extent(), i = 0; i < l; i++) {
+		auto lhs_n = lhs.at(*this, i);
+		auto rhs_n = rhs.at(*this, i);
+		if (!lhs_n || !rhs_n) {
+			return None{};
+		}
+		auto value = (this->*emit)(*lhs_n, *rhs_n, range);
+		if (!value) {
+			return None{};
+		}
+		if (!values.push_back(*value)) {
+			return oom();
+		}
+	}
+	auto dst = emit_alloca(lhs.type());
+	Ulen i = 0;
+	for (auto value : values) {
+		dst->at(*this, i++)->store(*this, value);
+	}
+	return dst->load(*this);
 }
 
 const char* Cg::nameof(StringView name) const noexcept {

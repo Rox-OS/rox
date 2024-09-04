@@ -286,6 +286,12 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 			}
 		}
 		break;
+	case StoreOp::DIV:
+		if (auto load = dst->load(cg)) {
+			if (auto value = cg.emit_div(*load, *src, range())) {
+				return dst->store(cg, *value);
+			}
+		}
 	}
 	
 	return false;

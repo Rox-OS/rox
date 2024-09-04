@@ -166,7 +166,7 @@ private:
 
 struct AstAssignStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::ASSIGN;
-	enum class StoreOp { WR, ADD, SUB, MUL };
+	enum class StoreOp { WR, ADD, SUB, MUL, DIV };
 	constexpr AstAssignStmt(AstExpr* dst, AstExpr* src, StoreOp op, Range range) noexcept
 		: AstStmt{KIND, range}
 		, m_dst{dst}

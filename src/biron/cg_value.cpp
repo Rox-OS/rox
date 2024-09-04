@@ -98,6 +98,14 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	return CgAddr { type->at(k)->addrof(cg), gep };
 }
 
+Maybe<CgValue> CgValue::at(Cg& cg, Ulen i) const noexcept {
+	if (m_type->is_array()) {
+		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
+		return CgValue { m_type->deref(), value };
+	}
+	return None{};
+}
+
 Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
 	auto& llvm = cg.llvm;
 	auto value = llvm.ConstNull(type->ref());

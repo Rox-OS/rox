@@ -110,6 +110,12 @@ struct Cg {
 	Maybe<CgValue> emit_sub(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_mul(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_div(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
+	Maybe<CgValue> emit_for_array(const CgValue& lhs,
+	                              const CgValue& rhs,
+	                              Range range,
+	                              Maybe<CgValue> (Cg::*emit)(const CgValue&,
+	                                                         const CgValue&,
+	                                                         Range));
 
 	const char* nameof(StringView name) const noexcept;
 

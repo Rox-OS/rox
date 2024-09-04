@@ -407,8 +407,7 @@ fn (sim: *Sim) step() {
 
     particle.velocity[1] += GRAVITY;
 
-    particle.position[0] += particle.velocity[0];
-    particle.position[1] += particle.velocity[1];
+    particle.position += particle.velocity;
   }
 
   // Estimate density.
@@ -419,10 +418,7 @@ fn (sim: *Sim) step() {
     // Count fluid particles.
     for let j = 0_u64; j < n_particles; j += 1_u64 {
       let neighbor = &particles[j];
-      let delta = [2]Real32{
-        particle.position[0] - neighbor.position[0],
-        particle.position[1] - neighbor.position[1]
-      };
+      let delta = particle.position - neighbor.position;
       let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
       if r < H {
         particle.density += sph_kernel(r);
@@ -431,10 +427,7 @@ fn (sim: *Sim) step() {
 
     // Count boundary particles.
     for let j = 0_u64; j < n_boundary_particles; j += 1_u64 {
-      let delta = [2]Real32{
-        particle.position[0] - boundary_particles[j][0],
-        particle.position[1] - boundary_particles[j][1]
-      };
+      let delta = particle.position - boundary_particles[j];
       let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
       if r < H {
         particle.density += sph_kernel(r);
@@ -452,10 +445,7 @@ fn (sim: *Sim) step() {
     for let j = 0_u64; j < n_particles; j += 1_u64 {
       if i != j {
         let neighbor = &particles[j];
-        let d = [2]Real32{
-          particle.position[0] - neighbor.position[0],
-          particle.position[1] - neighbor.position[1]
-        };
+        let d = particle.position - neighbor.position;
         let r = sqrt(d[0]*d[0] + d[1]*d[1]);
         if r < H {
           if r <= 0.01_f32 {
@@ -474,37 +464,30 @@ fn (sim: *Sim) step() {
           w *= 0.23873241_f32; // 12 / (pi * h^4)
           let f_n = particle_pressure(neighbor) / (neighbor.density * neighbor.density);
           let f = (f_p + f_n) * w;
-          force[0] += f * d[0];
-          force[1] += f * d[1];
+          force += [2]Real32{f, f} * d;
         }
       }
     }
 
     for let j = 0_u64; j < n_boundary_particles; j = j + 1_u64 {
-      let d = [2]Real32{
-        particle.position[0] - boundary_particles[j][0],
-        particle.position[1] - boundary_particles[j][1]
-      };
+      let d = particle.position - boundary_particles[j];
       let r = sqrt(d[0]*d[0] + d[1]*d[1]);
       if r < H {
         let w = H - r;
         w *= 0.23873241_f32; // 12 / (pi * h^4)
         let f_n = particle_pressure(particle) / (REST_DENSITY * REST_DENSITY);
         let f = (f_p + f_n) * w;
-        force[0] += f * d[0];
-        force[1] += f * d[1];
+        force += [2]Real32{f, f} * d;
       }
     }
 
-    particle.velocity[0] += force[0] / particle.density;
-    particle.velocity[1] += force[1] / particle.density;
+    particle.velocity += force / [2]Real32{particle.density, particle.density};
   }
 
   // Use pressure-corrected velocity and apply boundary conditions.
   for let i = 0_u64; i < n_particles; i += 1_u64 {
     let particle = &particles[i];
-    particle.position[0] = particle.initial_position[0] + particle.velocity[0];
-    particle.position[1] = particle.initial_position[1] + particle.velocity[1];
+    particle.position = particle.initial_position + particle.velocity;
 
     for let c = 0_u64; c < 2_u64; c += 1_u64 {
       if particle.position[c] < 0.5_f32 {

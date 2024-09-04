@@ -193,6 +193,9 @@ Token Lexer::read() noexcept {
 				}
 			}
 			return {Kind::COMMENT, {n, m_offset - n}};
+		case '=':
+			fwd(); // Consume '='
+			return {Kind::FSLASHEQ, {n, 2}};
 		default:
 			return {Kind::FSLASH,  {n, 1}};
 		}

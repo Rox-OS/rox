@@ -1240,7 +1240,8 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 	if (token.kind == Token::Kind::EQ
 	 || token.kind == Token::Kind::PLUSEQ
 	 || token.kind == Token::Kind::MINUSEQ
-	 || token.kind == Token::Kind::STAREQ)
+	 || token.kind == Token::Kind::STAREQ
+	 || token.kind == Token::Kind::FSLASHEQ)
 	{
 		next(); // Consume '='
 		auto value = parse_expr(false);
@@ -1251,10 +1252,11 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 		using StoreOp = AstAssignStmt::StoreOp;
 		StoreOp op;
 		switch (token.kind) {
-		/****/ case Token::Kind::EQ:      op = StoreOp::WR;
-		break; case Token::Kind::PLUSEQ:  op = StoreOp::ADD;
-		break; case Token::Kind::MINUSEQ: op = StoreOp::SUB;
-		break; case Token::Kind::STAREQ:  op = StoreOp::MUL;
+		/****/ case Token::Kind::EQ:       op = StoreOp::WR;
+		break; case Token::Kind::PLUSEQ:   op = StoreOp::ADD;
+		break; case Token::Kind::MINUSEQ:  op = StoreOp::SUB;
+		break; case Token::Kind::STAREQ:   op = StoreOp::MUL;
+		break; case Token::Kind::FSLASHEQ: op = StoreOp::DIV;
 		break; default:
 		break;
 		}

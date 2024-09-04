@@ -73,13 +73,40 @@ struct CgType {
 
 	[[nodiscard]] constexpr LLVM::TypeRef ref() const noexcept { return m_ref; }
 
-	Bool operator==(const CgType& other) const noexcept {
-		if (other.m_kind   != m_kind)   return false;
-		if (other.m_layout != m_layout) return false;
-		if (other.m_extent != m_extent) return false;
-		if (other.m_types  != m_types)  return false;
+	[[nodiscard]] Bool operator!=(const CgType& other) const noexcept {
+		if (other.m_kind != m_kind) {
+			return true;
+		}
+		if (other.m_layout != m_layout) {
+			return true;
+		}
+		if (other.m_extent != m_extent) {
+			return true;
+		}
+		if (other.m_types) { 
+			if (!m_types) {
+				// Other has types but we do not.
+				return true;
+			}
+			const auto& lhs = *other.m_types;
+			const auto& rhs = *m_types;
+			if (lhs.length() != rhs.length()) {
+				// The type lists are not the same length.
+				return true;
+			}
+			for (Ulen l = lhs.length(), i = 0; i < l; i++) {
+				if (*lhs[i] != *rhs[i]) {
+					// The types are not the same.
+					return true;
+				}
+			}
+		}
 		// We do not compare m_ref
-		return true;
+		return false;
+	}
+
+	[[nodiscard]] Bool operator==(const CgType& other) const noexcept {
+		return !operator!=(other);
 	}
 
 	// Custom make tags for the type cache

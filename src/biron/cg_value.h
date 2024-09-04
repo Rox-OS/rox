@@ -47,6 +47,8 @@ struct CgValue {
 	{
 	}
 
+	Maybe<CgValue> at(Cg& cg, Ulen i) const noexcept;
+
 	[[nodiscard]] constexpr LLVM::ValueRef ref() const noexcept { return m_ref; }
 
 	// Construct a zero-value of the given type.

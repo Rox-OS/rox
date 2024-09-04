@@ -11,7 +11,7 @@ struct Maybe {
 	static constexpr Maybe none() noexcept {
 		return None {};
 	}
-	constexpr Maybe() noexcept = default;
+	constexpr Maybe() noexcept : m_either{Nat{}} {}
 	constexpr Maybe(None) noexcept : Maybe{} {}
 	constexpr Maybe(T&& value) noexcept : m_either{move(value)} {}
 	constexpr Maybe(Maybe&& other) noexcept : m_either{move(other.m_either)} {}
