@@ -399,11 +399,8 @@ fn (sim: *Sim) step() {
   // Apply forces and "advect" the particles.
   for let i = 0_u64; i < n_particles; i += 1_u64 {
     let particle = &particles[i];
-
     particle.initial_position = particle.position;
-
     particle.velocity[1] += GRAVITY;
-
     particle.position += particle.velocity;
   }
 
@@ -440,41 +437,44 @@ fn (sim: *Sim) step() {
     let force = [2]Real32{};
 
     for let j = 0_u64; j < n_particles; j += 1_u64 {
-      if i != j {
-        let neighbor = &particles[j];
-        let d = particle.position - neighbor.position;
-        let r = sqrt(d[0]*d[0] + d[1]*d[1]);
-        if r < H {
-          if r <= 0.01_f32 {
-            if j < i {
-              d[0] = 1_f32;
-            } else {
-              d[0] = -1_f32;
-            }
-            d[1] = 0_f32;
-            r = 1_f32;
-          } else {
-            d /= [2]Real32{r, r};
-          }
-          let w = H - r;
-          w *= 0.23873241_f32; // 12 / (pi * h^4)
-          let f_n = particle_pressure(neighbor) / (neighbor.density * neighbor.density);
-          let f = (f_p + f_n) * w;
-          force += [2]Real32{f, f} * d;
-        }
+      if i == j {
+        continue;
       }
+      let neighbor = &particles[j];
+      let d = particle.position - neighbor.position;
+      let r = sqrt(d[0]*d[0] + d[1]*d[1]);
+      if r >= H {
+        continue;
+      }
+      if r <= 0.01_f32 {
+        if j < i {
+          d[0] = 1_f32;
+        } else {
+          d[0] = -1_f32;
+        }
+        d[1] = 0_f32;
+        r = 1_f32;
+      } else {
+        d /= [2]Real32{r, r};
+      }
+      let w = H - r;
+      w *= 0.23873241_f32; // 12 / (pi * h^4)
+      let f_n = particle_pressure(neighbor) / (neighbor.density * neighbor.density);
+      let f = (f_p + f_n) * w;
+      force += [2]Real32{f, f} * d;
     }
 
     for let j = 0_u64; j < n_boundary_particles; j = j + 1_u64 {
       let d = particle.position - boundary_particles[j];
       let r = sqrt(d[0]*d[0] + d[1]*d[1]);
-      if r < H {
-        let w = H - r;
-        w *= 0.23873241_f32; // 12 / (pi * h^4)
-        let f_n = particle_pressure(particle) / (REST_DENSITY * REST_DENSITY);
-        let f = (f_p + f_n) * w;
-        force += [2]Real32{f, f} * d;
+      if r >= H {
+        continue;
       }
+      let w = H - r;
+      w *= 0.23873241_f32; // 12 / (pi * h^4)
+      let f_n = particle_pressure(particle) / (REST_DENSITY * REST_DENSITY);
+      let f = (f_p + f_n) * w;
+      force += [2]Real32{f, f} * d;
     }
 
     particle.velocity += force / [2]Real32{particle.density, particle.density};

@@ -134,12 +134,13 @@ private:
 
 struct AstForStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::FOR;
-	constexpr AstForStmt(AstLetStmt* init, AstExpr* expr, AstStmt* post, AstBlockStmt* body, Range range) noexcept
+	constexpr AstForStmt(AstLetStmt* init, AstExpr* expr, AstStmt* post, AstBlockStmt* body, AstBlockStmt* elze, Range range) noexcept
 		: AstStmt{KIND, range}
 		, m_init{init}
 		, m_expr{expr}
 		, m_post{post}
 		, m_body{body}
+		, m_else{elze}
 	{
 	}
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
@@ -149,6 +150,7 @@ private:
 	AstExpr*      m_expr;
 	AstStmt*      m_post;
 	AstBlockStmt* m_body;
+	AstBlockStmt* m_else;
 };
 
 struct AstExprStmt : AstStmt {

@@ -1219,8 +1219,16 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 	if (!body) {
 		return nullptr;
 	}
+	AstBlockStmt* elze = nullptr;
+	if (peek().kind == Token::Kind::KW_ELSE) {
+		next(); // Consume 'else'
+		elze = parse_block_stmt();
+		if (!elze) {
+			return nullptr;
+		}
+	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstForStmt>(let, expr, post, body, range);
+	auto node = new_node<AstForStmt>(let, expr, post, body, elze, range);
 	if (!node) {
 		return nullptr;
 	}

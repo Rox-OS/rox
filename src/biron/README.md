@@ -151,3 +151,47 @@ The assignment statement assigns a new value to a variable.
 let x = 123_u32;
 x = 637_u32; // Assigns a new value to 'x'
 ```
+
+### Control flow statements
+#### The `for` statement
+The `for` statement has the following syntax:
+
+```rust
+for <stmt>;? <expr>;? <stmt>? {
+  // ...
+}
+```
+
+Where `?` here denotes an optional statement or expression. When all elements are omitted the loop is an infinite one.
+```rust
+for {
+  // Infinite loop
+}
+```
+
+Something like the following is equivalent to C's `while` loop.
+```rust
+for expr {
+
+}
+```
+
+Then of course you have the tried and true C style `for` loop
+```rust
+for let i = 0; i < 10; i = i + 1 {
+  // Runs for 10 iterations
+}
+```
+
+Loops in Biron also have an optional `else` clause like [Python 3](https://book.pythontips.com/en/latest/for_-_else.html). The `else` clause executes only when the for loop completes normally. Where normally here means when the loop expression no longer evaluates true as opposed to being terminated early by a `break`. This lets you write code like the following
+```rust
+for let n = 2; n < 10; n = n + 1 {
+  for let x = 2; x < n; x = x + 1 {
+    if n % x == 0 {
+      printf("%d equals %d * %d\n", n, x, n/x);
+    }
+  } else {
+    printf("%s is not a prime number\n", n);
+  }
+}
+```

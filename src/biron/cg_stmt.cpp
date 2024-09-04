@@ -305,13 +305,20 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	}
 	// <init-stmt>?
 	// loop:
-	//	cond ? br cond, join, exit : br join
+	//	IF cond {
+	//		br cond, join, else
+	//	} ELSE {
+	//		br join
+	//	}
 	// join:
 	//	<body-stmt>
 	//	br post
 	// post:
 	//	<post-stmt>?
 	//	br loop
+	// else:
+	//	<else-stmt>?
+	//	br exit
 	// exit:
 	//	
 	if (m_init && !m_init->codegen(cg)) {
@@ -324,6 +331,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	auto loop_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "loop");
 	auto join_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "join");
 	auto post_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "post");
+	auto else_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "else");
 	auto exit_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "exit");
 
 	cg.scopes.last().loop.emplace(post_bb, exit_bb);
@@ -337,7 +345,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 		if (!cond) {
 			return false;
 		}
-		cg.llvm.BuildCondBr(cg.builder, cond->ref(), join_bb, exit_bb);
+		cg.llvm.BuildCondBr(cg.builder, cond->ref(), join_bb, else_bb);
 	} else {
 		cg.llvm.BuildBr(cg.builder, join_bb);
 	}
@@ -354,8 +362,14 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	if (m_post && !m_post->codegen(cg)) {
 		return false;
 	}
-
 	cg.llvm.BuildBr(cg.builder, loop_bb);
+
+	cg.llvm.PositionBuilderAtEnd(cg.builder, else_bb);
+	cg.llvm.AppendExistingBasicBlock(this_fn, else_bb);
+	if (m_else && !m_else->codegen(cg)) {
+		return false;
+	}
+	cg.llvm.BuildBr(cg.builder, exit_bb);
 
 	cg.llvm.PositionBuilderAtEnd(cg.builder, exit_bb);
 	cg.llvm.AppendExistingBasicBlock(this_fn, exit_bb);
