@@ -15,34 +15,6 @@
 
 namespace Biron {
 
-Bool Scope::find(StringView name) const noexcept {
-	// Just assume printf exists for debugging purposes.
-	if (name == "printf") {
-		return true;
-	}
-	// Search let declarations
-	for (auto let : m_lets) {
-		if (let->name() == name) {
-			return true;
-		}
-	}
-	// Search fn declarations
-	for (auto fn : m_fns) {
-		if (fn->name() == name) {
-			return true;
-		}
-	}
-	return false;
-}
-
-Bool Scope::add_fn(AstFn* fn) noexcept {
-	return m_fns.push_back(fn);
-}
-
-Bool Scope::add_let(AstLetStmt* let) noexcept {
-	return m_lets.push_back(let);
-}
-
 Parser::~Parser() noexcept {
 	for (auto& cache : m_caches) {
 		for (auto node : cache) {
@@ -51,6 +23,9 @@ Parser::~Parser() noexcept {
 	}
 }
 
+
+// IndexExpr
+//	::= '[' Expr ']'
 AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
 	if (peek().kind != Token::Kind::LBRACKET) {
 		ERROR("Expected '['");
@@ -130,8 +105,8 @@ AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexc
 }
 
 // PostfixExpr
-//	::= IndexExpr
-//	  | DotExpr
+//	::= PrimaryExpr IndexExpr
+//	  | PrimaryExpr DotExpr PrimaryExpr
 AstExpr* Parser::parse_postfix_expr(Bool simple) noexcept {
 	auto operand = parse_primary_expr(simple);
 	if (!operand) {
@@ -216,7 +191,6 @@ AstExpr* Parser::parse_unary_expr(Bool simple) noexcept {
 
 // Expr
 //	::= PrimaryExpr BinOpRHS
-//	  | PrimaryExpr IndexExpr
 AstExpr* Parser::parse_expr(Bool simple) noexcept {
 	auto lhs = parse_unary_expr(simple);
 	if (!lhs) {
@@ -910,8 +884,6 @@ AstStmt* Parser::parse_stmt() noexcept {
 // BlockStmt
 //	::= '{' Stmt* '}'
 AstBlockStmt* Parser::parse_block_stmt() noexcept {
-	Scope scope{m_allocator, m_scope};
-	m_scope = &scope;
 	if (peek().kind != Token::Kind::LBRACE) {
 		ERROR("Expected '{'");
 		return nullptr;
@@ -938,7 +910,6 @@ AstBlockStmt* Parser::parse_block_stmt() noexcept {
 	if (!node) {
 		return nullptr;
 	}
-	m_scope = m_scope->prev();
 	return node;
 }
 
@@ -1023,7 +994,7 @@ AstContinueStmt* Parser::parse_continue_stmt() noexcept {
 }
 
 // IfStmt
-//	::= 'if' (LetStmt ';')? Expr BlockStmt ('else' (IfStmt | BlockStmt))?
+//	::= 'if' LetStmt? Expr BlockStmt ('else' (IfStmt | BlockStmt))?
 AstIfStmt* Parser::parse_if_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_IF) {
 		ERROR("Expected 'if'");
@@ -1031,29 +1002,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 	}
 	auto beg_token = next(); // Consume 'if'
 	AstLetStmt* init = nullptr;
-	// When we have a LET statement we introduce another scope. That is we compile
-	//	if let ident ...; Expr {
-	//		...
-	//	} else {
-	//		...
-	//	}
-	//
-	// Into
-	//	{
-	//		let ident ...;
-	//		if Expr {
-	//			...
-	//		} else {
-	//			...
-	//		}
-	//	}
-	//
-	// Which makes the let declaration become available to the else and else if.
-	Scope scope{m_allocator, m_scope};
-	Bool scoped = false;
 	if (peek().kind == Token::Kind::KW_LET) {
-		m_scope = &scope;
-		scoped = true;
 		if (!(init = parse_let_stmt(None{}))) {
 			return nullptr;
 		}
@@ -1087,9 +1036,6 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 	auto node = new_node<AstIfStmt>(init, expr, then, elif, range);
 	if (!node) {
 		return nullptr;
-	}
-	if (scoped) {
-		m_scope = m_scope->prev();
 	}
 	return node;
 }
@@ -1126,10 +1072,6 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	auto range = beg_token.range.include(init->range());
 	auto node = new_node<AstLetStmt>(name, init, move(attrs), range);
 	if (!node) {
-		return nullptr;
-	}
-	if (!m_scope->add_let(node)) {
-		ERROR("Out of memory");
 		return nullptr;
 	}
 	return node;
@@ -1192,9 +1134,7 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 	auto beg_token = next(); // Consume 'for'
 	AstLetStmt* let = nullptr;
 	AstExpr* expr = nullptr;
-	Scope scope{m_allocator, m_scope};
 	if (peek().kind == Token::Kind::KW_LET) {
-		m_scope = &scope;
 		if (!(let = parse_let_stmt(None{}))) {
 			return nullptr;
 		}
@@ -1232,7 +1172,6 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 	if (!node) {
 		return nullptr;
 	}
-	m_scope = scope.prev();
 	return node;
 }
 
@@ -1288,8 +1227,6 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 // Fn
 //	::= 'fn' Ident TupleType ('->' Type)? BlockStmt
 AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
-	Scope scope{m_allocator, m_scope};
-	m_scope = &scope;
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
 		return nullptr;
@@ -1346,12 +1283,6 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	auto node = new_node<AstFn>(name, selfs, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
 	if (!node) {
 		ERROR("Out of memory");
-		return nullptr;
-	}
-
-	m_scope = m_scope->prev();
-
-	if (!m_scope->add_fn(node)) {
 		return nullptr;
 	}
 
@@ -1500,8 +1431,6 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 
 Maybe<AstUnit> Parser::parse() noexcept {
 	AstUnit unit{m_allocator};
-	Scope scope{m_allocator, nullptr};
-	m_scope = &scope;
 	Maybe<Array<AstAttr*>> attrs;
 	for (;;) switch (peek().kind) {
 	case Token::Kind::AT:

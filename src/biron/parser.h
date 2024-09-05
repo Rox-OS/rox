@@ -41,27 +41,9 @@ struct AstExprStmt;
 struct AstAssignStmt;
 struct AstAsmStmt;
 
-struct Scope {
-	constexpr Scope(Allocator& allocator, Scope* prev = nullptr) noexcept
-		: m_lets{allocator}
-		, m_fns{allocator}
-		, m_prev{prev}
-	{
-	}
-	[[nodiscard]] Bool find(StringView name) const noexcept;
-	[[nodiscard]] Bool add_fn(AstFn* fn) noexcept;
-	[[nodiscard]] Bool add_let(AstLetStmt* let) noexcept;
-	[[nodiscard]] Scope* prev() const noexcept { return m_prev; }
-private:
-	Array<AstLetStmt*> m_lets;
-	Array<AstFn*>      m_fns;
-	Scope*             m_prev;
-};
-
 struct Parser {
 	constexpr Parser(Lexer& lexer, Diagnostic& diagnostic, Allocator& allocator) noexcept
 		: m_lexer{lexer}
-		, m_scope{nullptr}
 		, m_in_defer{false}
 		, m_caches{allocator}
 		, m_diagnostic{diagnostic}
@@ -166,7 +148,6 @@ private:
 	Token m_this_token;
 	Token m_last_token;
 	Maybe<Token> m_peek_token;
-	Scope* m_scope;
 	Bool m_in_defer;
 	Array<Cache> m_caches;
 	Diagnostic& m_diagnostic;

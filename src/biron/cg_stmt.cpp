@@ -74,8 +74,36 @@ Bool AstContinueStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstIfStmt::codegen(Cg& cg) const noexcept {
-	if (m_init && !m_init->codegen(cg)) {
-		return false;
+
+	if (m_init) {
+		// When there is a 'let' statement we introduce another scope.
+		//
+		// if let ident = ...; expr {
+		//   on_join();
+		// } else {
+		//   on_else();
+		// }
+		// on_exit();
+		//
+		// Compiles to
+		//
+		// {
+		//   let ident = ...;
+		//   if expr {
+		//     on_join();
+		//   } else {
+		//     on_else();
+		//   }
+		// }
+		// on_exit();
+
+		if (!cg.scopes.emplace_back(cg.allocator)) {
+			return false;
+		}
+
+		if (!m_init->codegen(cg)) {
+			return false;
+		}
 	}
 
 	auto cond = m_expr->gen_value(cg);
@@ -122,6 +150,10 @@ Bool AstIfStmt::codegen(Cg& cg) const noexcept {
 
 	cg.llvm.AppendExistingBasicBlock(this_fn, join_bb);
 	cg.llvm.PositionBuilderAtEnd(cg.builder, join_bb);
+
+	if (m_init) {
+		cg.scopes.pop_back();
+	}
 
 	return true;
 }

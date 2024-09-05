@@ -153,16 +153,32 @@ x = 637_u32; // Assigns a new value to 'x'
 ```
 
 ### Control flow statements
+#### The `if` statement
+The `if` statement has the following syntax:
+```rust
+if <LetStmt>? <Expr> {
+  // ...
+} else {
+  // The else case
+}
+```
+Where `<LetStmt>?` here denotes an optional `let` statement which is accessible only to the scope of the `if` and `else` bodies.
+
+You can also chain `if` `else` with `if else` like C.
+
 #### The `for` statement
 The `for` statement has the following syntax:
 
 ```rust
-for <stmt>;? <expr>;? <stmt>? {
+for <LetStmt>? <Expr>;? <UnterminatedStmt>? {
   // ...
 }
 ```
+* `<LetStmt>?` here denotes an optional `let` statement.
+* `<Expr>;?` here donates an optional loop condition,
+* `<UnterminatedStmt>?` here donates an optional post statement which does not end in a semicolon `;` like other statements.
 
-Where `?` here denotes an optional statement or expression. When all elements are omitted the loop is an infinite one.
+For example, the following is an infinite loop.
 ```rust
 for {
   // Infinite loop
@@ -176,12 +192,14 @@ for expr {
 }
 ```
 
-Then of course you have the tried and true C style `for` loop
+Then of course you have the tried and true C style `for` loop.
 ```rust
 for let i = 0; i < 10; i = i + 1 {
   // Runs for 10 iterations
 }
 ```
+
+You may also terminate the loop early with the `break` keyword. Likewise, you can skip the remainder of the iteration and execute the next iteration with the `continue` keyword.
 
 Loops in Biron also have an optional `else` clause like [Python 3](https://book.pythontips.com/en/latest/for_-_else.html). The `else` clause executes only when the for loop completes normally. Where normally here means when the loop expression no longer evaluates true as opposed to being terminated early by a `break`. This lets you write code like the following
 ```rust
@@ -195,3 +213,65 @@ for let n = 2; n < 10; n = n + 1 {
   }
 }
 ```
+
+#### The `defer` statement
+The `defer` statement defers execution of a statement until the end of the scope it is in.
+
+```rust
+fn main() {
+  let x = 123_u32;
+  defer printf("%d\n", x);
+  {
+    defer x = 4_u32;
+    x = 2_u32;
+  }
+  printf("%d\n", x);
+  x = 234_u32;
+}
+```
+
+> This should print `4` then `234`.
+
+An entire block can be deferred as well
+```rust
+{
+  defer {
+    foo();
+    bar();
+  }
+  defer if cond {
+    bar();
+  }
+}
+```
+
+> The execution order should be `bar`, `foo`, `bar`
+
+This is because defer statements are executed in the reverse order they were declared.
+```rust
+defer printf("1");
+defer printf("2");
+defer printf("3");
+```
+
+> Should print `321`
+
+The real world use case for `defer` might look something like the following
+```rust
+{
+  mtx.lock();
+  defer mtx.unlock();
+  this();
+  if !is() {
+    return;
+  }
+  a();
+  critical();
+  section();
+}
+```
+
+Where you cannot forget to call `unlock` which could happen in the case of `if !is()` return here.
+
+> You cannot `defer` inside a `defer` scope.
+
