@@ -228,6 +228,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	}
 
 	cg.llvm.SetInitializer(dst, src->ref());
+	cg.llvm.SetLinkage(dst, LLVM::Linkage::Private);
 
 	// cg.llvm.SetGlobalConstant(dst, true);
 
@@ -262,6 +263,16 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 				return false;
 			}
 			// TODO(dweiler): Figure out how to mark 'dst' as used.
+			continue;
+		} else if (attr->name() == "export") {
+			auto eval = attr->eval(cg);
+			if (!eval || !eval->is_bool()) {
+				cg.error(eval->range(), "Expected boolean constant expression in attribute");
+				return false;
+			}
+			if (eval->as_bool()) {
+				cg.llvm.SetLinkage(dst, LLVM::Linkage::External);
+			}
 			continue;
 		}
 		cg.error(attr->range(), "Unknown attribute");

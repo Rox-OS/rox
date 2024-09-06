@@ -47,14 +47,14 @@ type LimineStackSizeResponse = (
   revision: Uint64
 );
 
-@(used(true), section(".requests"))
+@(export(true), section(".requests"))
 let LIMINE_BASE_VERSION = [3]Uint64 {
   0xf9562b2d5c95a6c8,
   0x6a7b384944536bdc,
   2
 };
 
-@(used(true), section(".requests_beg_marker"))
+@(export(true), section(".requests_beg_marker"))
 let LIMINE_REQUESTS_BEG_MARKER = [4]Uint64 {
   0xf6b8f4b39de7d1ae,
   0xfab91a6940fcb9cf,
@@ -62,7 +62,7 @@ let LIMINE_REQUESTS_BEG_MARKER = [4]Uint64 {
   0x181e920a7852b9d9
 };
 
-@(used(true), section(".requests"))
+@(export(true), section(".requests"))
 let LIMINE_HHDM_REQUEST = LimineHHDMRequest {
   [4]Uint64 {
     0xc7b1dd30df4c8b88,
@@ -73,7 +73,7 @@ let LIMINE_HHDM_REQUEST = LimineHHDMRequest {
   0
 };
 
-@(used(true), section(".requests"))
+@(export(true), section(".requests"))
 let LIMINE_STACK_SIZE_REQUEST = LimineStackSizeRequest {
   [4]Uint64 {
     0xc7b1dd30df4c8b88,
@@ -86,7 +86,7 @@ let LIMINE_STACK_SIZE_REQUEST = LimineStackSizeRequest {
   128 * 1024 * 1024, // 128 MiB
 };
 
-@(used(true), section(".requests"))
+@(export(true), section(".requests"))
 let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
   [4]Uint64 {
     0xc7b1dd30df4c8b88,
@@ -97,7 +97,7 @@ let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
   1
 };
 
-@(used(true), section(".requests_end_marker"))
+@(export(true), section(".requests_end_marker"))
 let LIMINE_REQUESTS_END_MARKER = [2]Uint64 {
   0xadc0e0531bb10d03,
   0x9572709f31764c62

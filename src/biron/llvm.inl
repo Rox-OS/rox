@@ -73,6 +73,7 @@ FN(ValueRef,              ConstStructInContext,          ContextRef, ValueRef*, 
 FN(ValueRef,              ConstArray2,                   TypeRef, ValueRef*, Uint64)
 FN(ValueRef,              ConstNamedStruct,              TypeRef, ValueRef*, unsigned)
 /// Global Values
+FN(void,                  SetLinkage,                    ValueRef, Linkage)
 FN(void,                  SetSection,                    ValueRef, const char*)
 FN(void,                  SetAlignment,                  ValueRef, unsigned)
 /// Global Variables

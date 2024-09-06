@@ -44,6 +44,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 	// Check for the export attribute. When present and true we do not use nameof,
 	// which will typically mangle the name to add the module name.
 	const char* name = nullptr;
+	Bool exported = false;
 	if (m_attrs) for (auto attr : *m_attrs) {
 		if (attr->name() == "export") {
 			auto eval = attr->eval(cg);
@@ -58,6 +59,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 					cg.oom();
 					return false;
 				}
+				exported = true;
 			}
 			break;
 		}
@@ -73,6 +75,12 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		fn_v = cg.intrinsic(m_name.slice(builtin.length()))->ref();
 	} else {
 		fn_v = cg.llvm.AddFunction(cg.module, name, fn_t->ref());
+	}
+
+	if (exported) {
+		cg.llvm.SetLinkage(fn_v, LLVM::Linkage::External);
+	} else {
+		cg.llvm.SetLinkage(fn_v, LLVM::Linkage::Private);
 	}
 
 	if (m_attrs) for (auto attr : *m_attrs) {

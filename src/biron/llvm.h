@@ -50,6 +50,26 @@ struct LLVM {
 	enum class IntPredicate          : int { EQ = 32, NE, UGT, UGE, ULT, ULE, SGT, SGE, SLT, SLE };
 	enum class RealPredicate         : int { False, OEQ, OGT, OGE, OLT, OLE, ONE, ORD, UNO, UEQ, UGT, UGE, ULT, ULE, UNE, True };
 
+	enum class Linkage : int {
+		External,
+		AvailableExternally,
+		OnceAny,
+		OnceODR,
+		OnceODRAutoHide,
+		WeakAny,
+		WeakODR,
+		Appending,
+		Internal,
+		Private,
+		DLLImport,
+		DLLExport,
+		ExternalWeak,
+		Ghost,
+		Common,
+		LinkerPrivate,
+		LinkerPrivateWeak,
+	};
+
 	#define FN(RETURN, NAME, ...) \
 		RETURN (*NAME)(__VA_ARGS__) = nullptr;
 	#include <biron/llvm.inl>
