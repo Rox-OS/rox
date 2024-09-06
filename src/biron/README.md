@@ -273,5 +273,5 @@ The real world use case for `defer` might look something like the following
 
 Where you cannot forget to call `unlock` which could happen in the case of `if !is()` return here.
 
-> You cannot `defer` inside a `defer` scope.
+> You cannot `return` inside a `defer` scope.
 

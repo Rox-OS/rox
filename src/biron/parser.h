@@ -39,7 +39,6 @@ struct AstLetStmt;
 struct AstForStmt;
 struct AstExprStmt;
 struct AstAssignStmt;
-struct AstAsmStmt;
 
 struct Parser {
 	constexpr Parser(Lexer& lexer, Diagnostic& diagnostic, Allocator& allocator) noexcept
@@ -136,9 +135,15 @@ private:
 			if (cache.object_size() != sizeof(T)) {
 				continue;
 			}
-			return cache.make<T>(forward<Ts>(args)...);
+			if (auto node = cache.make<T>(forward<Ts>(args)...)) {
+				return node;
+			} else {
+				error("Out of memory");
+				return nullptr;
+			}
 		}
 		if (!m_caches.emplace_back(m_allocator, sizeof(T), Ulen(1024))) {
+			error("Out of memory");
 			return nullptr;
 		}
 		return new_node<T>(forward<Ts>(args)...);
