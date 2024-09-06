@@ -1359,60 +1359,9 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 			return None{};
 		}
 		auto range = token.range.include(args->range());
-		if (name == "section") {
-			auto expr = args->at(0);
-			auto value = expr->eval_value();
-			if (!value || value->kind() != AstConst::Kind::STRING) {
-				ERROR(expr->range(), "Expected constant string expression for section name");
-				return None{};
-			}
-			using Kind = AstStringAttr::Kind;
-			auto attr = new_node<AstStringAttr>(Kind::SECTION, value->as_string(), range);
-			if (!attr || !attrs.push_back(attr)) {
-				return None{};
-			}
-		} else if (name == "align" || name == "alignstack") {
-			auto expr = args->at(0);
-			auto value = expr->eval_value();
-			if (!value || !value->is_integral()) {
-				ERROR("Expected constant integer expression for alignment");
-				return None{};
-			}
-			auto align = value->to<Uint64>();
-			if (!align) {
-				ERROR("Expected positive constant integer expression for alignment");
-				return None{};
-			}
-			if (!is_pot(*align)) {
-				ERROR("Alignment must be a power-of-two");
-				return None{};
-			}
-			using Kind = AstIntAttr::Kind;
-			auto kind = name == "align" ? Kind::ALIGN : Kind::ALIGNSTACK;
-			auto attr = new_node<AstIntAttr>(kind, *align, range);
-			if (!attr || !attrs.push_back(attr)) {
-				return None{};
-			}
-		} else if (name == "used" || name == "inline" || name == "aliasable" || name == "redzone" || name == "export") {
-			auto expr = args->at(0);
-			auto value = expr->eval_value();
-			if (!value || !value->is_bool()) {
-				ERROR("Expected constant boolean expression for used attribute");
-				return None{};
-			}
-			auto used = value->to<Bool32>();
-			using Kind = AstBoolAttr::Kind;
-			Kind kind;
-			/**/ if (name == "used")      kind = Kind::USED;
-			else if (name == "inline")    kind = Kind::INLINE;
-			else if (name == "aliasable") kind = Kind::ALIASABLE;
-			else if (name == "redzone")   kind = Kind::REDZONE;
-			else if (name == "export")    kind = Kind::EXPORT;
-			else return None{};
-			auto attr = new_node<AstBoolAttr>(kind, *used, range);
-			if (!attr || !attrs.push_back(attr)) {
-				return None{};
-			}
+		auto attr = new_node<AstAttr>(name, args->at(0), range);
+		if (!attr || !attrs.push_back(attr)) {
+			return None{};
 		}
 		if (peek().kind != Token::Kind::COMMA) {
 			break;

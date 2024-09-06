@@ -1,6 +1,7 @@
 #ifndef BIRON_CG_VALUE_H
 #define BIRON_CG_VALUE_H
 #include <biron/llvm.h>
+#include <biron/ast_const.h>
 #include <biron/util/string.h>
 
 namespace Biron {
@@ -84,6 +85,19 @@ struct CgVar {
 private:
 	StringView m_name;
 	CgAddr     m_addr;
+};
+
+struct CgGlobal {
+	CgGlobal(CgVar&& var, AstConst&& value) noexcept
+		: m_var{move(var)}
+		, m_value{move(value)}
+	{
+	}
+	const CgVar& var() const noexcept { return m_var; }
+	const AstConst& value() const noexcept { return m_value; }
+private:
+	CgVar m_var;
+	AstConst m_value;
 };
 
 struct CgTypeDef {

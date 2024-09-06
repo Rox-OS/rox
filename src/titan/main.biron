@@ -317,24 +317,25 @@ fn hello(fb: *LimineFramebuffer) {
   }
 }
 
+let H            = 2.0_f32;
+let REST_DENSITY = 1.0_f32;
+let GRAVITY      = 0.05_f32;
+let STIFFNESS    = 1.75_f32;
+let RESTITUTION  = 0.05_f32;
+let PARTICLES    = 48_u64;
+
 type Sim = (
-  particles: [48_u64 * 48_u64]Particle,
+  particles:          [PARTICLES * PARTICLES]Particle,
   boundary_particles: [2 * 128 + 2 * 128 + 2 * 2][2]Real32,
-  world_size: [2]Real32
+  world_size:         [2]Real32
 );
 
 type Particle = (
   initial_position: [2]Real32,
-  position: [2]Real32,
-  velocity: [2]Real32,
-  density:  Real32
+  position:         [2]Real32,
+  velocity:         [2]Real32,
+  density:          Real32
 );
-
-let H = 2.0_f32;
-let REST_DENSITY = 1.0_f32;
-let GRAVITY = 0.05_f32;
-let STIFFNESS = 1.75_f32;
-let RESTITUTION = 0.05_f32;
 
 fn sph_kernel(r: Real32) -> Real32 {
   let result = 0.45472841_f32; // 40 / (7 * pi * h^2)
@@ -358,12 +359,6 @@ fn (sim: *Sim) init() {
   let world_size = [2]Real32{128_f32, 128_f32};
   sim.world_size = world_size;
 
-  // TODO(said): Hard-coded for now
-  let n_particles_x = 48_u64;
-  let n_particles_y = 48_u64;
-  let n_particles = n_particles_x * n_particles_y;
-  let n_boundary_particles = 2_u64 * (128_u64 + 128_u64 + 2_u64);
-
   let particles = &sim.particles[0];
   let boundary_particles = &sim.boundary_particles[0];
 
@@ -379,9 +374,9 @@ fn (sim: *Sim) init() {
   let block_x = 0.5_f32;
   let block_y = 0.75_f32 * world_size[1] - 0.5_f32;
 
-  for let y = 0_u64; y < n_particles_y; y = y + 1_u64 {
-    for let x = 0_u64; x < n_particles_x; x = x + 1_u64 {
-      let particle = &particles[y * n_particles_x + x];
+  for let y = 0_u64; y < PARTICLES; y = y + 1_u64 {
+    for let x = 0_u64; x < PARTICLES; x = x + 1_u64 {
+      let particle = &particles[y * PARTICLES + x];
       particle.position[0] = block_x + (x as Real32);
       particle.position[1] = block_y - (y as Real32);
     }
@@ -389,15 +384,11 @@ fn (sim: *Sim) init() {
 }
 
 fn (sim: *Sim) step() {
-  // TODO(said): Hard-coded for now
-  let n_particles = 48_u64 * 48_u64;
-  let n_boundary_particles = 2_u64 * (128_u64 + 128_u64 + 2_u64);
-
   let particles = &sim.particles[0];
   let boundary_particles = &sim.boundary_particles[0];
 
   // Apply forces and "advect" the particles.
-  for let i = 0_u64; i < n_particles; i += 1_u64 {
+  for let i = 0_u64; i < count of sim.particles; i += 1_u64 {
     let particle = &particles[i];
     particle.initial_position = particle.position;
     particle.velocity[1] += GRAVITY;
@@ -405,12 +396,12 @@ fn (sim: *Sim) step() {
   }
 
   // Estimate density.
-  for let i = 0_u64; i < n_particles; i += 1_u64 {
+  for let i = 0_u64; i < count of sim.particles; i += 1_u64 {
     let particle = &particles[i];
     particle.density = 0_f32;
 
     // Count fluid particles.
-    for let j = 0_u64; j < n_particles; j += 1_u64 {
+    for let j = 0_u64; j < count of sim.particles; j += 1_u64 {
       let neighbor = &particles[j];
       let delta = particle.position - neighbor.position;
       let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
@@ -420,7 +411,7 @@ fn (sim: *Sim) step() {
     }
 
     // Count boundary particles.
-    for let j = 0_u64; j < n_boundary_particles; j += 1_u64 {
+    for let j = 0_u64; j < count of sim.boundary_particles; j += 1_u64 {
       let delta = particle.position - boundary_particles[j];
       let r = sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
       if r < H {
@@ -430,13 +421,13 @@ fn (sim: *Sim) step() {
   }
 
   // Compute pressure.
-  for let i = 0_u64; i < n_particles; i += 1_u64 {
+  for let i = 0_u64; i < count of sim.particles; i += 1_u64 {
     let particle = &particles[i];
 
     let f_p = particle_pressure(particle) / (particle.density * particle.density);
     let force = [2]Real32{};
 
-    for let j = 0_u64; j < n_particles; j += 1_u64 {
+    for let j = 0_u64; j < count of sim.particles; j += 1_u64 {
       if i == j {
         continue;
       }
@@ -464,7 +455,7 @@ fn (sim: *Sim) step() {
       force += [2]Real32{f, f} * d;
     }
 
-    for let j = 0_u64; j < n_boundary_particles; j = j + 1_u64 {
+    for let j = 0_u64; j < count of sim.boundary_particles; j = j + 1_u64 {
       let d = particle.position - boundary_particles[j];
       let r = sqrt(d[0]*d[0] + d[1]*d[1]);
       if r >= H {
@@ -481,7 +472,7 @@ fn (sim: *Sim) step() {
   }
 
   // Use pressure-corrected velocity and apply boundary conditions.
-  for let i = 0_u64; i < n_particles; i += 1_u64 {
+  for let i = 0_u64; i < count of sim.particles; i += 1_u64 {
     let particle = &particles[i];
     particle.position = particle.initial_position + particle.velocity;
 
@@ -502,21 +493,17 @@ fn (sim: *Sim) step() {
 }
 
 fn (sim: *Sim) render(fb: *LimineFramebuffer) {
-  // TODO(said): Hard-coded for now
-  let n_particles = 48_u64 * 48_u64;
-  let n_boundary_particles = 2_u64 * (128_u64 + 128_u64 + 2_u64);
-
   let particles = &sim.particles[0];
   let boundary_particles = &sim.boundary_particles[0];
 
   // Draw the particles.
-  for let i = 0_u64; i < n_particles; i += 1_u64 {
+  for let i = 0_u64; i < count of sim.particles; i += 1_u64 {
     let pressure = particle_pressure(&particles[i]) / STIFFNESS <? 1_f32;
     let color = (0_u32, 255_u32, ((1.0_f32 - pressure) * 255.0_f32) as Uint32);
     draw_scaled_particle(fb, particles[i].position, make_color(fb, ...color));
   }
 
-  for let i = 0_u64; i < n_boundary_particles; i += 1_u64 {
+  for let i = 0_u64; i < count of sim.boundary_particles; i += 1_u64 {
     let x = (boundary_particles[i][0] + 0.5_f32) as Sint64;
     let y = (boundary_particles[i][1] + 0.5_f32) as Sint64;
     draw_scaled_pixel(fb, x, y, make_color(fb, 0_u32, 0_u32, 0_u32));

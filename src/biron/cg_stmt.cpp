@@ -181,13 +181,15 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 		}
 	}
 	if (m_attrs) {
-		for (const auto& it : *m_attrs) {
-			if (it->is_attr<AstIntAttr>()) {
-				auto attr = static_cast<const AstIntAttr *>(it);
-				if (attr->is_kind(AstIntAttr::Kind::ALIGN)) {
-					cg.llvm.SetAlignment(addr->ref(), attr->value());
-					break;
+		for (const auto& attr : *m_attrs) {
+			if (attr->name() == "align") {
+				auto eval = attr->eval(cg);
+				if (!eval || !eval->is_integral()) {
+					cg.error(eval->range(), "Expected integer constant expression in attribute");
+					return false;
 				}
+				cg.llvm.SetAlignment(addr->ref(), *eval->to<Uint64>());
+				break;
 			}
 			cg.error(range(), "Unknown attribute for 'let'");
 			return false;
@@ -200,7 +202,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
-	auto eval = m_init->eval_value();
+	auto eval = m_init->eval_value(cg);
 	if (!eval) {
 		cg.error(m_init->range(), "Expected constant expression");
 		return false;
@@ -221,7 +223,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	                             cg.nameof(m_name));
 
 	auto addr = CgAddr { src->type()->addrof(cg), dst };
-	if (!cg.globals.emplace_back(m_name, move(addr))) {
+	if (!cg.globals.emplace_back(CgVar { m_name, move(addr) }, move(*eval))) {
 		cg.oom();
 		return false;
 	}
@@ -230,33 +232,40 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 
 	// cg.llvm.SetGlobalConstant(dst, true);
 
-	if (m_attrs) for (auto it : *m_attrs) {
-		if (it->is_attr<AstStringAttr>()) {
-			auto attr = static_cast<const AstStringAttr *>(it);
-			if (attr->is_kind(AstStringAttr::Kind::SECTION)) {
-				auto name = attr->value().terminated(*cg.scratch);
-				if (name) {
-					cg.llvm.SetSection(dst, name);
-					continue;
-				} else {
-					cg.oom();
-					return false;
-				}
+	if (m_attrs) for (auto attr : *m_attrs) {
+		if (attr->name() == "section") {
+			auto eval = attr->eval(cg);
+			if (!eval || !eval->is_string()) {
+				cg.error(eval->range(), "Expected string constant expression in attribute");
+				return false;
 			}
-		} else if (it->is_attr<AstIntAttr>()) {
-			auto attr = static_cast<const AstIntAttr *>(it);
-			if (attr->is_kind(AstIntAttr::Kind::ALIGN)) {
-				cg.llvm.SetAlignment(dst, attr->value());
+			auto value = eval->to<StringView>();
+			auto name = value->terminated(*cg.scratch);
+			if (name) {
+				cg.llvm.SetSection(dst, name);
 				continue;
+			} else {
+				cg.oom();
+				return false;
 			}
-		} else if (it->is_attr<AstBoolAttr>()) {
-			auto attr = static_cast<const AstBoolAttr *>(it);
-			if (attr->is_kind(AstBoolAttr::Kind::USED)) {
-				// TODO(dweiler): Figure out how to mark 'dst' as used.
-				continue;
+		} else if (attr->name() == "align") {
+			auto eval = attr->eval(cg);
+			if (!eval || !eval->is_integral()) {
+				cg.error(eval->range(), "Expected integer constant expression in attribute");
+				return false;
 			}
+			cg.llvm.SetAlignment(dst, *eval->to<Uint64>());
+			continue;
+		} else if (attr->name() == "used") {
+			auto eval = attr->eval(cg);
+			if (!eval || !eval->is_bool()) {
+				cg.error(eval->range(), "Expected boolean constant expression in attribute");
+				return false;
+			}
+			// TODO(dweiler): Figure out how to mark 'dst' as used.
+			continue;
 		}
-		cg.error(it->range(), "Unknown attribute");
+		cg.error(attr->range(), "Unknown attribute");
 		return false;
 	}
 

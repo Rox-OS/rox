@@ -310,7 +310,7 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 	if (!base) {
 		return nullptr;
 	}
-	auto value = m_extent->eval_value();
+	auto value = m_extent->eval_value(cg);
 	if (!value || !value->is_integral()) {
 		cg.error(m_extent->range(), "Expected integer constant expression");
 		return nullptr;

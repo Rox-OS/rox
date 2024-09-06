@@ -44,11 +44,20 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 	// Check for the export attribute. When present and true we do not use nameof,
 	// which will typically mangle the name to add the module name.
 	const char* name = nullptr;
-	if (m_attrs) for (auto base : *m_attrs) {
-		if (base->is_attr<AstBoolAttr>()) {
-			auto attr = static_cast<const AstBoolAttr *>(base);
-			if (attr->is_kind(AstBoolAttr::Kind::EXPORT) && attr->value()) {
+	if (m_attrs) for (auto attr : *m_attrs) {
+		if (attr->name() == "export") {
+			auto eval = attr->eval(cg);
+			if (!eval || !eval->is_bool()) {
+				cg.error(eval->range(), "Expected boolean constant expression for attribute");
+				return false;
+			}
+			auto value = eval->to<Bool>();
+			if (value) {
 				name = m_name.terminated(*cg.scratch);
+				if (!name) {
+					cg.oom();
+					return false;
+				}
 			}
 			break;
 		}
@@ -66,24 +75,29 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		fn_v = cg.llvm.AddFunction(cg.module, name, fn_t->ref());
 	}
 
-	if (m_attrs) for (auto base : *m_attrs) {
-		if (base->is_attr<AstBoolAttr>()) {
-			auto attr = static_cast<const AstBoolAttr *>(base);
-			if (attr->is_kind(AstBoolAttr::Kind::REDZONE)) {
-				if (attr->value()) continue; // The default is redzone
-				StringView name = "noredzone";
-				auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
-				auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, 0);
-				cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+	if (m_attrs) for (auto attr : *m_attrs) {
+		if (attr->name() == "redzone") {
+			auto eval = attr->eval(cg);
+			if (!eval || !eval->is_bool()) {
+				cg.error(eval->range(), "Expected boolean constant expression for attribute");
+				return false;
 			}
-		} else if (base->is_attr<AstIntAttr>()) {
-			auto attr = static_cast<const AstIntAttr *>(base);
-			if (attr->is_kind(AstIntAttr::Kind::ALIGNSTACK)) {
-				StringView name = "alignstack";
-				auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
-				auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, attr->value());
-				cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+			auto value = eval->to<Bool>();
+			if (value) continue;
+			const StringView name = "noredzone";
+			auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
+			auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, 0);
+			cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
+		} else if (attr->name() == "alignstack") {
+			auto eval = attr->eval(cg);
+			if (!eval || !eval->is_integral()) {
+				cg.error(eval->range(), "Expected integer constant expression for attribute");
+				return false;
 			}
+			const StringView name = "alignstack";
+			auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
+			auto data = cg.llvm.CreateEnumAttribute(cg.context, kind, *eval->to<Uint64>());
+			cg.llvm.AddAttributeAtIndex(fn_v, -1, data);
 		}
 	}
 
@@ -333,14 +347,8 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	// Emit types
-	for (auto type : m_typedefs) {
-		if (!type->codegen(cg)) {
-			return false;
-		}
-	}
-
-	// Emit all the global constants
+	// Emit all the global constants first since types may depend on them for
+	// e.g array extents and what not.
 	for (auto let : m_lets) {
 		cg.scratch->clear();
 
@@ -349,9 +357,20 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	// Before we codegen we do a preprocessing step to make sure all functions
-	// have values generated for them so that we do not need function prototypes
-	// in our language.
+	// Emit all the types next. Each type will recurse and resolve their types
+	// and mark the type as already being generated so that this main loop does
+	// not generate the same type twice. This is how we do a topological sort.
+	for (auto type : m_typedefs) {
+		cg.scratch->clear();
+
+		if (!type->codegen(cg)) {
+			return false;
+		}
+	}
+
+	// Before we codegen functions we do a preprocessing step to make sure all
+	// functions have values generated for them so that we do not need function
+	// prototypes in our language.
 	for (auto fn : m_fns) {
 		cg.scratch->clear();
 
@@ -360,7 +379,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	// We can then codegen in any order we so desire.
+	// We can then codegen functions in any order we so desire.
 	for (auto fn : m_fns) {
 		cg.scratch->clear();
 

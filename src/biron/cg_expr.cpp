@@ -25,7 +25,8 @@ CgType* AstExpr::gen_type(Cg& cg) const noexcept {
 	return nullptr;
 }
 
-Maybe<AstConst> AstExpr::eval_value() const noexcept {
+Maybe<AstConst> AstExpr::eval_value(Cg&) const noexcept {
+	// cg.fatal(range(), "Unsupported eval_value for %s", name());
 	return None{};
 }
 
@@ -48,11 +49,11 @@ const char* AstExpr::name() const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<AstConst> AstTupleExpr::eval_value() const noexcept {
+Maybe<AstConst> AstTupleExpr::eval_value(Cg& cg) const noexcept {
 	// When a tuple contains only a single element we detuple it and emit the
 	// inner expression directly.
 	if (length() == 1) {
-		auto value = m_exprs[0]->eval_value();
+		auto value = m_exprs[0]->eval_value(cg);
 		if (!value) {
 			return None{};
 		}
@@ -63,7 +64,7 @@ Maybe<AstConst> AstTupleExpr::eval_value() const noexcept {
 	Range range{0, 0};
 	for (const auto& expr : m_exprs) {
 		range.include(expr->range());
-		auto value = expr->eval_value();
+		auto value = expr->eval_value(cg);
 		if (!value || !values.push_back(move(*value))) {
 			return None{};
 		}
@@ -310,6 +311,16 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 	return CgValue { rets, value };
 }
 
+Maybe<AstConst> AstVarExpr::eval_value(Cg& cg) const noexcept {
+	for (const auto& global : cg.globals) {
+		if (global.var().name() == m_name) {
+			return global.value().copy();
+		}
+	}
+	// Not a valid compile-time expression
+	return None{};
+}
+
 Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 	// Search function locals in reverse scope order
 	for (Ulen l = cg.scopes.length(), i = l - 1; i < l; i--) {
@@ -328,8 +339,8 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 	}
 	// Search module for globals.
 	for (const auto& global : cg.globals) {
-		if (global.name() == m_name) {
-			return global.addr();
+		if (global.var().name() == m_name) {
+			return global.var().addr();
 		}
 	}
 
@@ -354,7 +365,7 @@ CgType* AstVarExpr::gen_type(Cg& cg) const noexcept {
 	return addr->type()->deref();
 }
 
-Maybe<AstConst> AstIntExpr::eval_value() const noexcept {
+Maybe<AstConst> AstIntExpr::eval_value(Cg&) const noexcept {
 	switch (m_kind) {
 	case Kind::U8:  return AstConst { range(), Uint8(m_as_uint) };
 	case Kind::U16: return AstConst { range(), Uint16(m_as_uint) };
@@ -413,7 +424,7 @@ CgType* AstIntExpr::gen_type(Cg& cg) const noexcept {
 	return nullptr;
 }
 
-Maybe<AstConst> AstFltExpr::eval_value() const noexcept {
+Maybe<AstConst> AstFltExpr::eval_value(Cg&) const noexcept {
 	switch (m_kind) {
 	case Kind::F32:
 		return AstConst { range(), m_as_f32 };
@@ -462,7 +473,7 @@ CgType* AstFltExpr::gen_type(Cg& cg) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<AstConst> AstStrExpr::eval_value() const noexcept {
+Maybe<AstConst> AstStrExpr::eval_value(Cg&) const noexcept {
 	return AstConst { range(), m_literal };
 }
 
@@ -499,7 +510,7 @@ CgType* AstStrExpr::gen_type(Cg& cg) const noexcept {
 	return cg.types.str();
 }
 
-Maybe<AstConst> AstBoolExpr::eval_value() const noexcept {
+Maybe<AstConst> AstBoolExpr::eval_value(Cg&) const noexcept {
 	return AstConst { range(), Bool32 { m_value } };
 }
 
@@ -517,7 +528,7 @@ CgType* AstBoolExpr::gen_type(Cg& cg) const noexcept {
 	return cg.types.b8();
 }
 
-Maybe<AstConst> AstAggExpr::eval_value() const noexcept {
+Maybe<AstConst> AstAggExpr::eval_value(Cg& cg) const noexcept {
 	ScratchAllocator scratch{m_exprs.allocator()};
 	Array<AstConst> values{m_exprs.allocator()};
 	if (!values.reserve(m_exprs.length())) {
@@ -525,7 +536,7 @@ Maybe<AstConst> AstAggExpr::eval_value() const noexcept {
 	}
 	auto range = m_type->range();
 	for (auto expr : m_exprs) {
-		auto value = expr->eval_value();
+		auto value = expr->eval_value(cg);
 		if (!value) {
 			return None{};
 		}
@@ -637,19 +648,42 @@ CgType* AstAggExpr::gen_type(Cg& cg) const noexcept {
 	return m_type->codegen(cg);
 }
 
-Maybe<AstConst> AstBinExpr::eval_value() const noexcept {
+Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
 	if (m_op == Op::DOT) {
 		// TODO(dweiler): See if we can work out constant tuple indexing
 		return None{};
 	}
 
-	auto lhs = m_lhs->eval_value();
+	if (m_op == Op::OF) {
+		if (!m_lhs->is_expr<AstVarExpr>()) {
+			cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator");
+			return None{};
+		}
+		auto name = static_cast<const AstVarExpr *>(m_lhs)->name();
+		auto rhs = m_rhs->gen_type(cg);
+		if (!rhs) {
+			return None{};
+		}
+		auto range = m_lhs->range().include(m_rhs->range());
+		if (name == "size") {
+			return AstConst { range, Uint64(rhs->size()) };
+		} else if (name == "align") {
+			return AstConst { range, Uint64(rhs->align()) };
+		} else if (name == "count") {
+			return AstConst { range, Uint64(rhs->extent()) };
+		} else {
+			cg.error(m_lhs->range(), "Unknown property '%S'", name);
+			return None{};
+		}
+	}
+
+	auto lhs = m_lhs->eval_value(cg);
 	if (!lhs) {
 		// Not a valid compile time constant expression
 		return None{};
 	}
 
-	auto rhs = m_rhs->eval_value();
+	auto rhs = m_rhs->eval_value(cg);
 	if (!rhs) {
 		return None{};
 	}
@@ -744,7 +778,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 			cg.error(m_rhs->range(), "Undeclared field '%S'", name);
 			return None{};
 		} else if (m_rhs->is_expr<AstIntExpr>()) {
-			auto rhs = m_rhs->eval_value();
+			auto rhs = m_rhs->eval_value(cg);
 			if (!rhs || !rhs->is_integral()) {
 				cg.error(m_rhs->range(), "Expected integer constant expression");
 				return None{};
@@ -774,7 +808,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	CgType* lhs_type = nullptr;
 	CgType* rhs_type = nullptr;
 
-	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS) {
+	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS && m_op != Op::OF) {
 		// Operands to binary operator must be the same type
 		lhs_type = m_lhs->gen_type(cg);
 		rhs_type = m_rhs->gen_type(cg);
@@ -792,8 +826,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		}
 	}
 
-	// Special behavior needed for 'as'
 	if (m_op == Op::AS) {
+		// Special behavior needed for 'as'
 		auto lhs = m_lhs->gen_value(cg);
 		if (!lhs) {
 			return None{};
@@ -815,7 +849,18 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 
 		auto value = cg.llvm.BuildCast(cg.builder, cast_op, lhs->ref(), rhs->ref(), "");
 		return CgValue { rhs, value };
+	} else if (m_op == Op::OF) {
+		// Special behavior needed for 'of'
+		auto value = eval_value(cg);
+		if (!value) {
+			return None{};
+		}
+		// The result will be a ConstInt
+		auto t = cg.types.u64();
+		auto v = cg.llvm.ConstInt(t->ref(), *value->to<Uint64>(), false);
+		return CgValue { t, v };
 	}
+
 
 	Maybe<CgValue> lhs;
 	Maybe<CgValue> rhs;
@@ -1323,7 +1368,7 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 				cg.error(m_rhs->range(), "Undeclared field '%S'", rhs->name());
 				return nullptr;
 			} else if (m_rhs->is_expr<AstIntExpr>()) {
-				auto i = m_rhs->eval_value();
+				auto i = m_rhs->eval_value(cg);
 				if (!i || !i->is_integral()) {
 					cg.error(m_rhs->range(), "Not a valid integer constant expression");
 					return nullptr;
@@ -1335,11 +1380,23 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 	case Op::OF:
 		// The OF operator always returns some integer constant expression except
 		// for "type of"
-		//	size of expr
-		//	align of expr
-		//	count of expr
-		//	offset of expr
-		return cg.types.u64();
+		if (m_lhs->is_expr<AstVarExpr>()) {
+			auto name = static_cast<const AstVarExpr *>(m_lhs)->name();
+			if (name == "type") {
+				// type  of => type
+				return m_rhs->gen_type(cg);
+			} else {
+				// size  of => u64
+				// align of => u64
+				// count of => u64
+				// pad   of => u64
+				return cg.types.u64();
+			}
+		} else {
+			cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator");
+			return nullptr;
+		}
+		break;
 	}
 	cg.fatal(range(), "Could not generate type");
 	return nullptr;
@@ -1436,7 +1493,7 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 	}
 
 	// Optimization for constant integer expression indexing.
-	if (auto eval = m_index->eval_value()) {
+	if (auto eval = m_index->eval_value(cg)) {
 		if (!eval->is_integral()) {
 			cg.error(eval->range(), "Cannot index with a constant expression of non-integer type");
 			return None{};
@@ -1490,12 +1547,12 @@ CgType* AstIndexExpr::gen_type(Cg& cg) const noexcept {
 	return type->deref();
 }
 
-Maybe<AstConst> AstIndexExpr::eval_value() const noexcept {
-	auto operand = m_operand->eval_value();
+Maybe<AstConst> AstIndexExpr::eval_value(Cg& cg) const noexcept {
+	auto operand = m_operand->eval_value(cg);
 	if (!operand) {
 		return None{};
 	}
-	auto index = m_index->eval_value();
+	auto index = m_index->eval_value(cg);
 	if (!index) {
 		return None{};
 	}

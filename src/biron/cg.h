@@ -135,7 +135,7 @@ struct Cg {
 	ModuleRef         module;
 	CgTypeCache       types;
 	Array<CgVar>      fns;
-	Array<CgVar>      globals;
+	Array<CgGlobal>   globals;
 	Array<CgScope>    scopes;
 	Array<CgTypeDef>  typedefs;
 	Array<CgVar>      intrinsics;

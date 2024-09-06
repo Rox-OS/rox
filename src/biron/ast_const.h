@@ -137,6 +137,7 @@ struct AstConst {
 	
 	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
 	[[nodiscard]] constexpr Bool is_array() const noexcept { return m_kind == Kind::ARRAY; }
+	[[nodiscard]] constexpr Bool is_string() const noexcept { return m_kind == Kind::STRING; }
 
 	[[nodiscard]] constexpr Uint128 as_uint() const noexcept { return m_as_uint; }
 	[[nodiscard]] constexpr Sint128 as_sint() const noexcept { return m_as_sint; }
@@ -182,7 +183,9 @@ private:
 // Compile time casting logic for AstConst
 template<typename T>
 Maybe<T> AstConst::to() const noexcept {
-	switch (m_kind) {
+	if constexpr (is_same<T, StringView>) {
+		return m_as_string;
+	} else switch (m_kind) {
 	case Kind::NONE:         return None{};
 	case Kind::U8:           return T(m_as_uint);
 	case Kind::U16:          return T(m_as_uint);
