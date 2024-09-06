@@ -57,11 +57,27 @@ struct CgType {
 
 	[[nodiscard]] constexpr Kind kind() const noexcept { return m_kind; }
 
-	[[nodiscard]] constexpr Bool is_bool() const noexcept { return m_kind >= Kind::B8 && m_kind <= Kind::B64; }
-	[[nodiscard]] constexpr Bool is_sint() const noexcept { return m_kind >= Kind::S8 && m_kind <= Kind::S64; }
-	[[nodiscard]] constexpr Bool is_uint() const noexcept { return m_kind >= Kind::U8 && m_kind <= Kind::U64; }
-	[[nodiscard]] constexpr Bool is_real() const noexcept { return m_kind >= Kind::F32 && m_kind <= Kind::F64; }
-
+	[[nodiscard]] constexpr Bool is_bool() const noexcept {
+		return m_kind >= Kind::B8 && m_kind <= Kind::B64;
+	}
+	[[nodiscard]] constexpr Bool is_sint() const noexcept {
+		return m_kind >= Kind::S8 && m_kind <= Kind::S64;
+	}
+	[[nodiscard]] constexpr Bool is_uint() const noexcept {
+		return m_kind >= Kind::U8 && m_kind <= Kind::U64;
+	}
+	[[nodiscard]] constexpr Bool is_real() const noexcept {
+		return m_kind >= Kind::F32 && m_kind <= Kind::F64;
+	}
+	[[nodiscard]] constexpr Bool is_integer() const noexcept {
+		return is_sint() || is_uint();
+	}
+	[[nodiscard]] constexpr Bool is_f32() const noexcept {
+		return m_kind == Kind::F32;
+	}
+	[[nodiscard]] constexpr Bool is_f64() const noexcept {
+		return m_kind == Kind::F64;
+	}
 	[[nodiscard]] constexpr Bool is_pointer() const noexcept { return m_kind == Kind::POINTER; }
 	[[nodiscard]] constexpr Bool is_string() const noexcept { return m_kind == Kind::STRING; }
 	[[nodiscard]] constexpr Bool is_slice() const noexcept { return m_kind == Kind::SLICE; }
@@ -70,6 +86,7 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
 	[[nodiscard]] constexpr Bool is_fn() const noexcept { return m_kind == Kind::FN; }
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
+
 
 	[[nodiscard]] constexpr LLVM::TypeRef ref() const noexcept { return m_ref; }
 

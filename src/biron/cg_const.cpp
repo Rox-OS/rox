@@ -123,7 +123,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			if (!values.reserve(m_as_array.elems.length())) {
 				return cg.oom();
 			}
-			auto array_type = m_as_array.type->codegen(cg);
+			auto array_type = m_as_array.type ? m_as_array.type->codegen(cg) : type;
 			if (!array_type) {
 				return cg.oom();
 			}
@@ -155,9 +155,15 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 		// TODO(dweiler): implement
 		return None{};
 	case Kind::UNTYPED_INT:
+		if (type && type->is_integer()) {
+			return CgValue { type, cg.llvm.ConstInt(type->ref(), m_as_uint, type->is_sint()) };
+		}
 		cg.error(range(), "Untyped integer value must be typed");
 		break;
 	case Kind::UNTYPED_REAL:
+		if (type && type->is_real()) {
+			return CgValue { type, cg.llvm.ConstReal(type->ref(), m_as_f64) };
+		}
 		cg.error(range(), "Untyped floating-point value must be typed");
 		break;
 	}

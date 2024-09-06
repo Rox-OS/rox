@@ -10,17 +10,17 @@
 
 namespace Biron {
 
-Maybe<CgAddr> AstExpr::gen_addr(Cg& cg) const noexcept {
+Maybe<CgAddr> AstExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 	cg.fatal(range(), "Unsupported gen_addr for %s", name());
 	return None{};
 }
 
-Maybe<CgValue> AstExpr::gen_value(Cg& cg) const noexcept {
+Maybe<CgValue> AstExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	cg.fatal(range(), "Unsupported gen_value for %s", name());
 	return None{};
 }
 
-CgType* AstExpr::gen_type(Cg& cg) const noexcept {
+CgType* AstExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	cg.fatal(range(), "Unsupported gen_type for %s", name());
 	return nullptr;
 }
@@ -65,8 +65,11 @@ Maybe<AstConst> AstTupleExpr::eval_value(Cg& cg) const noexcept {
 	for (const auto& expr : m_exprs) {
 		range.include(expr->range());
 		auto value = expr->eval_value(cg);
-		if (!value || !values.push_back(move(*value))) {
+		if (!value) {
 			return None{};
+		}
+		if (!values.push_back(move(*value))) {
+			return cg.oom();
 		}
 	}
 	// Should we infer the type for ConstTuple here? A compile-time constant tuple
@@ -76,8 +79,8 @@ Maybe<AstConst> AstTupleExpr::eval_value(Cg& cg) const noexcept {
 	return AstConst { range, AstConst::ConstTuple { nullptr, move(values), None{} } };
 }
 
-Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
-	auto type = gen_type(cg);
+Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want ? want->deref() : nullptr);
 	if (!type) {
 		return None{};
 	}
@@ -85,7 +88,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 	// When a tuple contains only a single element we detuple it and emit the
 	// inner expression directly.
 	if (length() == 1) {
-		auto value = at(0)->gen_value(cg);
+		auto value = at(0)->gen_value(cg, type);
 		if (!value) {
 			return None{};
 		}
@@ -101,7 +104,8 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 	// zeroed as well.
 	Array<CgValue> values{*cg.scratch};
 	for (Ulen l = length(), i = 0; i < l; i++) {
-		auto value = at(i)->gen_value(cg);
+		auto infer = want ? want->at(i) : nullptr;
+		auto value = at(i)->gen_value(cg, infer);
 		if (!value) {
 			return None{};
 		}
@@ -139,19 +143,19 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg) const noexcept {
 	return addr;
 }
 
-Maybe<CgValue> AstTupleExpr::gen_value(Cg& cg) const noexcept {
-	if (auto addr = gen_addr(cg)) {
+Maybe<CgValue> AstTupleExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
 		return addr->load(cg);
 	}
 	cg.fatal(range(), "Could not generate address");
 	return None{};
 }
 
-CgType* AstTupleExpr::gen_type(Cg& cg) const noexcept {
+CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	// When a tuple contains only a single element we detuple it so we only want
 	// the inner type here.
 	if (length() == 1) {
-		return at(0)->gen_type(cg);
+		return at(0)->gen_type(cg, want);
 	}
 
 	Array<CgType*> types{*cg.scratch};
@@ -160,7 +164,8 @@ CgType* AstTupleExpr::gen_type(Cg& cg) const noexcept {
 		return nullptr;
 	}
 	for (Ulen l = length(), i = 0; i < l; i++) {
-		auto type = at(i)->gen_type(cg);
+		auto infer = want ? want->at(i) : nullptr;
+		auto type = at(i)->gen_type(cg, infer);
 		if (!type) {
 			return nullptr;
 		}
@@ -183,8 +188,8 @@ Bool AstTupleExpr::prepend(Array<AstExpr*>&& exprs) noexcept {
 	return true;
 }
 
-CgType* AstCallExpr::gen_type(Cg& cg) const noexcept {
-	auto fn = m_callee->gen_type(cg);
+CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
+	auto fn = m_callee->gen_type(cg, nullptr);
 	if (!fn || !fn->is_fn()) {
 		return nullptr;
 	}
@@ -192,12 +197,12 @@ CgType* AstCallExpr::gen_type(Cg& cg) const noexcept {
 	return rets->length() == 1 ? rets->at(0) : rets;
 }
 
-Maybe<CgValue> AstCallExpr::gen_value(Cg& cg) const noexcept {
+Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	return gen_value(None{}, cg);
 }
 
 Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& cg) const noexcept {
-	auto callee = m_callee->gen_addr(cg);
+	auto callee = m_callee->gen_addr(cg, nullptr);
 	if (!callee) {
 		return None{};
 	}
@@ -234,7 +239,7 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		auto arg = m_args->at(i);
 		if (arg->is_expr<AstExplodeExpr>()) {
 			auto expr = static_cast<const AstExplodeExpr*>(arg);
-			auto args = expr->gen_value(cg);
+			auto args = expr->gen_value(cg, expected);
 			if (!args) {
 				return None{};
 			}
@@ -246,20 +251,26 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 					auto have_type_string = have_type->to_string(*cg.scratch);
 					auto want_type_string = want_type->to_string(*cg.scratch);
 					cg.error(m_args->range(),
-					         "Expected expression of type '%S' in expansion of tuple for argument '%zu'. Got '%S' instead",
+					         "Expected expression of type '%S' in expansion of tuple for argument'. Got '%S' instead",
 					         want_type_string,
-					         k + 1,
 					         have_type_string);
 					return None{};
 				}
 				k++;
-				if (!value || !values.push_back(value)) {
+				if (!value) {
 					return None{};
+				}
+				if (!values.push_back(value)) {
+					return cg.oom();
 				}
 			}
 			continue;
 		} 
-		auto value = arg->gen_value(cg);
+		CgType* want_type = nullptr;
+		if (k < expected->length()) {
+			want_type = expected->at(k);
+		}
+		auto value = arg->gen_value(cg, want_type);
 		if (!value) {
 			return None{};
 		}
@@ -276,7 +287,6 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		} else {
 			ref = value->ref();
 		}
-		auto want_type = expected->at(min(k, expected->length() - 1));
 		if (!want_type->is_va() && *have_type != *want_type) {
 			auto have_type_string = have_type->to_string(*cg.scratch);
 			auto want_type_string = want_type->to_string(*cg.scratch);
@@ -321,7 +331,7 @@ Maybe<AstConst> AstVarExpr::eval_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
+Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 	// Search function locals in reverse scope order
 	for (Ulen l = cg.scopes.length(), i = l - 1; i < l; i--) {
 		const auto& scope = cg.scopes[i];
@@ -348,16 +358,16 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<CgValue> AstVarExpr::gen_value(Cg& cg) const noexcept {
-	if (auto addr = gen_addr(cg)) {
+Maybe<CgValue> AstVarExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
 		return addr->load(cg);
 	}
-	cg.fatal(range(), "Could not generate value");
+	cg.fatal(range(), "Could not generate value (AstVarExpr)");
 	return None{};
 }
 
-CgType* AstVarExpr::gen_type(Cg& cg) const noexcept {
-	auto addr = gen_addr(cg);
+CgType* AstVarExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr);
 	if (!addr) {
 		cg.fatal(range(), "Could not generate type");
 		return nullptr;
@@ -381,8 +391,8 @@ Maybe<AstConst> AstIntExpr::eval_value(Cg&) const noexcept {
 	return None{};
 }
 
-Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
-	auto type = gen_type(cg);
+Maybe<CgValue> AstIntExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want);
 	if (!type) {
 		return None{};
 	}
@@ -397,17 +407,17 @@ Maybe<CgValue> AstIntExpr::gen_value(Cg& cg) const noexcept {
 	break; case Kind::S32: v = cg.llvm.ConstInt(type->ref(), m_as_sint, true);
 	break; case Kind::S64: v = cg.llvm.ConstInt(type->ref(), m_as_sint, true);
 	break; case Kind::UNTYPED:
-		cg.fatal(range(), "Untyped integer value must be typed");
+		v = cg.llvm.ConstInt(type->ref(), m_as_uint, type->is_sint());
 		break;
 	}
 	if (v) {
 		return CgValue { type, v };
 	}
-	cg.fatal(range(), "Could not generate value");
+	cg.fatal(range(), "Could not generate value (AstIntExpr)");
 	return None{};
 }
 
-CgType* AstIntExpr::gen_type(Cg& cg) const noexcept {
+CgType* AstIntExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	switch (m_kind) {
 	case Kind::U8:  return cg.types.u8();
 	case Kind::U16: return cg.types.u16();
@@ -418,7 +428,9 @@ CgType* AstIntExpr::gen_type(Cg& cg) const noexcept {
 	case Kind::S32: return cg.types.s32();
 	case Kind::S64: return cg.types.s64();
 	case Kind::UNTYPED:
-		cg.fatal(range(), "Untyped integer value must be typed");
+		if (want && want->is_integer()) {
+			return want;
+		}
 		break;
 	}
 	return nullptr;
@@ -436,8 +448,8 @@ Maybe<AstConst> AstFltExpr::eval_value(Cg&) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgValue> AstFltExpr::gen_value(Cg& cg) const noexcept {
-	auto type = gen_type(cg);
+Maybe<CgValue> AstFltExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want);
 	if (!type) {
 		return None{};
 	}
@@ -450,34 +462,38 @@ Maybe<CgValue> AstFltExpr::gen_value(Cg& cg) const noexcept {
 		v = cg.llvm.ConstReal(type->ref(), m_as_f64);
 		break;
 	case Kind::UNTYPED:
-		cg.fatal(range(), "Untyped floating-point value must be typed");
+		if (want->is_real()) {
+			v = cg.llvm.ConstReal(want->ref(), m_as_f64);
+		}
 		break;
 	}
 	if (v) {
 		return CgValue { type, v };
 	}
-	cg.fatal(range(), "Could not generate value");
+	cg.fatal(range(), "Could not generate value (AstFltExpr)");
 	return None{};
 }
 
-CgType* AstFltExpr::gen_type(Cg& cg) const noexcept {
+CgType* AstFltExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	switch (m_kind) {
 	case Kind::F32:
 		return cg.types.f32();
 	case Kind::F64:
 		return cg.types.f64();
 	case Kind::UNTYPED:
-		cg.error(range(), "Untyped floating-point value must be typed");
-		return nullptr;
+		if (want && want->is_real()) {
+			return want;
+		}
+		break;
 	}
-	BIRON_UNREACHABLE();
+	return nullptr;
 }
 
 Maybe<AstConst> AstStrExpr::eval_value(Cg&) const noexcept {
 	return AstConst { range(), m_literal };
 }
 
-Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
+Maybe<CgValue> AstStrExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	// When building a string we need to escape it and add a NUL terminator. Biron
 	// does not have NUL terminated strings but it always adds a NUL for literals
 	// so they can be safely passed to C functions expecting NUL termination.
@@ -501,12 +517,12 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg) const noexcept {
 	auto ptr = cg.llvm.BuildGlobalString(cg.builder, builder.data(), "");
 	auto len = cg.llvm.ConstInt(cg.types.u64()->ref(), m_literal.length(), false);
 	LLVM::ValueRef values[2] = { ptr, len };
-	auto t = gen_type(cg);
+	auto t = gen_type(cg, nullptr);
 	auto v = cg.llvm.ConstNamedStruct(t->ref(), values, countof(values));
 	return CgValue { t, v };
 }
 
-CgType* AstStrExpr::gen_type(Cg& cg) const noexcept {
+CgType* AstStrExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	return cg.types.str();
 }
 
@@ -514,13 +530,13 @@ Maybe<AstConst> AstBoolExpr::eval_value(Cg&) const noexcept {
 	return AstConst { range(), Bool32 { m_value } };
 }
 
-Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg) const noexcept {
-	auto t = gen_type(cg);
+Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto t = gen_type(cg, want);
 	auto v = cg.llvm.ConstInt(t->ref(), m_value ? 1 : 0, false);
 	return CgValue { t, v };
 }
 
-CgType* AstBoolExpr::gen_type(Cg& cg) const noexcept {
+CgType* AstBoolExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	// LLVM has an Int1 type which can store either a 0 or 1 value which is what
 	// the IR uses for "boolean" like things. We map all our Bool* types to Int1
 	// except we over-align them based on the size we expect. So we just use the
@@ -534,7 +550,7 @@ Maybe<AstConst> AstAggExpr::eval_value(Cg& cg) const noexcept {
 	if (!values.reserve(m_exprs.length())) {
 		return None{};
 	}
-	auto range = m_type->range();
+	auto range = m_exprs[0]->range();
 	for (auto expr : m_exprs) {
 		auto value = expr->eval_value(cg);
 		if (!value) {
@@ -542,10 +558,11 @@ Maybe<AstConst> AstAggExpr::eval_value(Cg& cg) const noexcept {
 		}
 		range = range.include(expr->range());
 		if (!values.push_back(move(*value))) {
-			return None{};
+			return cg.oom();
 		}
 	}
-	if (m_type->is_type<AstArrayType>()) {
+	// TODO(dweiler): We need to introduce typing to eval_value for this
+	if (!m_type || m_type->is_type<AstArrayType>()) {
 		return AstConst { range, AstConst::ConstArray { m_type, move(values) } };
 	} else {
 		return AstConst { range, AstConst::ConstTuple { m_type, move(values), None{} } };
@@ -553,8 +570,8 @@ Maybe<AstConst> AstAggExpr::eval_value(Cg& cg) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
-	auto type = gen_type(cg);
+Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want ? want->deref() : nullptr);
 	if (!type) {
 		return None{};
 	}
@@ -584,7 +601,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 	if (m_exprs.length() == 0) {
 		// No expression so zero initialize it.
 		auto zero = CgValue::zero(addr->type()->deref(), cg);
-		if (!zero || !addr->store(cg, *zero)) {
+		if (!addr->store(cg, *zero)) {
 			return cg.oom();
 		}
 		return addr;
@@ -592,9 +609,12 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 
 	// The scalar case we just read from [0] and write to addr.
 	if (scalar) {
-		auto value = m_exprs[0]->gen_value(cg);
-		if (!value || !addr->store(cg, *value)) {
+		auto value = m_exprs[0]->gen_value(cg, type);
+		if (!value) {
 			return None{};
+		}
+		if (!addr->store(cg, *value)) {
+			return cg.oom();
 		}
 		return addr;
 	}
@@ -606,20 +626,21 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 			return cg.oom();
 		}
 		// The 'dst' type will always be a pointer so dereference.
-		auto type = dst->type()->deref();
-		if (type->is_padding()) {
+		auto dst_type = dst->type()->deref();
+		if (dst_type->is_padding()) {
 			// Write a zeroinitializer into padding at i'th.
-			auto zero = CgValue::zero(type, cg);
+			auto zero = CgValue::zero(dst_type, cg);
 			if (!zero || !dst->store(cg, *zero)) {
 				return cg.oom();
 			}
 		} else if (auto expr = m_exprs.at(j++)) {
 			// Otherwise take the next expression and store it at i'th.
-			auto value = (*expr)->gen_value(cg);
+			auto infer = type->is_array() ? type->at(0) : type->at(i);
+			auto value = (*expr)->gen_value(cg, infer);
 			if (!value) {
 				return None{};
 			}
-			if (*value->type() != *type) {
+			if (*value->type() != *dst_type) {
 				return None{};
 			}
 			if (!dst->store(cg, *value)) {
@@ -627,7 +648,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 			}
 		} else {
 			// No expression for that initializer so generate a zeroinitializer
-			auto zero = CgValue::zero(type, cg);
+			auto zero = CgValue::zero(dst_type, cg);
 			if (!zero || !dst->store(cg, *zero)) {
 				return cg.oom();
 			}
@@ -636,16 +657,16 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg) const noexcept {
 	return addr;
 }
 
-Maybe<CgValue> AstAggExpr::gen_value(Cg& cg) const noexcept {
-	if (auto addr = gen_addr(cg)) {
+Maybe<CgValue> AstAggExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
 		return addr->load(cg);
 	}
-	cg.fatal(range(), "Could not generate value");
+	cg.fatal(range(), "Could not generate value (AstAggExpr)");
 	return None{};
 }
 
-CgType* AstAggExpr::gen_type(Cg& cg) const noexcept {
-	return m_type->codegen(cg);
+CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	return m_type ? m_type->codegen(cg) : want;
 }
 
 Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
@@ -654,13 +675,22 @@ Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
 		return None{};
 	}
 
+	if (m_op == Op::AS) {
+		auto lhs = m_lhs->eval_value(cg);
+		if (!lhs) {
+			return None{};
+		}
+		// TODO(dweiler): constant casting
+		return AstConst { lhs->range(), *lhs->to<Uint64>() };
+	}
+
 	if (m_op == Op::OF) {
 		if (!m_lhs->is_expr<AstVarExpr>()) {
 			cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator");
 			return None{};
 		}
 		auto name = static_cast<const AstVarExpr *>(m_lhs)->name();
-		auto rhs = m_rhs->gen_type(cg);
+		auto rhs = m_rhs->gen_type(cg, nullptr);
 		if (!rhs) {
 			return None{};
 		}
@@ -744,11 +774,11 @@ Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
+Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	if (m_op != Op::DOT) {
 		return None{};
 	}
-	auto lhs_type = m_lhs->gen_type(cg);
+	auto lhs_type = m_lhs->gen_type(cg, nullptr);
 	if (!lhs_type) {
 		return None{};
 	}
@@ -756,7 +786,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 		|| (lhs_type->is_pointer() && lhs_type->deref()->is_tuple());
 	if (is_tuple) {
 		if (m_rhs->is_expr<AstVarExpr>()) {
-			auto lhs_addr = m_lhs->gen_addr(cg);
+			auto lhs_addr = m_lhs->gen_addr(cg, nullptr);
 			if (!lhs_addr) {
 				return None{};
 			}
@@ -788,7 +818,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 				cg.error(m_rhs->range(), "Expected integer constant expression");
 				return None{};
 			}
-			auto addr = m_lhs->gen_addr(cg);
+			auto addr = m_lhs->gen_addr(cg, want);
 			if (!addr) {
 				return None{};
 			}
@@ -801,7 +831,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
+Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	using IntPredicate = LLVM::IntPredicate;
 	using RealPredicate = LLVM::RealPredicate;
 
@@ -810,9 +840,15 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 
 	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS && m_op != Op::OF) {
 		// Operands to binary operator must be the same type
-		lhs_type = m_lhs->gen_type(cg);
-		rhs_type = m_rhs->gen_type(cg);
+		lhs_type = m_lhs->gen_type(cg, want);
+		if (lhs_type) {
+			rhs_type = m_rhs->gen_type(cg, lhs_type);
+		} else {
+			rhs_type = m_rhs->gen_type(cg, want);
+			lhs_type = m_lhs->gen_type(cg, rhs_type);
+		}
 		if (!lhs_type || !rhs_type) {
+			cg.error(range(), "Could not infer types in binary expression");
 			return None{};
 		}
 		if (*lhs_type != *rhs_type) {
@@ -828,12 +864,12 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 
 	if (m_op == Op::AS) {
 		// Special behavior needed for 'as'
-		auto lhs = m_lhs->gen_value(cg);
+		auto lhs = m_lhs->gen_value(cg, want);
 		if (!lhs) {
 			return None{};
 		}
 
-		auto rhs = gen_type(cg);
+		auto rhs = gen_type(cg, want);
 		if (!rhs) {
 			return None{};
 		}
@@ -865,8 +901,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 	Maybe<CgValue> lhs;
 	Maybe<CgValue> rhs;
 	auto gen_values = [&]() -> Bool {
-		lhs = m_lhs->gen_value(cg);
-		rhs = m_rhs->gen_value(cg);
+		lhs = m_lhs->gen_value(cg, lhs_type);
+		rhs = m_rhs->gen_value(cg, rhs_type);
 		return lhs && rhs;
 	};
 
@@ -918,8 +954,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 				cg.fatal(range(), "Could not find 'memory_eq' intrinsic");
 				return None{};
 			}
-			auto lhs_dst = m_lhs->gen_addr(cg);
-			auto rhs_dst = m_rhs->gen_addr(cg);
+			auto lhs_dst = m_lhs->gen_addr(cg, nullptr);
+			auto rhs_dst = m_rhs->gen_addr(cg, nullptr);
 			LLVM::ValueRef args[] = {
 				lhs_dst->ref(),
 				rhs_dst->ref(),
@@ -951,8 +987,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 				cg.fatal(range(), "Could not find 'memory_ne' intrinsic");
 				return None{};
 			}
-			auto lhs_dst = m_lhs->gen_addr(cg);
-			auto rhs_dst = m_rhs->gen_addr(cg);
+			auto lhs_dst = m_lhs->gen_addr(cg, nullptr);
+			auto rhs_dst = m_rhs->gen_addr(cg, nullptr);
 			LLVM::ValueRef args[] = {
 				lhs_dst->ref(),
 				rhs_dst->ref(),
@@ -1013,7 +1049,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
 			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
 	
-			auto lhs = m_lhs->gen_value(cg);
+			auto lhs = m_lhs->gen_value(cg, cg.types.b32());
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 				cg.error(m_lhs->range(),
@@ -1032,7 +1068,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			// on_lhs_false
 			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_false);
 			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_false);
-			auto rhs = m_rhs->gen_value(cg);
+			auto rhs = m_rhs->gen_value(cg, cg.types.b32());
 			if (!rhs || !rhs->type()->is_bool()) {
 				return None{};
 			}
@@ -1097,7 +1133,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
 			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
 	
-			auto lhs = m_lhs->gen_value(cg);
+			auto lhs = m_lhs->gen_value(cg, cg.types.b32());
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 				cg.error(m_lhs->range(),
@@ -1111,7 +1147,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			// on_lhs_true
 			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_true);
 			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_true);
-			auto rhs = m_rhs->gen_value(cg);
+			auto rhs = m_rhs->gen_value(cg, cg.types.b32());
 			if (!rhs || !rhs->type()->is_bool()) {
 				return None{};
 			}
@@ -1216,7 +1252,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		break;
 	case Op::DOT:
 		{
-			auto lhs_type = m_lhs->gen_type(cg);
+			auto lhs_type = m_lhs->gen_type(cg, nullptr);
 			if (!lhs_type) {
 				return None{};
 			}
@@ -1229,7 +1265,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 			if (m_rhs->is_expr<AstCallExpr>()) {
 				auto rhs = static_cast<AstCallExpr *>(m_rhs);
 				// Generate the left-hand side tuple containing all the values.
-				auto objs = m_lhs->gen_addr(cg);
+				auto objs = m_lhs->gen_addr(cg, nullptr);
 				if (!objs) {
 					return None{};
 				}
@@ -1239,7 +1275,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 				}
 				// Generate the prepended values for the call.
 				Array<CgValue> values{*cg.scratch};
-				auto rhs_type = rhs->callee()->gen_type(cg);
+				auto rhs_type = rhs->callee()->gen_type(cg, nullptr);
 				if (!rhs_type) {
 					return None{};
 				}
@@ -1301,13 +1337,13 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 				}
 				return rhs->gen_value(move(values), cg);
 			} else if (m_rhs->is_expr<AstVarExpr>()) {
-				auto addr = gen_addr(cg);
+				auto addr = gen_addr(cg, nullptr);
 				if (!addr) {
 					return None{};
 				}
 				return addr->load(cg);
 			} else if (m_rhs->is_expr<AstIntExpr>()) {
-				auto addr = gen_addr(cg);
+				auto addr = gen_addr(cg, nullptr);
 				if (!addr) {
 					return None{};
 				}
@@ -1319,24 +1355,31 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg) const noexcept {
 		break;
 	}
 
-	cg.fatal(range(), "Could not generate value");
+	cg.fatal(range(), "Could not generate value (AstBinExpr)");
 	return None{};
 }
 
-CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
+CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	switch (m_op) {
 	case Op::ADD: case Op::SUB: case Op::MUL: case Op::DIV:
-		return m_lhs->gen_type(cg);
+		{
+			auto type = m_lhs->gen_type(cg, want);
+			if (type) {
+				return type;
+			} else {
+				return m_rhs->gen_type(cg, want);
+			}
+		}
 	case Op::EQ: case Op::NE: case Op::GT: case Op::GE: case Op::LT: case Op::LE:
-		return cg.types.b8();
+		return cg.types.b32();
 	case Op::MIN: case Op::MAX:
-		return m_lhs->gen_type(cg);
+		return m_lhs->gen_type(cg, want);
 	case Op::LOR: case Op::LAND:
 		return cg.types.b8();
 	case Op::BOR: case Op::BAND:
-		return m_lhs->gen_type(cg);
+		return m_lhs->gen_type(cg, want);
 	case Op::LSHIFT: case Op::RSHIFT:
-		return m_lhs->gen_type(cg);
+		return m_lhs->gen_type(cg, want);
 	case Op::AS:
 		if (m_rhs->is_expr<AstTypeExpr>()) {
 			return static_cast<AstTypeExpr*>(m_rhs)->type()->codegen(cg);
@@ -1347,7 +1390,7 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 		break;
 	case Op::DOT:
 		{
-			auto lhs_type = m_lhs->gen_type(cg);
+			auto lhs_type = m_lhs->gen_type(cg, nullptr);
 			if (!lhs_type) {
 				return nullptr;
 			}
@@ -1355,7 +1398,7 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 				lhs_type = lhs_type->deref();
 			}
 			if (m_rhs->is_expr<AstCallExpr>()) {
-				return m_rhs->gen_type(cg);
+				return m_rhs->gen_type(cg, want);
 			} else if (m_rhs->is_expr<AstVarExpr>()) {
 				auto rhs = static_cast<const AstVarExpr *>(m_rhs);
 				Ulen i = 0;
@@ -1384,7 +1427,7 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 			auto name = static_cast<const AstVarExpr *>(m_lhs)->name();
 			if (name == "type") {
 				// type  of => type
-				return m_rhs->gen_type(cg);
+				return m_rhs->gen_type(cg, nullptr);
 			} else {
 				// size  of => u64
 				// align of => u64
@@ -1402,7 +1445,7 @@ CgType* AstBinExpr::gen_type(Cg& cg) const noexcept {
 	return nullptr;
 }
 
-Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
+Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	switch (m_op) {
 	case Op::NEG:
 		cg.error(range(), "Cannot take the address of an rvalue");
@@ -1417,7 +1460,7 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 		// The LHS dereference does not actually load or dereference anything, it's
 		// used in combination with an AssignStmt to allow storing results through
 		// the pointer.
-		if (auto operand = m_operand->gen_value(cg)) {
+		if (auto operand = m_operand->gen_value(cg, want ? want->deref() : nullptr)) {
 			if (!operand->type()->is_pointer()) {
 				auto operand_type_string = operand->type()->to_string(*cg.scratch);
 				cg.error(m_operand->range(),
@@ -1435,10 +1478,10 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg) const noexcept {
+Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	switch (m_op) {
 	case Op::NEG:
-		if (auto operand = m_operand->gen_value(cg)) {
+		if (auto operand = m_operand->gen_value(cg, want)) {
 			if (operand->type()->is_real()) {
 				return CgValue { operand->type(), cg.llvm.BuildFNeg(cg.builder, operand->ref(), "") };
 			} else {
@@ -1447,30 +1490,30 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg) const noexcept {
 		}
 		break;
 	case Op::NOT:
-		if (auto operand = m_operand->gen_value(cg)) {
+		if (auto operand = m_operand->gen_value(cg, want)) {
 			return CgValue { operand->type(), cg.llvm.BuildNot(cg.builder, operand->ref(), "") };
 		}
 		break;
 	case Op::DEREF:
 		// When dereferencing on the RHS we just gen_addr followed by a load.
-		if (auto addr = gen_addr(cg)) {
+		if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
 			return addr->load(cg);
 		}
 		break;
 	case Op::ADDROF:
 		// When taking the address we just gen_addr and turn it into a CgValue which
 		// gives us an R-value of the address.
-		if (auto operand = m_operand->gen_addr(cg)) {
+		if (auto operand = m_operand->gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
 			return operand->to_value();
 		}
 		break;
 	}
-	cg.fatal(m_operand->range(), "Could not generate value");
+	cg.fatal(m_operand->range(), "Could not generate value (AstUnaryExpr)");
 	return None{};
 }
 
-CgType* AstUnaryExpr::gen_type(Cg& cg) const noexcept {
-	auto type = m_operand->gen_type(cg);
+CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	auto type = m_operand->gen_type(cg, want);
 	if (!type) {
 		return nullptr;
 	}
@@ -1485,8 +1528,8 @@ CgType* AstUnaryExpr::gen_type(Cg& cg) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
-	auto operand = m_operand->gen_addr(cg);
+Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
+	auto operand = m_operand->gen_addr(cg, nullptr);
 	if (!operand) {
 		cg.fatal(m_operand->range(), "Could not generate operand");
 		return None{};
@@ -1504,7 +1547,7 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 		}
 	} else {
 		// Otherwise runtime indexing
-		auto index = m_index->gen_value(cg);
+		auto index = m_index->gen_value(cg, nullptr);
 		if (!index) {
 			cg.fatal(m_index->range(), "Could not generate index");
 			return None{};
@@ -1520,20 +1563,19 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg) const noexcept {
 			return addr;
 		}
 	}
-	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
-Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg) const noexcept {
-	if (auto addr = gen_addr(cg)) {
+Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
 		return addr->load(cg);
 	}
-	cg.fatal(range(), "Could not generate value");
+	cg.fatal(range(), "Could not generate value (AstIndexExpr)");
 	return None{};
 }
 
-CgType* AstIndexExpr::gen_type(Cg& cg) const noexcept {
-	auto type = m_operand->gen_type(cg);
+CgType* AstIndexExpr::gen_type(Cg& cg, CgType*) const noexcept {
+	auto type = m_operand->gen_type(cg, nullptr);
 	if (!type) {
 		return nullptr;
 	}
@@ -1572,8 +1614,8 @@ Maybe<AstConst> AstIndexExpr::eval_value(Cg& cg) const noexcept {
 	return None{};
 }
 
-Maybe<CgValue> AstExplodeExpr::gen_value(Cg& cg) const noexcept {
-	return m_operand->gen_value(cg);
+Maybe<CgValue> AstExplodeExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	return m_operand->gen_value(cg, want);
 }
 
 } // namespace Biron

@@ -28,7 +28,8 @@ Bool AstBlockStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
-	auto value = m_expr->gen_value(cg);
+	// TODO(dweiler): Work out function return type and specify it here for want
+	auto value = m_expr->gen_value(cg, nullptr);
 	if (!value) {
 		return false;
 	}
@@ -106,7 +107,7 @@ Bool AstIfStmt::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	auto cond = m_expr->gen_value(cg);
+	auto cond = m_expr->gen_value(cg, cg.types.b32());
 	if (!cond) {
 		return false;
 	}
@@ -163,12 +164,12 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 	// storage in-place and assign that as our CgVar skipping a copy.
 	Maybe<CgAddr> addr;
 	if (m_init->is_expr<AstAggExpr>() || m_init->is_expr<AstTupleExpr>()) {
-		addr = m_init->gen_addr(cg);
+		addr = m_init->gen_addr(cg, nullptr);
 		if (!addr) {
 			return false;
 		}
 	} else {
-		auto value = m_init->gen_value(cg);
+		auto value = m_init->gen_value(cg, nullptr);
 		if (!value) {
 			return false;
 		}
@@ -208,7 +209,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto type = m_init->gen_type(cg);
+	auto type = m_init->gen_type(cg, nullptr);
 	if (!type) {
 		return false;
 	}
@@ -218,9 +219,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto dst = cg.llvm.AddGlobal(cg.module,
-	                             type->ref(),
-	                             cg.nameof(m_name));
+	auto dst = cg.llvm.AddGlobal(cg.module, type->ref(), cg.nameof(m_name));
 
 	auto addr = CgAddr { src->type()->addrof(cg), dst };
 	if (!cg.globals.emplace_back(CgVar { m_name, move(addr) }, move(*eval))) {
@@ -279,16 +278,16 @@ Bool AstExprStmt::codegen(Cg& cg) const noexcept {
 			return true;
 		}
 	}
-	return m_expr->gen_value(cg);
+	return m_expr->gen_value(cg, nullptr);
 }
 
 Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
-	auto dst = m_dst->gen_addr(cg);
+	auto dst = m_dst->gen_addr(cg, nullptr);
 	if (!dst) {
 		return false;
 	}
 
-	auto src = m_src->gen_value(cg);
+	auto src = m_src->gen_value(cg, dst->type()->deref());
 	if (!src) {
 		return false;
 	}
@@ -382,7 +381,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	cg.llvm.AppendExistingBasicBlock(this_fn, loop_bb);
 	cg.llvm.PositionBuilderAtEnd(cg.builder, loop_bb);
 	if (m_expr) {
-		auto cond = m_expr->gen_value(cg);
+		auto cond = m_expr->gen_value(cg, cg.types.b32());
 		if (!cond) {
 			return false;
 		}

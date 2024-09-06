@@ -212,10 +212,15 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 	}
 	for (auto& elem : m_elems) {
 		auto type = elem.type()->codegen(cg);
-		if (!type || !types.push_back(type)) {
+		if (!type) {
+			return nullptr;
+		}
+		if (!types.push_back(type)) {
+			cg.oom();
 			return nullptr;
 		}
 		if (!fields.push_back(elem.name())) {
+			cg.oom();
 			return nullptr;
 		}
 	}
@@ -233,10 +238,15 @@ CgType* AstTupleType::codegen_named(Cg& cg, StringView name) const noexcept {
 	}
 	for (auto& elem : m_elems) {
 		auto type = elem.type()->codegen(cg);
-		if (!type || !types.push_back(type)) {
+		if (!type) {
+			return nullptr;
+		}
+		if (!types.push_back(type)) {
+			cg.oom();
 			return nullptr;
 		}
 		if (!fields.push_back(elem.name())) {
+			cg.oom();
 			return nullptr;
 		}
 	}
@@ -250,7 +260,11 @@ CgType* AstUnionType::codegen(Cg& cg) const noexcept {
 	}
 	for (const auto elem : m_types) {
 		auto type = elem->codegen(cg);
-		if (!type || !types.push_back(type)) {
+		if (!type) {
+			return nullptr;
+		}
+		if (!types.push_back(type)) {
+			cg.oom();
 			return nullptr;
 		}
 	}

@@ -277,7 +277,8 @@ AstExpr* Parser::parse_agg_expr(AstExpr* type_expr) noexcept {
 		return type_expr;
 	}
 	Array<AstExpr*> exprs{m_allocator};
-	next(); // Skip '{'
+	auto beg_token = next(); // Skip '{'
+	auto range = beg_token.range;
 	while (peek().kind != Token::Kind::RBRACE) {
 		auto expr = parse_expr(false);
 		if (!expr || !exprs.push_back(expr)) {
@@ -294,7 +295,13 @@ AstExpr* Parser::parse_agg_expr(AstExpr* type_expr) noexcept {
 		return nullptr;
 	}
 	auto end_token = next(); // Skip '}'
-	auto range = type->range().include(end_token.range);
+
+	range = range.include(end_token.range);
+
+	if (type) {
+		range = range.include(type->range());
+	}
+
 	return new_node<AstAggExpr>(type, move(exprs), range);
 }
 
