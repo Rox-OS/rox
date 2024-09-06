@@ -152,12 +152,16 @@ Maybe<CgValue> AstTupleExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	// When a tuple contains only a single element we detuple it so we only want
-	// the inner type here.
-	if (length() == 1) {
+	switch (length()) {
+	case 0:
+		// When a tuple contains no elements we just return the unit type.
+		return cg.types.unit();
+	case 1:
+		// When a tuple contains only a single element we detuple it so we only want
+		// the inner type here.
 		return at(0)->gen_type(cg, want);
 	}
-
+	// [2, n)
 	Array<CgType*> types{*cg.scratch};
 	if (!types.reserve(length())) {
 		cg.oom();
@@ -174,7 +178,6 @@ CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 			return nullptr;
 		}
 	}
-
 	return cg.types.make(CgType::TupleInfo { move(types), None{}, None{} });
 }
 
@@ -190,7 +193,11 @@ Bool AstTupleExpr::prepend(Array<AstExpr*>&& exprs) noexcept {
 
 CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	auto fn = m_callee->gen_type(cg, nullptr);
-	if (!fn || !fn->is_fn()) {
+	if (!fn) {
+		return nullptr;
+	}
+	if (!fn->is_fn()) {
+		cg.error(m_callee->range(), "Callee is not a function");
 		return nullptr;
 	}
 	auto rets = fn->at(2);
@@ -251,7 +258,7 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 					auto have_type_string = have_type->to_string(*cg.scratch);
 					auto want_type_string = want_type->to_string(*cg.scratch);
 					cg.error(m_args->range(),
-					         "Expected expression of type '%S' in expansion of tuple for argument'. Got '%S' instead",
+					         "Expected expression of type '%S' in expansion of tuple for argument. Got '%S' instead",
 					         want_type_string,
 					         have_type_string);
 					return None{};
@@ -269,6 +276,8 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 		CgType* want_type = nullptr;
 		if (k < expected->length()) {
 			want_type = expected->at(k);
+		} else {
+			want_type = expected->at(expected->length() - 1);
 		}
 		auto value = arg->gen_value(cg, want_type);
 		if (!value) {
@@ -291,9 +300,8 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 			auto have_type_string = have_type->to_string(*cg.scratch);
 			auto want_type_string = want_type->to_string(*cg.scratch);
 			cg.error(arg->range(),
-			         "Expected expression of type '%S' for argument '%zu'. Got '%S' instead",
+			         "Expected expression of type '%S' for argument. Got '%S' instead",
 			         want_type_string,
-			         k + 1,
 			         have_type_string);
 			return None{};
 		}
@@ -666,7 +674,15 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	return m_type ? m_type->codegen(cg) : want;
+	if (m_type) {
+		if (auto type = m_type->codegen(cg)) {
+			return type;
+		}
+	} else if (want) {
+		return want;
+	}
+	cg.fatal(range(), "Could not generate type");
+	return nullptr;
 }
 
 Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
@@ -1293,7 +1309,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 				if (objs_type->length() == 1) {
 					if (objs_type->at(0)->is_pointer()) {
 						// Reciever wants it passed as pointer.
-						if (!values.emplace_back(objs_type, objs->ref())) {
+						if (!values.emplace_back(objs_type->deref(), objs->ref())) {
 							return cg.oom();
 						}
 					} else {
@@ -1535,6 +1551,11 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 		return None{};
 	}
 
+	// Peel the *Uint8 out of the string when indexing
+	if (operand->type()->deref()->is_string()) {
+		operand = operand->at(cg, 0);
+	}
+
 	// Optimization for constant integer expression indexing.
 	if (auto eval = m_index->eval_value(cg)) {
 		if (!eval->is_integral()) {
@@ -1609,6 +1630,10 @@ Maybe<AstConst> AstIndexExpr::eval_value(Cg& cg) const noexcept {
 	} else if (operand->is_array()) {
 		if (auto value = index->as_array().elems.at(*i)) {
 			return value->copy();
+		}
+	} else if (operand->is_string()) {
+		if (auto value = operand->as_string()[*i]) {
+			return AstConst { range(), Uint8(value) };
 		}
 	}
 	return None{};

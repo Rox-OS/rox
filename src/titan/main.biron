@@ -284,8 +284,8 @@ fn kmain() {
 
 fn clear(fb: *LimineFramebuffer) {
   // Clear the framebuffer to a nice shade of grey.
-  for let y = 0_u64; y < fb.dimensions.1; y = y + 1 {
-    for let x = 0_u64; x < fb.dimensions.0; x = x + 1 {
+  for let y = 0_u64; y < fb.dimensions.1; y += 1 {
+    for let x = 0_u64; x < fb.dimensions.0; x += 1 {
       fb.address[y * fb.dimensions.0 + x] = make_color(fb, 0x20_u32, 0x20_u32, 0x20_u32);
     }
   }
@@ -293,26 +293,26 @@ fn clear(fb: *LimineFramebuffer) {
 
 fn hello(fb: *LimineFramebuffer) {
   // Then print "Hello RoxOS!" in the center of the screen in yellow.
-  let msg = [12]Uint8 { 'H', 'e', 'l', 'l', 'o', ' ', 'R', 'o', 'x', 'O', 'S', '!' };
-  let PX = (fb.dimensions.0 >> 1) - (12_u64 >> 1) * 8;
-  let PY = (fb.dimensions.1 >> 1) - (8_u64  >> 1) * 8;
+  let msg = "Hello RoxOS!";
+  let PX = (fb.dimensions.0 >> 1) - (12 >> 1) * count of FONT[0];
+  let PY = (fb.dimensions.1 >> 1) - (count of FONT[0]  >> 1) * count of FONT[0];
   let px = PX;
   let py = PY;
-  for let y = 0_u32; y < 8; y = y + 1 {
-    for let i = 0_u32; i < 12; i = i + 1 {
-      let bits = FONT[msg[i]][y] as Uint32;
-      for let x = 0_u32; x < 8; x = x + 1 {
-        let set = bits & (1_u32 << x);
+  for let y = 0_u64; y < count of FONT[0]; y += 1 {
+    for let i = 0_u64; i < 12; i += 1 {
+      let bits = FONT[msg[i]][y] as Uint64;
+      for let x = 0_u64; x < count of FONT[0]; x += 1 {
+        let set = bits & (1_u64 << x);
         if set != 0 {
           let dst = &fb.address[py * fb.dimensions.0];
           dst[px] = make_color(fb, 0xff, 0xff, 0x00);
         } else {
           // printf(" ");
         }
-        px = px + 1;
+        px += 1;
       }
     }
-    py = py + 1;
+    py += 1;
     px = PX;
   }
 }
@@ -374,8 +374,8 @@ fn (sim: *Sim) init() {
   let block_x = 0.5_f32;
   let block_y = 0.75 * world_size[1] - 0.5;
 
-  for let y = 0_u64; y < PARTICLES; y = y + 1 {
-    for let x = 0_u64; x < PARTICLES; x = x + 1 {
+  for let y = 0_u64; y < PARTICLES; y += 1 {
+    for let x = 0_u64; x < PARTICLES; x += 1 {
       let particle = &particles[y * PARTICLES + x];
       particle.position[0] = block_x + (x as Real32);
       particle.position[1] = block_y - (y as Real32);
@@ -455,7 +455,7 @@ fn (sim: *Sim) step() {
       force += [2]Real32{f, f} * d;
     }
 
-    for let j = 0_u64; j < count of sim.boundary_particles; j = j + 1 {
+    for let j = 0_u64; j < count of sim.boundary_particles; j += 1 {
       let d = particle.position - boundary_particles[j];
       let r = sqrt(d[0]*d[0] + d[1]*d[1]);
       if r >= H {

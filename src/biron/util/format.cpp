@@ -88,6 +88,36 @@ Bool format_va(char* dst, Ulen *n, StringView fmt, ...) noexcept {
 				}
 			}
 			break;
+		case 'p':
+			if (const void* addr = va_arg(va, void *); addr) {
+				auto p = &buf[sizeof buf - 1];
+				auto h = reinterpret_cast<Uint64>(addr);
+				do {
+					*(p--) = "0123456789abcdef"[h % 16];
+					h /= 16;
+				} while (h);
+				*p++ = 'x';
+				*p++ = '0';
+				auto s = &buf[sizeof buf] - p;
+				for (decltype(s) i = 0; i < s; i++) {
+					if (dst) {
+						*dst++ = *p++;
+					}
+					len++;
+				}
+			} else {
+				if (dst) {
+					*dst++ = 'n';
+					*dst++ = 'u';
+					*dst++ = 'l';
+					*dst++ = 'l';
+					*dst++ = 'p';
+					*dst++ = 't';
+					*dst++ = 'r';
+				}
+				len += 7;
+			}
+			break;
 		default:
 			// Unknown format specifier.
 			*n = len;

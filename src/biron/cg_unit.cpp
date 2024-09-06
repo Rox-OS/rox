@@ -101,7 +101,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		}
 	}
 
-	if (!cg.fns.emplace_back(m_name, CgAddr { fn_t->addrof(cg), fn_v })) {
+	if (!cg.fns.emplace_back(this, m_name, CgAddr { fn_t->addrof(cg), fn_v })) {
 		return false;
 	}
 
@@ -115,10 +115,10 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	// Search for the function by name
+	// Search for the function by node
 	Maybe<CgAddr> addr;
 	for (const auto &var : cg.fns) {
-		if (var.name() == m_name) {
+		if (var.node() == this) {
 			addr = var.addr();
 			break;
 		}
@@ -150,7 +150,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 				auto dst = cg.emit_alloca(type);
 				auto src = cg.llvm.GetParam(addr->ref(), i);
 				dst->store(cg, CgValue { type, src });
-				if (!cg.scopes.last().vars.emplace_back(*name, move(*dst))) {
+				if (!cg.scopes.last().vars.emplace_back(this, *name, move(*dst))) {
 					return false;
 				}
 			}
@@ -167,7 +167,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 			auto dst = cg.emit_alloca(type);
 			auto src = cg.llvm.GetParam(addr->ref(), i);
 			dst->store(cg, CgValue { type, src });
-			if (!cg.scopes.last().vars.emplace_back(*name, move(*dst))) {
+			if (!cg.scopes.last().vars.emplace_back(this, *name, move(*dst))) {
 				return false;
 			}
 		}
@@ -265,7 +265,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "printf", fn_t->ref());
-		if (!cg.fns.emplace_back("printf", CgAddr{fn_t->addrof(cg), fn_v})) {
+		if (!cg.fns.emplace_back(nullptr, "printf", CgAddr{fn_t->addrof(cg), fn_v})) {
 			return false;
 		}
 	}
@@ -284,7 +284,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "enable_fpu", fn_t->ref());
-		if (!cg.fns.emplace_back("enable_fpu", CgAddr{fn_t->addrof(cg), fn_v})) {
+		if (!cg.fns.emplace_back(nullptr, "enable_fpu", CgAddr{fn_t->addrof(cg), fn_v})) {
 			return false;
 		}
 	}
@@ -309,7 +309,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "llvm.sqrt.f32", fn_t->ref());
-		if (!cg.fns.emplace_back("sqrt", CgAddr{fn_t->addrof(cg), fn_v})) {
+		if (!cg.fns.emplace_back(nullptr, "sqrt", CgAddr{fn_t->addrof(cg), fn_v})) {
 			return false;
 		}
 	}
@@ -337,12 +337,12 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "__biron_runtime_memory_ne", fn_t->ref());
-		if (!cg.intrinsics.emplace_back("memory_ne", CgAddr { fn_t->addrof(cg), fn_v })) {
+		if (!cg.intrinsics.emplace_back(nullptr, "memory_ne", CgAddr { fn_t->addrof(cg), fn_v })) {
 			return false;
 		}
 		// We can just reuse all of the same things
 		fn_v = cg.llvm.AddFunction(cg.module, "__biron_runtime_memory_eq", fn_t->ref());
-		if (!cg.intrinsics.emplace_back("memory_eq", CgAddr { fn_t->addrof(cg), fn_v })) {
+		if (!cg.intrinsics.emplace_back(nullptr, "memory_eq", CgAddr { fn_t->addrof(cg), fn_v })) {
 			return false;
 		}
 	}

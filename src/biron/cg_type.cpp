@@ -140,6 +140,7 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 			Bool f;
 			builder.append("fn");
 			if (at(0)) {
+				builder.append('(');
 				// selfs
 				const auto& selfs = at(0)->types();
 				f = true;
@@ -202,6 +203,10 @@ CgType* AstType::codegen_named(Cg& cg, StringView) const noexcept {
 }
 
 CgType* AstTupleType::codegen(Cg& cg) const noexcept {
+	if (m_elems.empty()) {
+		return cg.types.unit();
+	}
+
 	Array<CgType*> types{cg.allocator};
 	if (!types.reserve(m_elems.length())) {
 		return nullptr;
@@ -482,7 +487,7 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 	if (!types.resize(2)) {
 		return nullptr;
 	}
-	types[0] = ptr();
+	types[0] = make(CgType::PtrInfo { { 8, 8 }, u8() });
 	types[1] = u64();
 	return m_cache.make<CgType>(
 		CgType::Kind::STRING,
@@ -775,9 +780,13 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 			return nullptr;
 		}
 	}
-	auto ref = m_llvm.FunctionType(info.rets->length() == 1
-	                                 ? info.rets->at(0)->ref()
-	                                 : info.rets->ref(),
+
+	auto rets = info.rets ? info.rets : unit();
+	if (rets->length() == 1) {
+		rets = rets->at(0);
+	}
+
+	auto ref = m_llvm.FunctionType(rets->ref(),
 	                               args.data(),
 	                               args.length(),
 	                               has_va);

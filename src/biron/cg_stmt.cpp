@@ -196,7 +196,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 	}
-	if (!cg.scopes.last().vars.emplace_back(m_name, move(*addr))) {
+	if (!cg.scopes.last().vars.emplace_back(this, m_name, move(*addr))) {
 		return false;
 	}
 	return true;
@@ -222,7 +222,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	auto dst = cg.llvm.AddGlobal(cg.module, type->ref(), cg.nameof(m_name));
 
 	auto addr = CgAddr { src->type()->addrof(cg), dst };
-	if (!cg.globals.emplace_back(CgVar { m_name, move(addr) }, move(*eval))) {
+	if (!cg.globals.emplace_back(CgVar { this, m_name, move(addr) }, move(*eval))) {
 		cg.oom();
 		return false;
 	}

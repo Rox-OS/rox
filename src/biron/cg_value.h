@@ -10,6 +10,8 @@ struct Cg;
 struct CgType;
 struct CgValue;
 
+struct AstNode;
+
 struct CgAddr {
 	CgAddr(CgType *const type, LLVM::ValueRef ref) noexcept;
 
@@ -71,10 +73,14 @@ inline CgValue CgAddr::to_value() const noexcept {
 }
 
 struct CgVar {
-	constexpr CgVar(StringView name, CgAddr&& addr) noexcept
-		: m_name{name}
+	constexpr CgVar(const AstNode* node, StringView name, CgAddr&& addr) noexcept
+		: m_node{node}
+		, m_name{name}
 		, m_addr{move(addr)}
 	{
+	}
+	[[nodiscard]] constexpr const AstNode* node() const noexcept {
+		return m_node;
 	}
 	[[nodiscard]] constexpr StringView name() const noexcept {
 		return m_name;
@@ -83,8 +89,9 @@ struct CgVar {
 		return m_addr;
 	}
 private:
-	StringView m_name;
-	CgAddr     m_addr;
+	const AstNode* m_node;
+	StringView     m_name;
+	CgAddr         m_addr;
 };
 
 struct CgGlobal {
