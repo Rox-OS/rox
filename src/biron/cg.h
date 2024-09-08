@@ -67,8 +67,7 @@ struct Cg {
 	using BuilderRef = LLVM::BuilderRef;
 	using ModuleRef  = LLVM::ModuleRef;
 
-	static Maybe<Cg> make(const System& system,
-	                      Terminal& terminal,
+	static Maybe<Cg> make(Terminal& terminal,
 	                      Allocator& allocator,
 	                      LLVM& llvm,
 	                      Diagnostic& diagnostic) noexcept;
@@ -90,12 +89,12 @@ struct Cg {
 
 	template<typename... Ts>
 	void error(Range range, StringView fmt, Ts&&... args) const noexcept {
-		diagnostic.error(range, fmt, forward<Ts>(args)...);
+		m_diagnostic.error(range, fmt, forward<Ts>(args)...);
 	}
 
 	template<typename... Ts>
 	void fatal(Range range, StringView fmt, Ts&&... args) const noexcept {
-		diagnostic.fatal(range, fmt, forward<Ts>(args)...);
+		m_diagnostic.fatal(range, fmt, forward<Ts>(args)...);
 	}
 
 	None oom() const noexcept {
@@ -125,8 +124,6 @@ struct Cg {
 
 	const char* nameof(StringView name) const noexcept;
 
-	const System&     system;
-	Terminal&         terminal;
 	Allocator&        allocator;
 	LLVM&             llvm;
 	ScratchAllocator* scratch;
@@ -140,13 +137,11 @@ struct Cg {
 	Array<CgTypeDef>  typedefs;
 	Array<CgVar>      intrinsics;
 	const AstUnit*    unit;
-	Diagnostic&       diagnostic;
+
 	StringView        prefix;
 
 	constexpr Cg(Cg&& other) noexcept
-		: system{other.system}
-		, terminal{other.terminal}
-		, allocator{other.allocator}
+		: allocator{other.allocator}
 		, llvm{other.llvm}
 		, scratch{exchange(other.scratch, nullptr)}
 		, context{exchange(other.context, nullptr)}
@@ -159,16 +154,16 @@ struct Cg {
 		, typedefs{move(other.typedefs)}
 		, intrinsics{move(other.intrinsics)}
 		, unit{nullptr}
-		, diagnostic{other.diagnostic}
 		, prefix{move(other.prefix)}
+		, m_terminal{other.m_terminal}
+		, m_diagnostic{other.m_diagnostic}
 	{
 	}
 
 	~Cg() noexcept;
 
 private:
-	constexpr Cg(const System&     system,
-	             Terminal&         terminal,
+	constexpr Cg(Terminal&         terminal,
 	             Allocator&        allocator,
 	             LLVM&             llvm,
 	             ScratchAllocator* scratch,
@@ -177,9 +172,7 @@ private:
 	             ModuleRef         module,
 	             CgTypeCache&&     types,
 	             Diagnostic&       diagnostic) noexcept
-		: system{system}
-		, terminal{terminal}
-		, allocator{allocator}
+		: allocator{allocator}
 		, llvm{llvm}
 		, scratch{scratch}
 		, context{context}
@@ -192,10 +185,14 @@ private:
 		, typedefs{allocator}
 		, intrinsics{allocator}
 		, unit{nullptr}
-		, diagnostic{diagnostic}
 		, prefix{}
+		, m_terminal{terminal}
+		, m_diagnostic{diagnostic}
 	{
 	}
+
+	Terminal&   m_terminal;
+	Diagnostic& m_diagnostic;
 };
 
 } // namespace Biron

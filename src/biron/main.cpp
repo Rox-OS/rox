@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		auto cg = Cg::make(sys, terminal, allocator, *llvm, diagnostic);
+		auto cg = Cg::make(terminal, allocator, *llvm, diagnostic);
 		if (!cg) {
 			terminal.err("Could not initialize code generator\n");
 			return 1;

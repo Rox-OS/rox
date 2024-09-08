@@ -64,7 +64,7 @@ let LIMINE_REQUESTS_BEG_MARKER = [4]Uint64 {
 
 @(export(true), section(".requests"))
 let LIMINE_HHDM_REQUEST = LimineHHDMRequest {
-  [4]Uint64 {
+  {
     0xc7b1dd30df4c8b88,
     0x0a82e883a194f07b,
     0x48dcf1cb8ad2b852,
@@ -75,7 +75,7 @@ let LIMINE_HHDM_REQUEST = LimineHHDMRequest {
 
 @(export(true), section(".requests"))
 let LIMINE_STACK_SIZE_REQUEST = LimineStackSizeRequest {
-  [4]Uint64 {
+  {
     0xc7b1dd30df4c8b88,
     0x0a82e883a194f07b,
     0x224ef0460a8e8926,
@@ -88,7 +88,7 @@ let LIMINE_STACK_SIZE_REQUEST = LimineStackSizeRequest {
 
 @(export(true), section(".requests"))
 let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
-  [4]Uint64 {
+  {
     0xc7b1dd30df4c8b88,
     0x0a82e883a194f07b,
     0x9d5827dcd881dd75,

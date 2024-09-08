@@ -59,8 +59,7 @@ CgMachine::~CgMachine() noexcept {
 }
 
 // [Cg]
-Maybe<Cg> Cg::make(const System& system,
-                   Terminal& terminal,
+Maybe<Cg> Cg::make(Terminal& terminal,
                    Allocator& allocator,
                    LLVM& llvm,
                    Diagnostic& diagnostic) noexcept
@@ -87,7 +86,6 @@ Maybe<Cg> Cg::make(const System& system,
 	}
 
 	return Cg {
-		system,
 		terminal,
 		allocator,
 		llvm,
@@ -134,7 +132,7 @@ Bool Cg::verify() noexcept {
 	                      LLVM::VerifierFailureAction::ReturnStatus,
 	                      &error) != 0)
 	{
-		terminal.err("Could not verify module: %s\n", error);
+		m_terminal.err("Could not verify module: %s\n", error);
 		llvm.DisposeMessage(error);
 		return false;
 	}
@@ -154,7 +152,7 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	}
 	auto terminated = name.terminated(*scratch);
 	if (!terminated) {
-		terminal.err("Out of memory\n");
+		m_terminal.err("Out of memory\n");
 		return false;
 	}
 	if (llvm.TargetMachineEmitToFile(machine.ref(),
@@ -163,7 +161,7 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	                                 LLVM::CodeGenFileType::Object,
 	                                 &error) != 0)
 	{
-		terminal.err("Could not compile module '%S': %s\n", name, error);
+		m_terminal.err("Could not compile module '%S': %s\n", name, error);
 		llvm.DisposeMessage(error);
 		return false;
 	}

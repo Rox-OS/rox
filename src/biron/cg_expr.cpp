@@ -913,7 +913,6 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		return CgValue { t, v };
 	}
 
-
 	Maybe<CgValue> lhs;
 	Maybe<CgValue> rhs;
 	auto gen_values = [&]() -> Bool {

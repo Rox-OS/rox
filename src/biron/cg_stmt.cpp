@@ -181,20 +181,18 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 	}
-	if (m_attrs) {
-		for (const auto& attr : *m_attrs) {
-			if (attr->name() == "align") {
-				auto eval = attr->eval(cg);
-				if (!eval || !eval->is_integral()) {
-					cg.error(eval->range(), "Expected integer constant expression in attribute");
-					return false;
-				}
-				cg.llvm.SetAlignment(addr->ref(), *eval->to<Uint64>());
-				break;
-			}
+	if (m_attrs) for (const auto& attr : *m_attrs) {
+		if (attr->name() != "align") {
 			cg.error(range(), "Unknown attribute for 'let'");
 			return false;
 		}
+		auto eval = attr->eval(cg);
+		if (!eval || !eval->is_integral()) {
+			cg.error(eval->range(), "Expected integer constant expression in attribute");
+			return false;
+		}
+		cg.llvm.SetAlignment(addr->ref(), *eval->to<Uint64>());
+		break;
 	}
 	if (!cg.scopes.last().vars.emplace_back(this, m_name, move(*addr))) {
 		return false;
@@ -229,9 +227,6 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 
 	cg.llvm.SetInitializer(dst, src->ref());
 	cg.llvm.SetLinkage(dst, LLVM::Linkage::Private);
-
-	// cg.llvm.SetGlobalConstant(dst, true);
-
 	if (m_attrs) for (auto attr : *m_attrs) {
 		if (attr->name() == "section") {
 			auto eval = attr->eval(cg);

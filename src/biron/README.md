@@ -2,6 +2,14 @@
 
 Biron is an experimental toy systems programming language built for Rox.
 
+## TODO
+* Finish union types
+* Finish modules
+* Implement enum types
+* Implement match keyword
+* Intrinsics
+* Type inference for return values
+
 ## Features
 * Type inference
 * Few keywords: `true false fn if as let for else type defer union break return continue`
@@ -18,7 +26,7 @@ Biron is an experimental toy systems programming language built for Rox.
   * Unions: `T1 | ... | Tn`
   * Non-NUL-terminated UTF-8 string: `String`
 * Structured control flow:
-  * `if` `else` `else if` `for` `break` `continue`
+  * `if` `else` `for` `break` `continue` `defer` `return`
 * Array programming
 * Free-form methods with static multiple-dispatch
 * Designed to run on baremetal

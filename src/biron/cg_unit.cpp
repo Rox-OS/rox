@@ -219,10 +219,15 @@ Bool AstTypedef::codegen(Cg& cg) const noexcept {
 	if (m_generated) {
 		return true;
 	}
-	auto type = m_type->codegen_named(cg, m_name);
+	CgType* type = nullptr;
+	if (m_type->is_type<AstTupleType>()) {
+		type = m_type->codegen_named(cg, m_name);
+	} else {
+		type = m_type->codegen(cg);
+	}
 	if (!type) {
 		return false;
-	}
+	}	
 	if (!cg.typedefs.emplace_back(m_name, type)) {
 		return false;
 	}
