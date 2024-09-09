@@ -115,6 +115,9 @@ Maybe<CgValue> CgValue::at(Cg& cg, Ulen i) const noexcept {
 	if (m_type->is_array()) {
 		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
 		return CgValue { m_type->deref(), value };
+	} else if (m_type->is_tuple()) {
+		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
+		return CgValue { m_type->at(i), value };
 	}
 	return None{};
 }
