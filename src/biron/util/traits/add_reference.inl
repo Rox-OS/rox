@@ -4,7 +4,7 @@
 
 namespace Biron {
 
-template<typename T, auto = is_referencable<T>>
+template<typename T, auto = Referencable<T>>
 struct _AddLValueReference {
 	using Type = T;
 };
@@ -14,7 +14,7 @@ struct _AddLValueReference<T, true> {
 	using Type = T&;
 };
 
-template<typename T, auto = is_referencable<T>>
+template<typename T, auto = Referencable<T>>
 struct _AddRValueReference {
 	using Type = T;
 };

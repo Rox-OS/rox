@@ -1,7 +1,7 @@
 #ifndef BIRON_MAYBE_INL
 #define BIRON_MAYBE_INL
 #include <biron/util/either.inl>
-
+#include <biron/util/traits/is_same.inl>
 namespace Biron {
 
 struct None {};
