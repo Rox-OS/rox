@@ -17,6 +17,19 @@ Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
 	return true;
 }
 
+Bool CgAddr::zero(Cg& cg) const noexcept {
+	auto type = m_type->deref();
+	// When the size is too large generate a call to memset instead
+	if (type->size() > 4096) {
+		auto src = cg.llvm.ConstInt(cg.types.u8()->ref(), 0, false);
+		auto len = cg.llvm.ConstInt(cg.types.u64()->ref(), type->size(), false);
+		cg.llvm.BuildMemSet(cg.builder, m_ref, src, len, type->align());
+		return true;
+	}
+	auto zero = CgValue::zero(type, cg);
+	return store(cg, *zero);
+}
+
 Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 	// Our CgAddr always has a pointer type. When indexing something through 'at'
 	// at runtime we have to be careful because we're not generating an R-value.
@@ -107,8 +120,7 @@ Maybe<CgValue> CgValue::at(Cg& cg, Ulen i) const noexcept {
 }
 
 Maybe<CgValue> CgValue::zero(CgType* type, Cg& cg) noexcept {
-	auto& llvm = cg.llvm;
-	auto value = llvm.ConstNull(type->ref());
+	auto value = cg.llvm.ConstNull(type->ref());
 	return CgValue { type, value };
 }
 

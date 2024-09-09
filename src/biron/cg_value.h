@@ -20,6 +20,7 @@ struct CgAddr {
 
 	Maybe<CgValue> load(Cg& cg) const noexcept;
 	Bool store(Cg& cg, const CgValue& value) const noexcept;
+	Bool zero(Cg& cg) const noexcept;
 
 	[[nodiscard]] constexpr CgType* type() const noexcept { return m_type; }
 	[[nodiscard]] constexpr LLVM::ValueRef ref() const noexcept { return m_ref; }

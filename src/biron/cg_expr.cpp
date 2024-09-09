@@ -125,11 +125,10 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		if (dst_type->is_padding()) {
 			// Emit zeroinitializer for padding.
 			auto padding_addr = addr->at(cg, i);
-			auto padding_zero = CgValue::zero(dst_type, cg);
-			if (!padding_addr || !padding_zero) {
+			if (!padding_addr) {
 				return cg.oom();
 			}
-			if (!padding_addr->store(cg, *padding_zero)) {
+			if (!padding_addr->zero(cg)) {
 				return cg.oom();
 			}
 		} else {
@@ -608,8 +607,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 
 	if (m_exprs.length() == 0) {
 		// No expression so zero initialize it.
-		auto zero = CgValue::zero(addr->type()->deref(), cg);
-		if (!addr->store(cg, *zero)) {
+		if (!addr->zero(cg)) {
 			return cg.oom();
 		}
 		return addr;
@@ -637,8 +635,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		auto dst_type = dst->type()->deref();
 		if (dst_type->is_padding()) {
 			// Write a zeroinitializer into padding at i'th.
-			auto zero = CgValue::zero(dst_type, cg);
-			if (!zero || !dst->store(cg, *zero)) {
+			if (!dst->zero(cg)) {
 				return cg.oom();
 			}
 		} else if (auto expr = m_exprs.at(j++)) {
@@ -656,8 +653,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			}
 		} else {
 			// No expression for that initializer so generate a zeroinitializer
-			auto zero = CgValue::zero(dst_type, cg);
-			if (!zero || !dst->store(cg, *zero)) {
+			if (!dst->zero(cg)) {
 				return cg.oom();
 			}
 		}

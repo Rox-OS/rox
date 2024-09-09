@@ -122,6 +122,7 @@ FN(ValueRef,              BuildXor,                      BuilderRef, ValueRef, V
 FN(ValueRef,              BuildNeg,                      BuilderRef, ValueRef, const char*)
 FN(ValueRef,              BuildFNeg,                     BuilderRef, ValueRef, const char*)
 FN(ValueRef,              BuildNot,                      BuilderRef, ValueRef, const char*)
+FN(ValueRef,              BuildMemSet,                   BuilderRef, ValueRef, ValueRef, ValueRef, unsigned)
 /// Memory
 FN(ValueRef,              BuildAlloca,                   BuilderRef, TypeRef, const char*)
 FN(ValueRef,              BuildLoad2,                    BuilderRef, TypeRef, ValueRef, const char*)
