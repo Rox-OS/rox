@@ -13,6 +13,9 @@ Titan is an experimental kernel written in Biron used for the Rox operating syst
   
 You may read more about Titan [here](src/titan/README.md)
 
+## Community
+You may join the [Rox-OS community](https://discord.gg/NGudVtChHZ) on Discord
+
 ## Building
 To build run `make` from the `src` directory.
 
