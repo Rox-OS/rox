@@ -141,29 +141,35 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 
 	// Construct the entry basic-block, append it to the function and position
 	// the IR builder at the end of the basic-block.
-	auto block = cg.llvm.CreateBasicBlockInContext(cg.context, "entry");
-	cg.llvm.AppendExistingBasicBlock(addr->ref(), block);
-	cg.llvm.PositionBuilderAtEnd(cg.builder, block);
+	auto entry_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "entry");
+	cg.llvm.AppendExistingBasicBlock(addr->ref(), entry_bb);
+	cg.llvm.PositionBuilderAtEnd(cg.builder, entry_bb);
 
-	// On entry to the function we will make a copy of all named parameters and
-	// populate cg.vars with the addresses of those copies.
+	cg.entry = entry_bb;
+
+	// On entry to the function we will allocate storage for all objs and args.
+	struct Arg {
+		CgAddr addr;
+		Ulen   index;
+	};
+
+	Array<Arg> args{*cg.scratch};
 	Ulen i = 0;
-	if (m_selfs) {
-		for (const auto& elem : m_selfs->elems()) {
-			if (auto name = elem.name()) {
-				auto type = elem.type()->codegen(cg);
-				if (!type) {
-					return false;
-				}
-				auto dst = cg.emit_alloca(type);
-				auto src = cg.llvm.GetParam(addr->ref(), i);
-				dst->store(cg, CgValue { type, src });
-				if (!cg.scopes.last().vars.emplace_back(this, *name, move(*dst))) {
-					return false;
-				}
+	if (m_selfs) for (const auto& elem : m_selfs->elems()) {
+		if (auto name = elem.name()) {
+			auto type = elem.type()->codegen(cg);
+			if (!type) {
+				return false;
 			}
-			i++;
+			auto dst = cg.emit_alloca(type);
+			if (!dst || !args.emplace_back(*dst, i)) {
+				return false;
+			}
+			if (!cg.scopes.last().vars.emplace_back(this, *name, move(*dst))) {
+				return false;
+			}
 		}
+		i++;
 	}
 
 	for (const auto& elem : m_args->elems()) {
@@ -173,8 +179,9 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 				return false;
 			}
 			auto dst = cg.emit_alloca(type);
-			auto src = cg.llvm.GetParam(addr->ref(), i);
-			dst->store(cg, CgValue { type, src });
+			if (!dst || !args.emplace_back(*dst, i)) {
+				return false;
+			}
 			if (!cg.scopes.last().vars.emplace_back(this, *name, move(*dst))) {
 				return false;
 			}
@@ -182,6 +189,18 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 		i++;
 	}
 
+	auto join_bb = cg.llvm.CreateBasicBlockInContext(cg.context, "join");
+	cg.llvm.AppendExistingBasicBlock(addr->ref(), join_bb);
+	cg.llvm.PositionBuilderAtEnd(cg.builder, join_bb);
+
+	// Once we have storage allocated for all objs and args we will make a copy of
+	// the function parameters into them inside our join block.
+	for (auto& arg : args) {
+		auto src = cg.llvm.GetParam(addr->ref(), arg.index);
+		arg.addr.store(cg, CgValue { arg.addr.type()->deref(), src });
+	}
+
+	// We can then emit the body.
 	if (!m_body->codegen(cg)) {
 		return false;
 	}
@@ -189,10 +208,28 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	// Obtain the current block we're writing into since it might've moved as
 	// a result of generating the block statement which represents the function
 	// body.
-	block = cg.llvm.GetInsertBlock(cg.builder);
+	auto resume_bb = cg.llvm.GetInsertBlock(cg.builder);
+
+	// The entry block up to this point has been used by emit_alloca to emit all
+	// the allocas. We do it this way because LLVM says allocas should only be
+	// emitted to the entry block for optimization purposes.
+	//
+	// The entry block now needs a terminator though. So emit a branch from the
+	// end of it to the start of our join block which is the true entry block of
+	// the function.
+	//
+	// This block mostly only contains some stores of function arguments to the
+	// alloca copies since the body itself has an implicitly generated block
+	// too.
+	cg.llvm.PositionBuilderAtEnd(cg.builder, entry_bb);
+	cg.llvm.BuildBr(cg.builder, join_bb);
+
+	// We now position the builder back to resume_bb so we can emit an implicit
+	// return statement if any are needed
+	cg.llvm.PositionBuilderAtEnd(cg.builder, resume_bb);
 
 	// When the block doesn't contain a terminator we will need to emit a return.
-	if (!cg.llvm.GetBasicBlockTerminator(block)) {
+	if (!cg.llvm.GetBasicBlockTerminator(resume_bb)) {
 		if (rets->length() == 0) {
 			// The empty tuple () is our void type. We can emit RetVoid.
 			cg.llvm.BuildRetVoid(cg.builder);

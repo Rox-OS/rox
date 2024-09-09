@@ -170,12 +170,18 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 }
 
 Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
-	if (auto value = llvm.BuildAlloca(builder, type->ref(), "")) {
-		// We may have a higher alignment requirement than what Alloca will pick.
-		llvm.SetAlignment(value, type->align());
-		return CgAddr { type->addrof(*this), value };
+	// Emit the alloca at the end of the entry basic block.
+	auto block = llvm.GetInsertBlock(builder);
+	llvm.PositionBuilderAtEnd(builder, entry);
+	auto value = llvm.BuildAlloca(builder, type->ref(), "");
+	// Restore the builder to the current block.
+	llvm.PositionBuilderAtEnd(builder, block);
+	if (!value) {
+		return None{};
 	}
-	return None{};
+	// We may have a higher alignment requirement than what Alloca will pick.
+	llvm.SetAlignment(value, type->align());
+	return CgAddr { type->addrof(*this), value };
 }
 
 Maybe<CgValue> Cg::emit_lt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {

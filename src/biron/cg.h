@@ -124,21 +124,21 @@ struct Cg {
 
 	const char* nameof(StringView name) const noexcept;
 
-	Allocator&        allocator;
-	LLVM&             llvm;
-	ScratchAllocator* scratch;
-	ContextRef        context;
-	BuilderRef        builder;
-	ModuleRef         module;
-	CgTypeCache       types;
-	Array<CgVar>      fns;
-	Array<CgGlobal>   globals;
-	Array<CgScope>    scopes;
-	Array<CgTypeDef>  typedefs;
-	Array<CgVar>      intrinsics;
-	const AstUnit*    unit;
-
-	StringView        prefix;
+	Allocator&          allocator;
+	LLVM&               llvm;
+	ScratchAllocator*   scratch;
+	ContextRef          context;
+	BuilderRef          builder;
+	ModuleRef           module;
+	CgTypeCache         types;
+	Array<CgVar>        fns;
+	Array<CgGlobal>     globals;
+	Array<CgScope>      scopes;
+	Array<CgTypeDef>    typedefs;
+	Array<CgVar>        intrinsics;
+	const AstUnit*      unit;
+	LLVM::BasicBlockRef entry;
+	StringView          prefix;
 
 	constexpr Cg(Cg&& other) noexcept
 		: allocator{other.allocator}
@@ -154,6 +154,7 @@ struct Cg {
 		, typedefs{move(other.typedefs)}
 		, intrinsics{move(other.intrinsics)}
 		, unit{nullptr}
+		, entry{nullptr}
 		, prefix{move(other.prefix)}
 		, m_terminal{other.m_terminal}
 		, m_diagnostic{other.m_diagnostic}
@@ -185,6 +186,7 @@ private:
 		, typedefs{allocator}
 		, intrinsics{allocator}
 		, unit{nullptr}
+		, entry{nullptr}
 		, prefix{}
 		, m_terminal{terminal}
 		, m_diagnostic{diagnostic}
