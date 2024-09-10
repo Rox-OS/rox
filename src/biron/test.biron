@@ -2,6 +2,7 @@ module test;
 
 type Rect = (w: Sint32, h: Sint32, x: Sint32, y: Sint32);
 
+
 fn(self: *Rect) area() -> Sint32 {
   return self.w * self.h;
 }

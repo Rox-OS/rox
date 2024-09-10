@@ -12,8 +12,42 @@ Maybe<CgValue> CgAddr::load(Cg& cg) const noexcept {
 }
 
 Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
-	auto store = cg.llvm.BuildStore(cg.builder, value.ref(), m_ref);
-	cg.llvm.SetAlignment(store, value.type()->align());
+	auto type = value.type();
+	// LLVM says not to generate store of structure or array types if we can avoid
+	// it. This sounds like destructuring is a smarter approach.
+	//
+	// This could be simpler if we just do at(cg, i)->store(cg, value.at(cg, i))
+	// but this would interleave the getelementptr + getvalueptr + store per field
+	// of a tuple or element of the array. We do them all separately so it's easier
+	// for LLVM to optimize and the IR is more readable.
+	if (type->is_tuple() || type->is_array()) {
+		// Generate a bunch of getelementptr
+		Array<Maybe<CgAddr>> dst{*cg.scratch};
+		if (!dst.resize(type->is_tuple() ? type->length() : type->extent())) {
+			cg.oom();
+			return false;
+		}
+		for (Ulen l = dst.length(), i = 0; i < l; i++) {
+			dst[i] = at(cg, i);
+		}
+		// Generate a bunch of extractvalue
+		Array<Maybe<CgValue>> extract{*cg.scratch};
+		if (!extract.resize(dst.length())) {
+			cg.oom();
+			return false;
+		}
+		for (Ulen l = dst.length(), i = 0; i < l; i++) {
+			extract[i] = value.at(cg, i);
+		}
+		// Generate a bunch of store of those extractedvalue into the getelementptr.
+		for (Ulen l = dst.length(), i = 0; i < l; i++) {
+			dst[i]->store(cg, *extract[i]);
+		}
+	} else {
+		// Simple non-aggregate types we can just build a store for.
+		auto store = cg.llvm.BuildStore(cg.builder, value.ref(), m_ref);
+		cg.llvm.SetAlignment(store, value.type()->align());
+	}
 	return true;
 }
 
@@ -115,7 +149,7 @@ Maybe<CgValue> CgValue::at(Cg& cg, Ulen i) const noexcept {
 	if (m_type->is_array()) {
 		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
 		return CgValue { m_type->deref(), value };
-	} else if (m_type->is_tuple()) {
+	} else if (m_type->is_tuple() || m_type->is_string()) {
 		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
 		return CgValue { m_type->at(i), value };
 	}

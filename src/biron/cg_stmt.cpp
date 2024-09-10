@@ -169,16 +169,39 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 	} else {
-		auto value = m_init->gen_value(cg, nullptr);
-		if (!value) {
+		// See if we can generate llvm.memcpy when the rhs is an array or tuple
+		auto type = m_init->gen_type(cg, nullptr);
+		if (!type) {
 			return false;
 		}
-		addr = cg.emit_alloca(value->type());
+		addr = cg.emit_alloca(type);
 		if (!addr) {
 			return false;
 		}
-		if (!addr->store(cg, *value)) {
-			return false;
+		if (type->is_tuple() || type->is_array()) {
+			auto src = m_init->gen_addr(cg, nullptr);
+			if (src) {
+				cg.llvm.BuildMemCpy(cg.builder,
+				                    addr->ref(),
+				                    type->align(),
+				                    src->ref(),
+				                    type->align(),
+				                    cg.llvm.ConstInt(cg.types.u64()->ref(),
+				                                     type->size(),
+				                                     false));
+			} else {
+				// Some cases we cannot generate an address. Those cases we use gen_value
+				// and CgAddr::store. CgAddr::store will extractvalue and perform a series
+				// of stores recursively.
+				goto L_value;
+			}
+		} else {
+L_value:
+			// Otherwise generate a value and store it.
+			auto value = m_init->gen_value(cg, nullptr);
+			if (!value || !addr->store(cg, *value)) {
+				return false;
+			}
 		}
 	}
 	if (m_attrs) for (const auto& attr : *m_attrs) {

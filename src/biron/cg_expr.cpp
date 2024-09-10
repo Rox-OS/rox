@@ -625,16 +625,21 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	}
 
 	// Sequence types (tuples, arrays, etc) we have to step over every index.
-	for (Ulen l = count, i = 0, j = 0; i < l; i++) {
+	Array<CgAddr> addrs{*cg.scratch};
+	for (Ulen l = count, i = 0; i < l; i++) {
 		auto dst = addr->at(cg, i);
-		if (!dst) {
+		if (!dst || !addrs.push_back(*dst)) {
 			return cg.oom();
 		}
+	}
+
+	for (Ulen l = count, i = 0, j = 0; i < l; i++) {
+		auto& dst = addrs[i];
 		// The 'dst' type will always be a pointer so dereference.
-		auto dst_type = dst->type()->deref();
+		auto dst_type = dst.type()->deref();
 		if (dst_type->is_padding()) {
 			// Write a zeroinitializer into padding at i'th.
-			if (!dst->zero(cg)) {
+			if (!dst.zero(cg)) {
 				return cg.oom();
 			}
 		} else if (auto expr = m_exprs.at(j++)) {
@@ -647,12 +652,12 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			if (*value->type() != *dst_type) {
 				return None{};
 			}
-			if (!dst->store(cg, *value)) {
+			if (!dst.store(cg, *value)) {
 				return cg.oom();
 			}
 		} else {
 			// No expression for that initializer so generate a zeroinitializer
-			if (!dst->zero(cg)) {
+			if (!dst.zero(cg)) {
 				return cg.oom();
 			}
 		}

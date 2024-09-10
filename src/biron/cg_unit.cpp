@@ -297,7 +297,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// Register a "printf" function for debugging purposes
 	{
 		Array<CgType*> args{cg.allocator};
-		if (!args.push_back(cg.types.ptr()) || !args.push_back(cg.types.va())) {
+		if (!args.push_back(cg.types.u8()->addrof(cg)) || !args.push_back(cg.types.va())) {
 			return false;
 		}
 		Array<CgType*> rets{cg.allocator};
