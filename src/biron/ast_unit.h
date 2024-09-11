@@ -39,10 +39,10 @@ private:
 
 struct AstFn : AstNode {
 	static inline constexpr auto KIND = Kind::FN;
-	constexpr AstFn(StringView name, AstTupleType* selfs, AstTupleType* args, AstTupleType* rets, AstStmt* body, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstFn(StringView name, AstTupleType* objs, AstTupleType* args, AstTupleType* rets, AstStmt* body, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_name{name}
-		, m_selfs{selfs}
+		, m_objs{objs}
 		, m_args{args}
 		, m_rets{rets}
 		, m_body{body}
@@ -55,17 +55,17 @@ struct AstFn : AstNode {
 	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
 	[[nodiscard]] constexpr const AstTupleType* args() const noexcept { return m_args; }
 private:
-	StringView             m_name;
-	AstTupleType*          m_selfs;
-	AstTupleType*          m_args;
-	AstTupleType*          m_rets;
-	AstStmt*               m_body;
-	Maybe<Array<AstAttr*>> m_attrs;
+	StringView      m_name;
+	AstTupleType*   m_objs;
+	AstTupleType*   m_args;
+	AstTupleType*   m_rets;
+	AstStmt*        m_body;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstTypedef : AstNode {
 	static inline constexpr auto KIND = Kind::TYPE;
-	constexpr AstTypedef(StringView name, AstType* type, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstTypedef(StringView name, AstType* type, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_name{name}
 		, m_type{type}
@@ -76,10 +76,10 @@ struct AstTypedef : AstNode {
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 	StringView name() const noexcept { return m_name; }
 private:
-	StringView             m_name;
-	AstType*               m_type;
-	Maybe<Array<AstAttr*>> m_attrs;
-	mutable Bool           m_generated;
+	StringView      m_name;
+	AstType*        m_type;
+	Array<AstAttr*> m_attrs;
+	mutable Bool    m_generated;
 };
 
 struct AstLetStmt;

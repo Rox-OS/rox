@@ -18,25 +18,22 @@ Bool CgScope::emit_defers(Cg& cg) const noexcept {
 }
 
 Bool AstFn::prepass(Cg& cg) const noexcept {
-	auto rets_t = m_rets->codegen(cg);
-	if (!rets_t) {
+	auto objs = m_objs->codegen(cg);
+	if (!objs) {
 		return false;
 	}
 
-	auto args_t = m_args->codegen(cg);
-	if (!args_t) {
+	auto args = m_args->codegen(cg);
+	if (!args) {
 		return false;
 	}
 
-	CgType* selfs_t = nullptr;
-	if (m_selfs) {
-		selfs_t = m_selfs->codegen(cg);
-		if (!selfs_t) {
-			return false;
-		}
+	auto rets = m_rets->codegen(cg);
+	if (!rets) {
+		return false;
 	}
 
-	auto fn_t = cg.types.make(CgType::FnInfo { selfs_t, args_t, rets_t });
+	auto fn_t = cg.types.make(CgType::FnInfo { objs, args, rets });
 	if (!fn_t) {
 		return false;
 	}
@@ -45,7 +42,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 	// which will typically mangle the name to add the module name.
 	const char* name = nullptr;
 	Bool exported = false;
-	if (m_attrs) for (auto attr : *m_attrs) {
+	for (auto attr : m_attrs) {
 		if (attr->name() == "export") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_bool()) {
@@ -83,7 +80,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		cg.llvm.SetLinkage(fn_v, LLVM::Linkage::Private);
 	}
 
-	if (m_attrs) for (auto attr : *m_attrs) {
+	for (auto attr : m_attrs) {
 		if (attr->name() == "redzone") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_bool()) {
@@ -155,7 +152,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 
 	Array<Arg> args{*cg.scratch};
 	Ulen i = 0;
-	if (m_selfs) for (const auto& elem : m_selfs->elems()) {
+	for (const auto& elem : m_objs->elems()) {
 		if (auto name = elem.name()) {
 			auto type = elem.type()->codegen(cg);
 			if (!type) {
@@ -310,7 +307,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 
-		auto fn_t = cg.types.make(CgType::FnInfo { nullptr, args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
 		if (!fn_t) {
 			return false;
 		}
@@ -329,7 +326,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!args_t || !rets_t) {
 			return false;
 		}
-		auto fn_t = cg.types.make(CgType::FnInfo { nullptr, args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
 		if (!fn_t) {
 			return false;
 		}
@@ -354,7 +351,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!args_t || !rets_t) {
 			return false;
 		}
-		auto fn_t = cg.types.make(CgType::FnInfo { nullptr, args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
 		if (!fn_t) {
 			return false;
 		}
@@ -382,7 +379,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!args_t || !rets_t) {
 			return false;
 		}
-		auto fn_t = cg.types.make(CgType::FnInfo { nullptr, args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
 		if (!fn_t) {
 			return false;
 		}

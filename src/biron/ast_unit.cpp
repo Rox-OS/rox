@@ -6,22 +6,12 @@ namespace Biron {
 
 void AstFn::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.append("fn");
-	if (m_selfs) {
-		m_selfs->dump(builder);
-	}
+	m_objs->dump(builder);
 	builder.append(' ');
 	builder.append(m_name);
-	if (m_args) {
-		m_args->dump(builder);
-	} else {
-		builder.append("()");
-	}
+	m_args->dump(builder);
 	builder.append(" -> ");
-	if (m_rets) {
-		m_rets->dump(builder);
-	} else {
-		builder.append("Unit");
-	}
+	m_rets->dump(builder);
 	m_body->dump(builder, depth);
 }
 

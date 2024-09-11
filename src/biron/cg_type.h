@@ -179,7 +179,7 @@ struct CgType {
 	};
 
 	struct FnInfo {
-		CgType* selfs;
+		CgType* objs;
 		CgType* args;
 		CgType* rets;
 	};

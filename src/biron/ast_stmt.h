@@ -115,7 +115,7 @@ private:
 
 struct AstLetStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::LET;
-	constexpr AstLetStmt(StringView name, AstExpr* init, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstLetStmt(StringView name, AstExpr* init, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstStmt{KIND, range}
 		, m_name{name}
 		, m_init{init}
@@ -127,9 +127,9 @@ struct AstLetStmt : AstStmt {
 	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
 	Bool codegen_global(Cg& cg) const noexcept;
 private:
-	StringView             m_name;
-	AstExpr*               m_init;
-	Maybe<Array<AstAttr*>> m_attrs;
+	StringView      m_name;
+	AstExpr*        m_init;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstForStmt : AstStmt {

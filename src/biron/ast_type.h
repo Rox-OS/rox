@@ -13,6 +13,8 @@ struct CgType;
 struct AstExpr;
 struct AstAttr;
 
+using AttrArray = Array<AstAttr*>;
+
 struct AstType : AstNode {
 	static inline constexpr auto KIND = Kind::TYPE;
 	enum class Kind {
@@ -37,7 +39,7 @@ private:
 
 struct AstIdentType : AstType {
 	static inline constexpr auto KIND = Kind::IDENT;
-	constexpr AstIdentType(StringView ident, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstIdentType(StringView ident, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_ident{ident}
 		, m_attrs{move(attrs)}
@@ -46,13 +48,13 @@ struct AstIdentType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
-	StringView             m_ident;
-	Maybe<Array<AstAttr*>> m_attrs;
+	StringView      m_ident;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstBoolType : AstType {
 	static inline constexpr auto KIND = Kind::BOOL;
-	constexpr AstBoolType(Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstBoolType(Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_attrs{move(attrs)}
 	{
@@ -60,7 +62,7 @@ struct AstBoolType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
-	Maybe<Array<AstAttr*>> m_attrs;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstTupleType : AstType {
@@ -83,7 +85,7 @@ struct AstTupleType : AstType {
 	};
 
 	static inline constexpr auto KIND = Kind::TUPLE;
-	constexpr AstTupleType(Array<Elem>&& elems, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstTupleType(Array<Elem>&& elems, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_elems{move(elems)}
 		, m_attrs{move(attrs)}
@@ -96,13 +98,13 @@ struct AstTupleType : AstType {
 		return m_elems;
 	}
 private:
-	Array<Elem>            m_elems;
-	Maybe<Array<AstAttr*>> m_attrs;
+	Array<Elem>     m_elems;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstUnionType : AstType {
 	static inline constexpr auto KIND = Kind::UNION;
-	constexpr AstUnionType(Array<AstType*>&& types, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstUnionType(Array<AstType*>&& types, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_types{move(types)}
 		, m_attrs{move(attrs)}
@@ -114,13 +116,13 @@ struct AstUnionType : AstType {
 		return m_types;
 	}
 private:
-	Array<AstType*>        m_types;
-	Maybe<Array<AstAttr*>> m_attrs;
+	Array<AstType*> m_types;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstVarArgsType : AstType {
 	static inline constexpr auto KIND = Kind::VARARGS;
-	constexpr AstVarArgsType(Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstVarArgsType(Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_attrs{move(attrs)}
 	{
@@ -128,12 +130,12 @@ struct AstVarArgsType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
-	Maybe<Array<AstAttr*>> m_attrs;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstPtrType : AstType {
 	static inline constexpr auto KIND = Kind::PTR;
-	constexpr AstPtrType(AstType* type, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstPtrType(AstType* type, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_type{type}
 		, m_attrs{move(attrs)}
@@ -142,13 +144,13 @@ struct AstPtrType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
-	AstType*               m_type;
-	Maybe<Array<AstAttr*>> m_attrs;
+	AstType*        m_type;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstArrayType : AstType {
 	static inline constexpr auto KIND = Kind::ARRAY;
-	constexpr AstArrayType(AstType* type, AstExpr* extent, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstArrayType(AstType* type, AstExpr* extent, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_type{type}
 		, m_extent{extent}
@@ -158,14 +160,14 @@ struct AstArrayType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
-	AstType*               m_type;
-	AstExpr*               m_extent;
-	Maybe<Array<AstAttr*>> m_attrs;
+	AstType*        m_type;
+	AstExpr*        m_extent;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstSliceType : AstType {
 	static inline constexpr auto KIND = Kind::SLICE;
-	constexpr AstSliceType(AstType* type, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstSliceType(AstType* type, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_type{type}
 		, m_attrs{move(attrs)}
@@ -174,13 +176,13 @@ struct AstSliceType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
-	AstType*               m_type;
-	Maybe<Array<AstAttr*>> m_attrs;
+	AstType*        m_type;
+	Array<AstAttr*> m_attrs;
 };
 
 struct AstFnType : AstType {
 	static inline constexpr auto KIND = Kind::FN;
-	constexpr AstFnType(AstTupleType* args, AstTupleType* rets, Maybe<Array<AstAttr*>>&& attrs, Range range) noexcept
+	constexpr AstFnType(AstTupleType* args, AstTupleType* rets, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_args{args}
 		, m_rets{rets}
@@ -190,9 +192,9 @@ struct AstFnType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
 private:
-	AstTupleType*          m_args;
-	AstTupleType*          m_rets;
-	Maybe<Array<AstAttr*>> m_attrs;
+	AstTupleType*   m_args;
+	AstTupleType*   m_rets;
+	Array<AstAttr*> m_attrs;
 };
 
 } // namespace Biron

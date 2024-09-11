@@ -204,9 +204,9 @@ L_value:
 			}
 		}
 	}
-	if (m_attrs) for (const auto& attr : *m_attrs) {
+	for (const auto& attr : m_attrs) {
 		if (attr->name() != "align") {
-			cg.error(range(), "Unknown attribute for 'let'");
+			cg.error(range(), "Unknown attribute '%S' for 'let'", attr->name());
 			return false;
 		}
 		auto eval = attr->eval(cg);
@@ -250,7 +250,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 
 	cg.llvm.SetInitializer(dst, src->ref());
 	cg.llvm.SetLinkage(dst, LLVM::Linkage::Private);
-	if (m_attrs) for (auto attr : *m_attrs) {
+	for (auto attr : m_attrs) {
 		if (attr->name() == "section") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_string()) {

@@ -342,7 +342,7 @@ AstExpr* Parser::parse_ident_expr(Bool simple) noexcept {
 	case Token::Kind::LBRACE: // {}
 		if (!simple) {
 			auto name = m_lexer.string(token.range);
-			auto type = new_node<AstIdentType>(name, None{}, token.range);
+			auto type = new_node<AstIdentType>(name, m_allocator, token.range);
 			if (!type) {
 				return nullptr;
 			}
@@ -594,11 +594,12 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 //	::= Type '|' Type ('|' Type)*
 AstType* Parser::parse_type() noexcept {
 	Array<AstType*> types{m_allocator};
-	Maybe<Array<AstAttr*>> attrs;
+	Array<AstAttr*> attrs{m_allocator};
 	for (;;) {
 		if (peek().kind == Token::Kind::AT) {
-			attrs = parse_attrs();
-			if (!attrs) {
+			if (auto at = parse_attrs()) {
+				attrs = move(*at);
+			} else {
 				return nullptr;
 			}
 		}
@@ -649,7 +650,7 @@ AstType* Parser::parse_type() noexcept {
 
 // IdentType
 //	::= Ident
-AstIdentType* Parser::parse_ident_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstIdentType* Parser::parse_ident_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::IDENT) {
 		ERROR("Expected identifier");
 		return nullptr;
@@ -710,14 +711,11 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 			AstType* type = nullptr;
 			if (token) {
 				auto name = m_lexer.string(token->range);
-				type = new_node<AstIdentType>(name, None{}, token->range);
+				type = new_node<AstIdentType>(name, m_allocator, token->range);
 			} else {
 				type = parse_type();
-				if (!type) {
-					return nullptr;
-				}
 			}
-			if (!elems.emplace_back(None{}, type)) {
+			if (!type || !elems.emplace_back(None{}, type)) {
 				ERROR("Out of memory");
 				return nullptr;
 			}
@@ -737,12 +735,14 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 		return nullptr;
 	}
 	auto end_token = next(); // Consume ')'
-	return new_node<AstTupleType>(move(elems), move(attrs), beg_token.range.include(end_token.range));
+	return new_node<AstTupleType>(move(elems),
+	                              attrs ? move(*attrs) : AttrArray{ m_allocator },
+	                              beg_token.range.include(end_token.range));
 }
 
 // VarArgsType
 //	::= '...'
-AstVarArgsType* Parser::parse_varargs_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstVarArgsType* Parser::parse_varargs_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::ELLIPSIS) {
 		ERROR("Expected '...'");
 		return nullptr;
@@ -753,7 +753,7 @@ AstVarArgsType* Parser::parse_varargs_type(Maybe<Array<AstAttr*>>&& attrs) noexc
 
 // PtrType
 //	::= '*' Type
-AstPtrType* Parser::parse_ptr_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstPtrType* Parser::parse_ptr_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::STAR) {
 		ERROR("Expected '*'");
 		return nullptr;
@@ -773,7 +773,7 @@ AstPtrType* Parser::parse_ptr_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 //	::= '[' Expr ']' Type
 // SliceType
 //	::= '[' ']'
-AstType* Parser::parse_bracket_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstType* Parser::parse_bracket_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::LBRACKET) {
 		ERROR("Expected '['");
 		return nullptr;
@@ -806,7 +806,7 @@ AstType* Parser::parse_bracket_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 
 // FnType
 //	::= 'fn' TupleType ('->' TupleType)?
-AstFnType* Parser::parse_fn_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
 		return nullptr;
@@ -829,17 +829,13 @@ AstFnType* Parser::parse_fn_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 			if (!elems.emplace_back(None{}, rets)) {
 				return nullptr;
 			}
-			rets = new_node<AstTupleType>(move(elems), None{}, rets->range());
-			if (!rets) {
-				return nullptr;
-			}
+			rets = new_node<AstTupleType>(move(elems), m_allocator, rets->range());
 		}
 	} else {
-		Array<AstTupleType::Elem> elems{m_allocator};
-		rets = new_node<AstTupleType>(move(elems), None{}, Range{0, 0});
-		if (!rets) {
-			return nullptr;
-		}
+		rets = new_node<AstTupleType>(m_allocator, m_allocator, Range{0, 0});
+	}
+	if (!rets) {
+		return nullptr;
 	}
 	auto range = beg_token.range.include(rets->range());
 	return new_node<AstFnType>(args, static_cast<AstTupleType*>(rets), move(attrs), range);
@@ -880,7 +876,7 @@ AstStmt* Parser::parse_stmt() noexcept {
 			ERROR("Expected 'let' statement");
 			return nullptr;
 		}
-		return parse_let_stmt(move(attrs));
+		return parse_let_stmt(move(*attrs));
 	}
 	default:
 		return parse_expr_stmt(true);
@@ -1010,7 +1006,8 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 	auto beg_token = next(); // Consume 'if'
 	AstLetStmt* init = nullptr;
 	if (peek().kind == Token::Kind::KW_LET) {
-		if (!(init = parse_let_stmt(None{}))) {
+		init = parse_let_stmt(None{});
+		if (!init) {
 			return nullptr;
 		}
 	}
@@ -1077,11 +1074,10 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	}
 	next(); // Consume ';'
 	auto range = beg_token.range.include(init->range());
-	auto node = new_node<AstLetStmt>(name, init, move(attrs), range);
-	if (!node) {
-		return nullptr;
-	}
-	return node;
+	return new_node<AstLetStmt>(name,
+	                            init,
+	                            attrs ? move(*attrs) : AttrArray{m_allocator},
+	                            range);
 }
 
 // Module
@@ -1233,17 +1229,22 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 
 // Fn
 //	::= 'fn' Ident TupleType ('->' Type)? BlockStmt
-AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
 		return nullptr;
 	}
 	auto beg_token = next(); // Consume 'fn'
-	AstTupleType* selfs = nullptr;
+	AstTupleType* objs = nullptr;
 	if (peek().kind == Token::Kind::LPAREN) {
-		if (!(selfs = parse_tuple_type(None{}))) {
-			return nullptr;
-		}
+		objs = parse_tuple_type(None{});
+	} else {
+		// When there are no objs we use the "empty tuple"
+		objs = new_node<AstTupleType>(m_allocator, m_allocator, Range{0, 0});
+	}
+	if (!objs) {
+		ERROR("Could not parse objects");
+		return nullptr;
 	}
 	if (peek().kind != Token::Kind::IDENT) {
 		ERROR("Expected name for 'fn'");
@@ -1254,7 +1255,7 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 
 	auto args = parse_tuple_type(None{});
 	if (!args) {
-		ERROR("Could not parse argument list");
+		ERROR("Could not parse arguments");
 		return nullptr;
 	}
 
@@ -1264,10 +1265,10 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		rets = parse_type();
 	} else {
 		// When there are no return types we return the "empty tuple"
-		rets = new_node<AstTupleType>(m_allocator, None{}, Range{0, 0});
+		rets = new_node<AstTupleType>(m_allocator, m_allocator, Range{0, 0});
 	}
 	if (!rets) {
-		ERROR("Could not parse result list");
+		ERROR("Could not parse returns");
 		return nullptr;
 	}
 
@@ -1279,7 +1280,7 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 			ERROR("Out of memory");
 			return nullptr;
 		}
-		rets = new_node<AstTupleType>(move(elems), None{}, rets->range());
+		rets = new_node<AstTupleType>(move(elems), m_allocator, rets->range());
 	}
 
 	AstBlockStmt* body = parse_block_stmt();
@@ -1287,7 +1288,7 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 		return nullptr;
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstFn>(name, selfs, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
+	auto node = new_node<AstFn>(name, objs, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
 	if (!node) {
 		ERROR("Out of memory");
 		return nullptr;
@@ -1298,7 +1299,7 @@ AstFn* Parser::parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 
 // Typedef
 //	::= 'type' Ident '=' Type ';'
-AstTypedef* Parser::parse_typedef(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstTypedef* Parser::parse_typedef(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_TYPE) {
 		ERROR("Expected type");
 		return nullptr;
@@ -1387,11 +1388,12 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 
 Maybe<AstUnit> Parser::parse() noexcept {
 	AstUnit unit{m_allocator};
-	Maybe<Array<AstAttr*>> attrs;
+	Array<AstAttr*> attrs{m_allocator};
 	for (;;) switch (peek().kind) {
 	case Token::Kind::AT:
-		attrs = parse_attrs();
-		if (!attrs) {
+		if (auto at = parse_attrs()) {
+			attrs = move(*at);
+		} else {
 			return None{};
 		}
 		break;

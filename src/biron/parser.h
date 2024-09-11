@@ -64,10 +64,10 @@ struct Parser {
 	// Types
 	[[nodiscard]] AstType*         parse_type() noexcept;
 	[[nodiscard]] AstTupleType*    parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstIdentType*    parse_ident_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstVarArgsType*  parse_varargs_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstPtrType*      parse_ptr_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstFnType*       parse_fn_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstIdentType*    parse_ident_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstVarArgsType*  parse_varargs_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstPtrType*      parse_ptr_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstFnType*       parse_fn_type(Array<AstAttr*>&& attrs) noexcept;
 
 	// Statements
 	[[nodiscard]] AstStmt*         parse_stmt() noexcept;
@@ -82,11 +82,11 @@ struct Parser {
 	[[nodiscard]] AstStmt*         parse_expr_stmt(Bool semi) noexcept;
 
 	// Attributes
-	[[nodiscard]] Maybe<Array<AstAttr*>> parse_attrs() noexcept;
+	[[nodiscard]] Maybe<Array<AstAttr*>>  parse_attrs() noexcept;
 
 	// Top-level elements
-	[[nodiscard]] AstFn*           parse_fn(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstTypedef*      parse_typedef(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstFn*           parse_fn(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstTypedef*      parse_typedef(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstModule*       parse_module() noexcept;
 	[[nodiscard]] AstImport*       parse_import() noexcept;
 
@@ -110,7 +110,7 @@ private:
 	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
 	[[nodiscard]] AstExpr* parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexcept;
-	[[nodiscard]] AstType* parse_bracket_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstType* parse_bracket_type(Array<AstAttr*>&& attrs) noexcept;
 	Token next() noexcept {
 		m_last_token = m_this_token;
 		if (m_peek_token) {

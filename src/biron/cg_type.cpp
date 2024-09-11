@@ -139,16 +139,16 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		{
 			Bool f;
 			builder.append("fn");
-			if (at(0)) {
+			if (at(0)->length()) {
 				builder.append('(');
-				// selfs
-				const auto& selfs = at(0)->types();
+				// objs
+				const auto& objs = at(0)->types();
 				f = true;
-				for (const auto& self : selfs) {
+				for (const auto& obj : objs) {
 					if (!f) {
 						builder.append(", ");
 					}
-					self->dump(builder);
+					obj->dump(builder);
 					f = false;
 				}
 				builder.append(')');
@@ -359,7 +359,7 @@ CgType* AstFnType::codegen(Cg& cg) const noexcept {
 	if (!rets) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::FnInfo { nullptr, args, rets });
+	return cg.types.make(CgType::FnInfo { cg.types.unit(), args, rets });
 }
 
 CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
@@ -746,27 +746,25 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	if (!types.resize(3)) {
 		return nullptr;
 	}
-	types[0] = info.selfs;
+	types[0] = info.objs;
 	types[1] = info.args;
 	types[2] = info.rets;
 	ScratchAllocator scratch{m_cache.allocator()};
 	Array<LLVM::TypeRef> args{scratch};
 	Bool has_va = false;
 
-	// Emit all self arguments first
-	if (info.selfs) {
-		for (Ulen l = info.selfs->length(), i = 0; i < l; i++) {
-			auto arg = info.selfs->at(i);
-			if (arg->is_padding()) {
-				continue;
-			}
-			if (!args.push_back(arg->ref())) {
-				return nullptr;
-			}
+	// Emit all objs arguments first
+	for (Ulen l = info.objs->length(), i = 0; i < l; i++) {
+		auto arg = info.objs->at(i);
+		if (arg->is_padding()) {
+			continue;
+		}
+		if (!args.push_back(arg->ref())) {
+			return nullptr;
 		}
 	}
 
-	// Then emit the non-selfs after
+	// Then emit the non-objs after
 	for (Ulen l = info.args->length(), i = 0; i < l; i++) {
 		auto arg = info.args->at(i);
 		if (arg->is_padding()) {

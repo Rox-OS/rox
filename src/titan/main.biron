@@ -237,7 +237,7 @@ let FONT = [128][8]Uint8 {
 
 @(export(true))
 fn memset(dst: *Uint8, value: Uint32, num: Uint64) {
-  let ch  = (value & 0xff_u32) as Uint8;
+  let ch = (value & 0xff_u32) as Uint8;
   for let i = 0_u64; i < num; i += 1 {
     dst[i] = ch;
   }

@@ -204,10 +204,10 @@ CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 }
 
 Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
-	return gen_value(None{}, cg);
+	return gen_value(*cg.scratch, cg);
 }
 
-Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& cg) const noexcept {
+Maybe<CgValue> AstCallExpr::gen_value(const Array<CgValue>& prepend, Cg& cg) const noexcept {
 	auto callee = m_callee->gen_addr(cg, nullptr);
 	if (!callee) {
 		return None{};
@@ -225,19 +225,13 @@ Maybe<CgValue> AstCallExpr::gen_value(const Maybe<Array<CgValue>>& prepend, Cg& 
 	auto expected = callee->type()->deref()->at(1);
 
 	Array<LLVM::ValueRef> values{*cg.scratch};
-	Ulen reserve = 0;
-	if (prepend) {
-		reserve += prepend->length();
-	}
-	reserve += m_args->length();
+	auto reserve = prepend.length() + m_args->length();
 	if (!values.reserve(reserve)) {
 		return cg.oom();
 	}
-	if (prepend) {
-		for (auto value : *prepend) {
-			if (!values.push_back(value.ref())) {
-				return cg.oom();
-			}
+	for (auto value : prepend) {
+		if (!values.push_back(value.ref())) {
+			return cg.oom();
 		}
 	}
 	Ulen k = 0;

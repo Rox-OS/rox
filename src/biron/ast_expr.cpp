@@ -16,11 +16,7 @@ void AstTupleExpr::dump(StringBuilder& builder) const noexcept {
 
 void AstCallExpr::dump(StringBuilder& builder) const noexcept {
 	m_callee->dump(builder);
-	if (m_args) {
-		m_args->dump(builder);
-	} else {
-		builder.append("()");
-	}
+	m_args->dump(builder);
 }
 
 void AstTypeExpr::dump(StringBuilder& builder) const noexcept {
