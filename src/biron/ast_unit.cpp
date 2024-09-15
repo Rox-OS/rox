@@ -10,7 +10,20 @@ void AstFn::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.append(' ');
 	builder.append(m_name);
 	m_args->dump(builder);
-	builder.append(" -> ");
+	if (m_effects.length()) {
+		builder.append(' ');
+		builder.append('<');
+		Bool f = true;
+		for (auto effect : m_effects) {
+			effect->dump(builder);
+			if (!f) builder.append(", ");
+			f = false;
+		}
+		builder.append('>');
+	}
+	builder.append(' ');
+	builder.append("->");
+	builder.append(' ');
 	m_rets->dump(builder);
 	m_body->dump(builder, depth);
 }

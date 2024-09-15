@@ -229,9 +229,11 @@ Token Lexer::read() noexcept {
 				else if (ident == "defer")    return {Kind::KW_DEFER,    {n, 5}};
 				else if (ident == "false")    return {Kind::KW_FALSE,    {n, 5}};
 				else if (ident == "break")    return {Kind::KW_BREAK,    {n, 5}};
+				else if (ident == "using")    return {Kind::KW_USING,    {n, 5}};
 				break;
 			case 6:
 				/**/ if (ident == "return")   return {Kind::KW_RETURN,   {n, 6}};
+				else if (ident == "effect")   return {Kind::KW_EFFECT,   {n, 6}};
 				else if (ident == "module")   return {Kind::KW_MODULE,   {n, 6}};
 				else if (ident == "import")   return {Kind::KW_IMPORT,   {n, 6}};
 				break;

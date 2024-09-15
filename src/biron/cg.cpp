@@ -134,7 +134,7 @@ Bool Cg::verify() noexcept {
 	{
 		m_terminal.err("Could not verify module: %s\n", error);
 		llvm.DisposeMessage(error);
-		return false;
+		return dump();
 	}
 	llvm.DisposeMessage(error);
 	return true;
@@ -382,6 +382,33 @@ const char* Cg::nameof(StringView name) const noexcept {
 	}
 	dst[prefix.length() + 1 + name.length()] = '\0';
 	return dst;
+}
+
+Maybe<CgVar> Cg::lookup_let(StringView name) const noexcept {
+	for (Ulen l =	scopes.length(), i = l - 1; i < l; i--) {
+		if (auto find = scopes[i].lookup_let(name)) {
+			return find;
+		}
+	}
+	return None{};
+}
+
+Maybe<CgVar> Cg::lookup_using(StringView name) const noexcept {
+	for (Ulen l =	scopes.length(), i = l - 1; i < l; i--) {
+		if (auto find = scopes[i].lookup_using(name)) {
+			return find;
+		}
+	}
+	return None{};
+}
+
+Maybe<CgVar> Cg::lookup_fn(StringView name) const noexcept {
+	for (const auto& fn : fns) {
+		if (fn.name() == name) {
+			return fn;
+		}
+	}
+	return None{};
 }
 
 Maybe<CgAddr> Cg::intrinsic(StringView name) const noexcept {

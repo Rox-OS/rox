@@ -300,6 +300,25 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	return true;
 }
 
+Bool AstUsingStmt::codegen(Cg& cg) const noexcept {
+	auto type = m_init->gen_type(cg, nullptr);
+	if (!type) {
+		return false;
+	}
+	auto addr = cg.emit_alloca(type);
+	if (!addr) {
+		return false;
+	}
+	auto value = m_init->gen_value(cg, nullptr);
+	if (!value || !addr->store(cg, *value)) {
+		return false;
+	}
+	if (!cg.scopes.last().usings.emplace_back(this, m_name, move(*addr))) {
+		return false;
+	}
+	return true;
+}
+
 Bool AstExprStmt::codegen(Cg& cg) const noexcept {
 	if (m_expr->is_expr<AstTupleExpr>()) {
 		auto expr = static_cast<const AstTupleExpr*>(m_expr);
@@ -326,8 +345,8 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 		auto src_type_string = src->type()->to_string(*cg.scratch);
 		cg.error(range(),
 		         "Cannot assign an rvalue of type '%S' to an lvalue of type '%S'",
-		         dst_type_string,
-		         src_type_string);
+		         src_type_string,
+		         dst_type_string);
 		return false;
 	}
 

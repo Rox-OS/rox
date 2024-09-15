@@ -47,6 +47,7 @@ struct AstIdentType : AstType {
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg) const noexcept override;
+	[[nodiscard]] constexpr StringView name() const noexcept { return m_ident; }
 private:
 	StringView      m_ident;
 	Array<AstAttr*> m_attrs;

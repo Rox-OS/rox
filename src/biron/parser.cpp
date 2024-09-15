@@ -46,6 +46,21 @@ AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
 	return new_node<AstIndexExpr>(operand, index, range);
 }
 
+// CallExpr
+//	::= Expr TupleExpr
+AstExpr* Parser::parse_call_expr(AstExpr* operand) noexcept {
+	auto args = parse_tuple_expr();
+	if (!args) {
+		return nullptr;
+	}
+	auto range = operand->range().include(args->range());
+	Bool is_c = false;
+	if (operand->is_expr<AstVarExpr>()) {
+		is_c = static_cast<const AstVarExpr*>(operand)->name() == "printf";
+	}
+	return new_node<AstCallExpr>(operand, args, is_c, range);
+}
+
 AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexcept {
 	using Op = AstBinExpr::Op;
 	for (;;) {
@@ -105,12 +120,18 @@ AstExpr* Parser::parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexc
 }
 
 // PostfixExpr
-//	::= PrimaryExpr IndexExpr
-//	  | PrimaryExpr DotExpr PrimaryExpr
+//	::= PrimaryExpr '[' Expr ']'
+//	  | PrimaryExpr '.' PrimaryExpr
+//	  | PrimaryExpr TupleExpr
 AstExpr* Parser::parse_postfix_expr(Bool simple) noexcept {
 	auto operand = parse_primary_expr(simple);
 	if (!operand) {
 		return nullptr;
+	}
+	// We can have a single '!' when referencing an effect.
+	if (peek().kind == Token::Kind::NOT) {
+		auto token = next(); // Consume '!'
+		operand = new_node<AstEffExpr>(operand, operand->range().include(token.range));
 	}
 	for (;;) {
 		switch (peek().kind) {
@@ -127,6 +148,11 @@ AstExpr* Parser::parse_postfix_expr(Bool simple) noexcept {
 			break;
 		case Token::Kind::LBRACKET:
 			if (!(operand = parse_index_expr(operand))) {
+				return nullptr;
+			}
+			break;
+		case Token::Kind::LPAREN:
+			if (!(operand = parse_call_expr(operand))) {
 				return nullptr;
 			}
 			break;
@@ -316,10 +342,11 @@ AstExpr* Parser::parse_type_expr() noexcept {
 }
 
 // IdentExpr
-//	::= CallExpr
-//    | AggExpr
+//	::= AggExpr
+//	  | VarExpr
+//	  | EffExpr
 // CallExpr
-//	::= Ident TupleExpr?
+//	::= IdentExpr TupleExpr
 AstExpr* Parser::parse_ident_expr(Bool simple) noexcept {
 	if (peek().kind != Token::Kind::IDENT) {
 		ERROR("Expected identifier");
@@ -328,17 +355,6 @@ AstExpr* Parser::parse_ident_expr(Bool simple) noexcept {
 
 	auto token = next(); // Consume ident
 	switch (peek().kind) {
-	case Token::Kind::LPAREN: // ()
-		{
-			auto args = parse_tuple_expr();
-			if (!args) {
-				return nullptr;
-			}
-			auto name = m_lexer.string(token.range);
-			auto expr = new_node<AstVarExpr>(name, token.range);
-			return new_node<AstCallExpr>(expr, args, name == "printf", token.range.include(args->range()));
-		}
-		break;
 	case Token::Kind::LBRACE: // {}
 		if (!simple) {
 			auto name = m_lexer.string(token.range);
@@ -805,7 +821,7 @@ AstType* Parser::parse_bracket_type(Array<AstAttr*>&& attrs) noexcept {
 }
 
 // FnType
-//	::= 'fn' TupleType ('->' TupleType)?
+//	::= 'fn' TupleType? TupleType ('->' TupleType)?
 AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
@@ -847,6 +863,7 @@ AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 //	  | DeferStmt
 //	  | IfStmt
 //	  | LetStmt
+//	  | UsingStmt
 //	  | ExprStmt
 //	  | ForStmt
 AstStmt* Parser::parse_stmt() noexcept {
@@ -865,6 +882,8 @@ AstStmt* Parser::parse_stmt() noexcept {
 		return parse_if_stmt();
 	case Token::Kind::KW_LET:
 		return parse_let_stmt(None{});
+	case Token::Kind::KW_USING:
+		return parse_using_stmt();
 	case Token::Kind::KW_FOR:
 		return parse_for_stmt();
 	case Token::Kind::AT: {
@@ -965,7 +984,7 @@ AstDeferStmt* Parser::parse_defer_stmt() noexcept {
 }
 
 // BreakStmt
-//	::= 'break'
+//	::= 'break' ';'
 AstBreakStmt* Parser::parse_break_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_BREAK) {
 		ERROR("Expected 'break'");
@@ -981,7 +1000,7 @@ AstBreakStmt* Parser::parse_break_stmt() noexcept {
 }
 
 // ContinueStmt
-//	::= 'continue'
+//	::= 'continue' ';'
 AstContinueStmt* Parser::parse_continue_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_CONTINUE) {
 		ERROR("Expected 'continue'");
@@ -1012,6 +1031,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 		}
 	}
 	// When inside an 'if' statement we do not parse any expression. We only parse
+	// "simple" expressions, hence the true here.
 	auto expr = parse_expr(true);
 	if (!expr) {
 		return nullptr;
@@ -1045,7 +1065,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 }
 
 // LetStmt
-//	::= 'let' Ident ('=' Expr)? ';'
+//	::= 'let' Ident '=' Expr ';'
 AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_LET) {
 		ERROR("Expected 'let'");
@@ -1053,23 +1073,22 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	}
 	auto beg_token = next(); // Consume 'let'
 	if (peek().kind != Token::Kind::IDENT) {
-		ERROR("Expected identifier for 'let' declaration");
+		ERROR("Expected identifier after 'let'");
 		return nullptr;
 	}
-	auto token = next();
+	auto token = next(); // Consume Ident
 	auto name = m_lexer.string(token.range);
-	AstExpr* init = nullptr;
 	if (peek().kind != Token::Kind::EQ) {
 		ERROR("Expected expression");
 		return nullptr;
 	}
 	next(); // Consume '='
-	init = parse_expr(false);
+	auto init = parse_expr(false);
 	if (!init) {
 		return nullptr;
 	}
 	if (peek().kind != Token::Kind::SEMI) {
-		ERROR("Expected ';' after let statement");
+		ERROR("Expected ';' after 'let' statement");
 		return nullptr;
 	}
 	next(); // Consume ';'
@@ -1080,8 +1099,40 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	                            range);
 }
 
+// UsingStmt
+//	::= 'using' Ident '=' Expr ';'
+AstUsingStmt* Parser::parse_using_stmt() noexcept {
+	if (peek().kind != Token::Kind::KW_USING) {
+		ERROR("Expected 'using'");
+		return nullptr;
+	}
+	auto using_token = next(); // Consume 'using'
+	if (peek().kind != Token::Kind::IDENT) {
+		ERROR("Expected identifier after 'using'");
+		return nullptr;
+	}
+	auto token = next(); // Consume Ident
+	auto name = m_lexer.string(token.range);
+	if (peek().kind != Token::Kind::EQ) {
+		ERROR("Expected expression");
+		return nullptr;
+	}
+	next(); // Consume '='
+	auto init = parse_expr(false);
+	if (!init) {
+		return nullptr;
+	}
+	if (peek().kind != Token::Kind::SEMI) {
+		ERROR("Expected ';' after 'using' statement");
+		return nullptr;
+	}
+	next(); // Consume ';'
+	auto range = using_token.range.include(init->range());
+	return new_node<AstUsingStmt>(name, init, range);
+}
+
 // Module
-//	::= 'module' Ident
+//	::= 'module' Ident ';'
 AstModule* Parser::parse_module() noexcept {
 	if (peek().kind != Token::Kind::KW_MODULE) {
 		ERROR("Expected 'module'");
@@ -1104,7 +1155,7 @@ AstModule* Parser::parse_module() noexcept {
 }
 
 // Import
-//	::= 'import' Ident
+//	::= 'import' Ident ';'
 AstImport* Parser::parse_import() noexcept {
 	if (peek().kind != Token::Kind::KW_MODULE) {
 		ERROR("Expected 'import'");
@@ -1126,9 +1177,43 @@ AstImport* Parser::parse_import() noexcept {
 	return new_node<AstImport>(ident_string, range);
 }
 
+// Effect
+//	::= 'effect' Ident '=' Type ';'
+AstEffect* Parser::parse_effect() noexcept {
+	if (peek().kind != Token::Kind::KW_EFFECT) {
+		ERROR("Expected 'effect'");
+		return nullptr;
+	}
+	auto effect_token = next(); // Consume 'effect'
+	auto range = effect_token.range;
+	if (peek().kind != Token::Kind::IDENT) {
+		ERROR("Expected identifier after 'effect'");
+		return nullptr;
+	}
+	auto ident_token = next(); // Consume ident
+	range = range.include(ident_token.range);
+	if (peek().kind != Token::Kind::EQ) {
+		ERROR("Expected '='");
+		return nullptr;
+	}
+	next(); // Consume '='
+	auto type = parse_type();
+	if (!type) {
+		return nullptr;
+	}
+	range = range.include(type->range());
+	if (peek().kind != Token::Kind::SEMI) {
+		ERROR("Expected ';'");
+		return nullptr;
+	}
+	next(); // Consume ';'
+	auto ident_string = m_lexer.string(ident_token.range);
+	return new_node<AstEffect>(ident_string, type, range);
+}
+
 // ForStmt
 //	::= 'for' BlockStmt
-//	  | 'for' LetStmt? Expr BlockStmt
+//	  | 'for' LetStmt? Expr BlockStmt ('else' BlockStmt)?
 AstForStmt* Parser::parse_for_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_FOR) {
 		ERROR("Expected 'for'");
@@ -1228,7 +1313,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 }
 
 // Fn
-//	::= 'fn' Ident TupleType ('->' Type)? BlockStmt
+//	::= 'fn' Ident TupleType ('<' Ident (',' Ident)* '>')? ('->' Type)? BlockStmt
 AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
@@ -1260,6 +1345,27 @@ AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 	}
 
 	AstType* rets = nullptr;
+	Array<AstIdentType*> effects{m_allocator};
+	if (peek().kind == Token::Kind::LT) {
+		next(); // Consume '<'
+		while (peek().kind != Token::Kind::GT) {
+			auto type = parse_ident_type({m_allocator});
+			if (!type || !effects.push_back(type)) {
+				return nullptr;
+			}
+			if (peek().kind == Token::Kind::COMMA) {
+				next(); // Consume ','
+			} else {
+				break;
+			}
+		}
+		if (peek().kind != Token::Kind::GT) {
+			ERROR("Expected '>'");
+			return nullptr;
+		}
+		next(); // Consume '>'
+	}
+
 	if (peek().kind == Token::Kind::ARROW) {
 		next(); // Consume '->'
 		rets = parse_type();
@@ -1288,7 +1394,7 @@ AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 		return nullptr;
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstFn>(name, objs, args, static_cast<AstTupleType*>(rets), body, move(attrs), range);
+	auto node = new_node<AstFn>(name, objs, args, move(effects), static_cast<AstTupleType*>(rets), body, move(attrs), range);
 	if (!node) {
 		ERROR("Out of memory");
 		return nullptr;
@@ -1329,6 +1435,10 @@ AstTypedef* Parser::parse_typedef(Array<AstAttr*>&& attrs) noexcept {
 	return new_node<AstTypedef>(name, type, move(attrs), range);
 }
 
+// AttrList
+//	::= '@' '(' Attr (',' Attr)* ')'
+// Attr
+//	::= Ident TupleExpr
 Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 	if (peek().kind != Token::Kind::AT) {
 		ERROR("Expected @");
@@ -1417,7 +1527,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		// We allow top-level constant declarations
 		if (auto let = parse_let_stmt(move(attrs))) {
 			if (!unit.add_let(let)) {
-				ERROR("out of memory");
+				ERROR("Out of memory");
 				return None{};
 			}
 		}
@@ -1434,6 +1544,14 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		if (auto import = parse_import()) {
 			if (!unit.add_import(import)) {
 				ERROR("Duplicate 'import' in file");
+				return None{};
+			}
+		}
+		break;
+	case Token::Kind::KW_EFFECT:
+		if (auto effect = parse_effect()) {
+			if (!unit.add_effect(effect)) {
+				ERROR("Out of memory");
 				return None{};
 			}
 		}

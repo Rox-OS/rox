@@ -5,6 +5,9 @@ namespace Biron {
 
 // CgAddr
 Maybe<CgValue> CgAddr::load(Cg& cg) const noexcept {
+	if (m_type->deref()->is_fn()) {
+		return to_value();
+	}
 	auto type = m_type->deref();
 	auto load = cg.llvm.BuildLoad2(cg.builder, type->ref(), m_ref, "");
 	cg.llvm.SetAlignment(load, type->align());

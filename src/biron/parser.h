@@ -36,6 +36,7 @@ struct AstBreakStmt;
 struct AstContinueStmt;
 struct AstIfStmt;
 struct AstLetStmt;
+struct AstUsingStmt;
 struct AstForStmt;
 struct AstExprStmt;
 struct AstAssignStmt;
@@ -78,6 +79,7 @@ struct Parser {
 	[[nodiscard]] AstContinueStmt* parse_continue_stmt() noexcept;
 	[[nodiscard]] AstIfStmt*       parse_if_stmt() noexcept;
 	[[nodiscard]] AstLetStmt*      parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstUsingStmt*    parse_using_stmt() noexcept;
 	[[nodiscard]] AstForStmt*      parse_for_stmt() noexcept;
 	[[nodiscard]] AstStmt*         parse_expr_stmt(Bool semi) noexcept;
 
@@ -89,6 +91,7 @@ struct Parser {
 	[[nodiscard]] AstTypedef*      parse_typedef(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstModule*       parse_module() noexcept;
 	[[nodiscard]] AstImport*       parse_import() noexcept;
+	[[nodiscard]] AstEffect*       parse_effect() noexcept;
 
 	Maybe<AstUnit> parse() noexcept;
 
@@ -109,6 +112,7 @@ private:
 	[[nodiscard]] AstExpr* parse_agg_expr(AstExpr* type) noexcept;
 	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
+	[[nodiscard]] AstExpr* parse_call_expr(AstExpr* operand) noexcept;
 	[[nodiscard]] AstExpr* parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexcept;
 	[[nodiscard]] AstType* parse_bracket_type(Array<AstAttr*>&& attrs) noexcept;
 	Token next() noexcept {

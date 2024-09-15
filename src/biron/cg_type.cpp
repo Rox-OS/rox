@@ -166,7 +166,7 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 			builder.append(')');
 			builder.append(" -> ");
 			builder.append('(');
-			const auto& rets = at(2)->types();
+			const auto& rets = at(3)->types();
 			f = true;
 			for (const auto& ret : rets) {
 				if (!f) {
@@ -307,7 +307,7 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 			}
 		}
 	}
-	cg.error(range(), "Undeclared type '%S'", m_ident);
+	cg.error(range(), "Undeclared entity '%S'", m_ident, range().length);
 	return nullptr;
 }
 
@@ -359,7 +359,7 @@ CgType* AstFnType::codegen(Cg& cg) const noexcept {
 	if (!rets) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::FnInfo { cg.types.unit(), args, rets });
+	return cg.types.make(CgType::FnInfo { cg.types.unit(), args, cg.types.unit(), rets });
 }
 
 CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
@@ -743,15 +743,24 @@ CgType* CgTypeCache::make(CgType::PaddingInfo info) noexcept {
 
 CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	Array<CgType*> types{m_cache.allocator()};
-	if (!types.resize(3)) {
+	if (!types.resize(4)) {
 		return nullptr;
 	}
 	types[0] = info.objs;
 	types[1] = info.args;
-	types[2] = info.rets;
+	types[2] = info.effects;
+	types[3] = info.rets;
 	ScratchAllocator scratch{m_cache.allocator()};
 	Array<LLVM::TypeRef> args{scratch};
 	Bool has_va = false;
+
+	// The first argument will be a pointer to the tuple.
+	if (info.effects != unit()) {
+		auto type = make(CgType::PtrInfo { { 8, 8 }, types[2] });
+		if (!args.push_back(type->ref())) {
+			return nullptr;
+		}
+	}
 
 	// Emit all objs arguments first
 	for (Ulen l = info.objs->length(), i = 0; i < l; i++) {
@@ -779,7 +788,7 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 		}
 	}
 
-	auto rets = info.rets ? info.rets : unit();
+	auto rets = info.rets;
 	if (rets->length() == 1) {
 		rets = rets->at(0);
 	}

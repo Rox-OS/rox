@@ -25,12 +25,35 @@ struct Loop {
 
 struct CgScope {
 	constexpr CgScope(Allocator& allocator) noexcept
-		: vars{allocator}, defers{allocator}
+		: vars{allocator}, defers{allocator}, usings{allocator}
 	{
 	}
+
 	Bool emit_defers(Cg& cg) const noexcept;
+
+	Maybe<CgVar> lookup_let(StringView name) const noexcept {
+		for (Ulen l = vars.length(), i = l - 1; i < l; i--) {
+			const auto& var = vars[i];
+			if (var.name() == name) {
+				return var;
+			}
+		}
+		return None{};
+	}
+
+	Maybe<CgVar> lookup_using(StringView name) const noexcept {
+		for (Ulen l = usings.length(), i = l - 1; i < l; i--) {
+			const auto& u = usings[i];
+			if (u.name() == name) {
+				return u;
+			}
+		}
+		return None{};
+	}
+
 	Array<CgVar>    vars;
 	Array<AstStmt*> defers;
+	Array<CgVar>    usings;
 	Maybe<Loop>     loop;
 };
 
@@ -124,6 +147,10 @@ struct Cg {
 
 	const char* nameof(StringView name) const noexcept;
 
+	Maybe<CgVar> lookup_let(StringView name) const noexcept;
+	Maybe<CgVar> lookup_using(StringView name) const noexcept;
+	Maybe<CgVar> lookup_fn(StringView name) const noexcept;
+
 	Allocator&          allocator;
 	LLVM&               llvm;
 	ScratchAllocator*   scratch;
@@ -135,6 +162,7 @@ struct Cg {
 	Array<CgGlobal>     globals;
 	Array<CgScope>      scopes;
 	Array<CgTypeDef>    typedefs;
+	Array<CgTypeDef>    effects;
 	Array<CgVar>        intrinsics;
 	const AstUnit*      unit;
 	LLVM::BasicBlockRef entry;
@@ -152,6 +180,7 @@ struct Cg {
 		, globals{move(other.globals)}
 		, scopes{move(other.scopes)}
 		, typedefs{move(other.typedefs)}
+		, effects{move(other.effects)}
 		, intrinsics{move(other.intrinsics)}
 		, unit{nullptr}
 		, entry{nullptr}
@@ -184,6 +213,7 @@ private:
 		, globals{allocator}
 		, scopes{allocator}
 		, typedefs{allocator}
+		, effects{allocator}
 		, intrinsics{allocator}
 		, unit{nullptr}
 		, entry{nullptr}

@@ -45,25 +45,20 @@ const char* AstExpr::name() const noexcept {
 	case Kind::UNARY:   return "UNARY";
 	case Kind::INDEX:   return "INDEX";
 	case Kind::EXPLODE: return "EXPLODE";
+	case Kind::EFF:     return "EFF";
 	}
 	BIRON_UNREACHABLE();
 }
 
 Maybe<AstConst> AstTupleExpr::eval_value(Cg& cg) const noexcept {
-	// When a tuple contains only a single element we detuple it and emit the
-	// inner expression directly.
-	if (length() == 1) {
-		auto value = m_exprs[0]->eval_value(cg);
-		if (!value) {
-			return None{};
-		}
-		return value;
-	}
-
 	Array<AstConst> values{m_exprs.allocator()};
-	Range range{0, 0};
+	Maybe<Range> range;
 	for (const auto& expr : m_exprs) {
-		range.include(expr->range());
+		if (range) {
+			range = range->include(expr->range());
+		} else {
+			range.emplace(expr->range());
+		}
 		auto value = expr->eval_value(cg);
 		if (!value) {
 			return None{};
@@ -72,11 +67,17 @@ Maybe<AstConst> AstTupleExpr::eval_value(Cg& cg) const noexcept {
 			return cg.oom();
 		}
 	}
+
+	// Detuple single element tuples.
+	if (values.length() == 1) {
+		return values[0].copy();
+	}
+
 	// Should we infer the type for ConstTuple here? A compile-time constant tuple
 	// cannot have fields and cannot be indexed any other way than with integers,
 	// for which a type is not needed. However, it might be useful to have a type
 	// anyways. Revisit this later. As of now we just pass nullptr.
-	return AstConst { range, AstConst::ConstTuple { nullptr, move(values), None{} } };
+	return AstConst { *range, AstConst::ConstTuple { nullptr, move(values), None{} } };
 }
 
 Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
@@ -85,8 +86,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		return None{};
 	}
 
-	// When a tuple contains only a single element we detuple it and emit the
-	// inner expression directly.
+	// Detuple single element tuples.
 	if (length() == 1) {
 		auto value = at(0)->gen_value(cg, type);
 		if (!value) {
@@ -104,7 +104,7 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	// zeroed as well.
 	Array<CgValue> values{*cg.scratch};
 	for (Ulen l = length(), i = 0; i < l; i++) {
-		auto infer = want ? want->at(i) : nullptr;
+		auto infer = type->at(i);
 		auto value = at(i)->gen_value(cg, infer);
 		if (!value) {
 			return None{};
@@ -153,11 +153,9 @@ Maybe<CgValue> AstTupleExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	switch (length()) {
 	case 0:
-		// When a tuple contains no elements we just return the unit type.
 		return cg.types.unit();
 	case 1:
-		// When a tuple contains only a single element we detuple it so we only want
-		// the inner type here.
+		// Detuple single element tuples.
 		return at(0)->gen_type(cg, want);
 	}
 	// [2, n)
@@ -180,60 +178,140 @@ CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	return cg.types.make(CgType::TupleInfo { move(types), None{}, None{} });
 }
 
-Bool AstTupleExpr::prepend(Array<AstExpr*>&& exprs) noexcept {
-	for (auto expr : m_exprs) {
-		if (!exprs.push_back(expr)) {
-			return false;
-		}
-	}
-	m_exprs = move(exprs);
-	return true;
-}
-
 CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	auto fn = m_callee->gen_type(cg, nullptr);
 	if (!fn) {
 		return nullptr;
 	}
-	if (!fn->is_fn()) {
-		cg.error(m_callee->range(), "Callee is not a function");
+
+	auto type = fn->deref();
+	if (type->is_tuple()) {
+		// This is a method call
+		type = type->at(0)->deref();
+	} else {
+		// This is a function call
+		if (type->is_pointer()) {
+			// This is an indirect function call
+			type = type->deref();
+		} else {
+			// This is a direct function call
+		}
+	}
+
+	if (!type->is_fn()) {
+		StringBuilder builder{*cg.scratch};
+		fn->dump(builder);
+		cg.error(m_callee->range(), "Callee is not a function. Callee has type %S", builder.view());
 		return nullptr;
 	}
-	auto rets = fn->at(2);
+
+	auto rets = type->at(3);
+
+	// Detuple single element tuples.
 	return rets->length() == 1 ? rets->at(0) : rets;
 }
 
 Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
-	return gen_value(*cg.scratch, cg);
-}
+	if (!gen_type(cg, nullptr)) {
+		return None{};
+	}
 
-Maybe<CgValue> AstCallExpr::gen_value(const Array<CgValue>& prepend, Cg& cg) const noexcept {
 	auto callee = m_callee->gen_addr(cg, nullptr);
 	if (!callee) {
 		return None{};
 	}
 
-	if (!callee->type()->deref()->is_fn()) {
-		cg.error(m_callee->range(), "Callee is not a function");
-		return None{};
+	auto call = callee;
+	auto type = callee->type()->deref();
+	if (type->is_tuple()) {
+		call = callee->at(cg, 0)->load(cg)->to_addr();
+		type = type->at(0)->deref();
+	} else {
+		// This is a function call
+		if (type->is_pointer()) {
+			// This is an indirect function call
+			call = callee->load(cg)->to_addr();
+			type = type->deref();
+		} else {
+			// This is a direct function call
+			call = callee;
+		}
 	}
 
 	// 0 = objs
 	// 1 = args
-	// 2 = rets
+	// 2 = effects
+	// 3 = rets
 
-	auto expected = callee->type()->deref()->at(1);
+	auto objs = type->at(0);
+	auto expected = type->at(1);
+	auto effects = type->at(2);
+	auto rets = type->at(3);
 
 	Array<LLVM::ValueRef> values{*cg.scratch};
-	auto reserve = prepend.length() + m_args->length();
+	auto reserve = objs->length() + expected->length() + effects->length();
 	if (!values.reserve(reserve)) {
 		return cg.oom();
 	}
-	for (auto value : prepend) {
-		if (!values.push_back(value.ref())) {
+
+	// Populate the optional effects.
+	if (effects != cg.types.unit()) {
+		Array<CgVar> usings{*cg.scratch};
+		const auto& fields = effects->fields();
+		for (const auto& field : fields) {
+			if (!field) {
+				continue;
+			}
+			auto lookup = cg.lookup_using(*field);
+			if (!lookup) {
+				cg.error(m_callee->range(), "This function requires the '%S' effect", *field);
+				return None{};
+			}
+			if (!usings.push_back(*lookup)) {
+				return cg.oom();
+			}
+		}
+		auto dst = cg.emit_alloca(effects);
+		if (!dst) {
+			return None{};
+		}
+		// Populate the effects tuple with all our effects.
+		for (Ulen l = usings.length(), i = 0; i < l; i++) {
+			dst->at(cg, i)->store(cg, *usings[i].addr().load(cg));
+		}
+		// Then pass that tuple by address as the first argument to the function.
+		if (!values.push_back(dst->ref())) {
 			return cg.oom();
 		}
 	}
+
+	// Populate the objects now
+	if (objs != cg.types.unit()) {
+		auto packet = callee->at(cg, 1)->load(cg)->to_addr();
+
+		// The packet will have type *(...) or *T due to single element tuple
+		// detupling semantics.
+		auto type = packet.type()->deref();
+		// When we get here we will have *(T) or *NamedT
+		// TODO(dweiler): Try not to strip () on single element tuples if we can
+		// since this is ambigious!
+		if (type->is_tuple() && !type->name()) {
+			for (Ulen l = type->length(), i = 0; i < l; i++) {
+				auto value = packet.at(cg, i)->load(cg);
+				if (!value) {
+					return None{};
+				}
+				if (!values.push_back(value->ref())) {
+					return cg.oom();
+				}
+			}
+		} else {
+			if (!values.push_back(packet.ref())) {
+				return cg.oom();
+			}
+		}
+	}
+
 	Ulen k = 0;
 	for (Ulen l = m_args->length(), i = 0; i < l; i++) {
 		auto arg = m_args->at(i);
@@ -303,22 +381,18 @@ Maybe<CgValue> AstCallExpr::gen_value(const Array<CgValue>& prepend, Cg& cg) con
 		}
 	}
 
-	auto type = callee->type()->deref();
 	auto value = cg.llvm.BuildCall2(cg.builder,
 	                                type->ref(),
-	                                callee->ref(),
+	                                call->ref(),
 	                                values.data(),
 	                                values.length(),
 	                                "");
 
-	// When the rets tuple only contains a single element we detuple it. This
-	// changes the return type of the function from (T) to T.
-	auto rets = type->at(2);
-	if (rets->length() == 1) {
-		return CgValue { rets->at(0), value };
-	}
-	
-	return CgValue { rets, value };
+	return CgValue {
+		// Detuple single element tuples.
+		rets->length() == 1 ? rets->at(0) : rets,
+		value
+	};
 }
 
 Maybe<AstConst> AstVarExpr::eval_value(Cg& cg) const noexcept {
@@ -332,21 +406,18 @@ Maybe<AstConst> AstVarExpr::eval_value(Cg& cg) const noexcept {
 }
 
 Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg, CgType*) const noexcept {
-	// Search function locals in reverse scope order
-	for (Ulen l = cg.scopes.length(), i = l - 1; i < l; i--) {
-		const auto& scope = cg.scopes[i];
-		for (const auto& var : scope.vars) {
-			if (var.name() == m_name) {
-				return var.addr();
-			}
-		}
+	auto lookup = cg.lookup_let(m_name);
+	if (lookup) {
+		return lookup->addr();
 	}
+
 	// Search module for functions.
 	for (const auto& fn : cg.fns) {
 		if (fn.name() == m_name) {
 			return fn.addr();
 		}
 	}
+
 	// Search module for globals.
 	for (const auto& global : cg.globals) {
 		if (global.var().name() == m_name) {
@@ -372,7 +443,9 @@ CgType* AstVarExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		cg.fatal(range(), "Could not generate type");
 		return nullptr;
 	}
-	return addr->type()->deref();
+	auto type = addr->type();
+	auto deref = type->deref();
+	return deref->is_fn() ? type : deref;
 }
 
 Maybe<AstConst> AstIntExpr::eval_value(Cg&) const noexcept {
@@ -807,6 +880,37 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 				lhs_addr = lhs_addr->load(cg)->to_addr();
 			}
 			auto expr = static_cast<const AstVarExpr *>(m_rhs);
+
+			// When calling a method we generate a Tuple with the first value the
+			// address of the method and the second value the objects to pass to the
+			// method. This is later exploded into the method call.
+			Maybe<CgAddr> fun_addr;
+			// TODO(dweiler): Name mangling.
+			if (auto fn = cg.lookup_fn(expr->name())) {
+				fun_addr = fn->addr();
+			}
+
+			if (fun_addr) {
+				Array<CgType*> types{*cg.scratch};
+				if (!types.resize(2)) {
+					return cg.oom();
+				}
+				types[0] = fun_addr->type();
+				types[1] = lhs_addr->type();
+				auto tuple = cg.types.make(CgType::TupleInfo { move(types), None{}, None{} });
+				if (!tuple) {
+					return cg.oom();
+				}
+				// Populate the tuple with our two addresses.
+				auto dst = cg.emit_alloca(tuple);
+				if (!dst) {
+					return None{};
+				}
+				dst->at(cg, 0)->store(cg, fun_addr->to_value());
+				dst->at(cg, 1)->store(cg, lhs_addr->to_value());
+				return dst;
+			}
+
 			const auto& name = expr->name();
 			const auto& fields = lhs_type->fields();
 			for (Ulen l = fields.length(), i = 0; i < l; i++) {
@@ -1271,81 +1375,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 				cg.error(m_lhs->range(), "Expression is not a tuple");
 				return None{};
 			}
-			if (m_rhs->is_expr<AstCallExpr>()) {
-				auto rhs = static_cast<AstCallExpr *>(m_rhs);
-				// Generate the left-hand side tuple containing all the values.
-				auto objs = m_lhs->gen_addr(cg, nullptr);
-				if (!objs) {
-					return None{};
-				}
-				if (objs->type()->deref()->is_pointer()) {
-					// Allow (&obj).method() where method takes *T
-					objs = objs->load(cg)->to_addr();
-				}
-				// Generate the prepended values for the call.
-				Array<CgValue> values{*cg.scratch};
-				auto rhs_type = rhs->callee()->gen_type(cg, nullptr);
-				if (!rhs_type) {
-					return None{};
-				}
-				if (!rhs_type->is_fn()) {
-					auto rhs_type_string = rhs_type->to_string(*cg.scratch);
-					cg.error(rhs->range(), "Expected function type. Got '%S' instead", rhs_type_string);
-					return None{};
-				}
-				// Fn: type 0 = objs
-				//     type 1 = args
-				//     type 2 = rets
-				auto objs_type = rhs_type->at(0);
-				// Specialization when only a single object as objs is the single
-				// object (i.e untupled tupled).
-				if (objs_type->length() == 1) {
-					if (objs_type->at(0)->is_pointer()) {
-						// Reciever wants it passed as pointer.
-						if (!values.emplace_back(objs_type->deref(), objs->ref())) {
-							return cg.oom();
-						}
-					} else {
-						// Otherwise reciever wants it passed by copy so do a load.
-						auto value = objs->load(cg);
-						// Implicit dereference behavior for when a copy is wanted.
-						if (value->type()->is_pointer()) {
-							value = value->to_addr().load(cg);
-						}
-						if (!value) {
-							return None{};
-						}
-						if (!values.push_back(*value)) {
-							return cg.oom();
-						}
-					}
-				} else {
-					for (Ulen l = objs_type->length(), i = 0; i < l; i++) {
-						auto type = objs_type->at(i);
-						auto addr = objs->at(cg, i);
-						if (type->is_pointer()) {
-							// Reciever wants it passed as pointer.
-							if (!values.emplace_back(type, addr->ref())) {
-								return cg.oom();
-							}
-						} else if (!type->is_padding()) {
-							// Otherwise reciever wants it passed by copy so do a load.
-							auto value = addr->load(cg);
-							if (value->type()->is_pointer()) {
-								// Implicit dereference behavior for when a copy is wanted.
-								value = value->to_addr().load(cg);
-							}
-							if (!value) {
-								return None{};
-							}
-							if (!values.push_back(*value)) {
-								return cg.oom();
-							}
-						}
-					}
-				}
-				return rhs->gen_value(move(values), cg);
-			} else if (m_rhs->is_expr<AstVarExpr>()) {
+			if (m_rhs->is_expr<AstVarExpr>()) {
 				auto addr = gen_addr(cg, nullptr);
 				if (!addr) {
 					return None{};
@@ -1410,6 +1440,10 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 				return m_rhs->gen_type(cg, want);
 			} else if (m_rhs->is_expr<AstVarExpr>()) {
 				auto rhs = static_cast<const AstVarExpr *>(m_rhs);
+				// TODO(dweiler): Name mangling.
+				if (auto fn = cg.lookup_fn(rhs->name())) {
+					return fn->addr().type();
+				}
 				Ulen i = 0;
 				for (const auto& field : lhs_type->fields()) {
 					if (field && *field == rhs->name()) {
@@ -1634,6 +1668,36 @@ Maybe<AstConst> AstIndexExpr::eval_value(Cg& cg) const noexcept {
 
 Maybe<CgValue> AstExplodeExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	return m_operand->gen_value(cg, want);
+}
+
+Maybe<CgAddr> AstEffExpr::gen_addr(Cg& cg, CgType*) const noexcept {
+	auto expr = expression();
+	if (!expr) {
+		cg.error(m_operand->range(), "Expected effect for expression");
+		return None{};
+	}
+	auto find = cg.lookup_using(expr->name());
+	if (!find) {
+		cg.error(m_operand->range(), "Could not find effect '%S'", expr->name());
+		return None{};
+	}
+	return find->addr();
+}
+
+Maybe<CgValue> AstEffExpr::gen_value(Cg& cg, CgType*) const noexcept {
+	auto addr = gen_addr(cg, nullptr);
+	if (!addr) {
+		return None{};
+	}
+	return addr->load(cg);
+}
+
+CgType* AstEffExpr::gen_type(Cg& cg, CgType*) const noexcept {
+	auto addr = gen_addr(cg, nullptr);
+	if (!addr) {
+		return nullptr;
+	}
+	return addr->type()->deref();
 }
 
 } // namespace Biron

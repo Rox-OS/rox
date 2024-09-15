@@ -69,12 +69,6 @@ void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept
 	m_terminal.err(m_lexer.string({ line_beg, line_len }));
 	m_terminal.err("\n");
 
-	// Then print some swiggles underneath the offense if the offense is on one
-	// line.
-	if (range.offset > line_end) {
-		return;
-	}
-
 	for (Ulen i = line_beg; i < range.offset; i++) {
 		m_terminal.err(" ");
 	}

@@ -160,4 +160,9 @@ void AstExplodeExpr::dump(StringBuilder& builder) const noexcept {
 	m_operand->dump(builder);
 }
 
+void AstEffExpr::dump(StringBuilder& builder) const noexcept {
+	m_operand->dump(builder);
+	builder.append('!');
+}
+
 } // namespace Biron

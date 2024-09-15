@@ -18,7 +18,7 @@ struct AstConst;
 struct AstExpr : AstNode {
 	static inline constexpr const auto KIND = Kind::EXPR;
 	enum class Kind : Uint8 {
-		TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE
+		TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE, EFF
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstExpr(Kind kind, Range range) noexcept
@@ -57,7 +57,6 @@ struct AstTupleExpr : AstExpr {
 		BIRON_ASSERT(i < m_exprs.length() && "Out of bounds");
 		return m_exprs[i];
 	}
-	[[nodiscard]] Bool prepend(Array<AstExpr*>&& exprs) noexcept;
 private:
 	Array<AstExpr*> m_exprs;
 };
@@ -74,7 +73,6 @@ struct AstCallExpr : AstExpr {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
 	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
-	[[nodiscard]] Maybe<CgValue> gen_value(const Array<CgValue>& prepend, Cg& cg) const noexcept;
 	[[nodiscard]] AstExpr* callee() const noexcept { return m_callee; }
 private:
 	AstExpr*      m_callee;
@@ -310,6 +308,26 @@ struct AstExplodeExpr : AstExpr {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
 private:
+	AstExpr* m_operand;
+};
+
+struct AstEffExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::EFF;
+	constexpr AstEffExpr(AstExpr* operand, Range range) noexcept
+		: AstExpr{KIND, range}
+		, m_operand{operand}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
+private:
+	[[nodiscard]] const AstVarExpr* expression() const noexcept {
+		return m_operand->is_expr<AstVarExpr>()
+			? static_cast<const AstVarExpr*>(m_operand)
+			: nullptr;
+	}
 	AstExpr* m_operand;
 };
 

@@ -37,9 +37,7 @@ struct CgType {
 	CgType* addrof(Cg& cg) noexcept;
 
 	[[nodiscard]] CgType* deref() const noexcept { return at(0); }
-	[[nodiscard]] CgType* at(Ulen i) const noexcept {
-		return types()[i];
-	}
+	[[nodiscard]] CgType* at(Ulen i) const noexcept { return types()[i]; }
 
 	[[nodiscard]] constexpr const Array<CgType*>& types() const noexcept {
 		BIRON_ASSERT(m_types && "No nested types");
@@ -87,8 +85,9 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_fn() const noexcept { return m_kind == Kind::FN; }
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
 
-
 	[[nodiscard]] constexpr LLVM::TypeRef ref() const noexcept { return m_ref; }
+
+	constexpr const Maybe<StringView>& name() const noexcept { return m_name; }
 
 	[[nodiscard]] Bool operator!=(const CgType& other) const noexcept {
 		if (other.m_kind != m_kind) {
@@ -181,6 +180,7 @@ struct CgType {
 	struct FnInfo {
 		CgType* objs;
 		CgType* args;
+		CgType* effects;
 		CgType* rets;
 	};
 

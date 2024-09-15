@@ -28,12 +28,37 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
+	// We need to generate a tuple for the effects of this function.
+	CgType::TupleInfo info { *cg.scratch, { *cg.scratch }, None {} };
+	for (auto effect : m_effects) {
+		auto type = effect->codegen(cg);
+		if (!type) {
+			return false;
+		}
+		// When working with functions we use addresses.
+		if (type->is_fn()) {
+			type = type->addrof(cg);
+		}
+		if (!info.types.push_back(type)) {
+			return false;
+		}
+		if (!info.fields->push_back(effect->name())) {
+			return false;
+		}
+	}
+	auto effects = info.types.empty()
+		? cg.types.unit()
+		: cg.types.make(move(info));
+	if (!effects) {
+		return false;
+	}
+
 	auto rets = m_rets->codegen(cg);
 	if (!rets) {
 		return false;
 	}
 
-	auto fn_t = cg.types.make(CgType::FnInfo { objs, args, rets });
+	auto fn_t = cg.types.make(CgType::FnInfo { objs, args, effects, rets });
 	if (!fn_t) {
 		return false;
 	}
@@ -115,7 +140,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 
 Bool AstFn::codegen(Cg& cg) const noexcept {
 	// When starting a new function we expect cg.scopes is empty
-	cg.scopes.clear();
+	BIRON_ASSERT(cg.scopes.empty());
 	if (!cg.scopes.emplace_back(cg.allocator)) {
 		return false;
 	}
@@ -134,7 +159,8 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	}
 
 	auto type = addr->type()->deref();
-	auto rets = type->at(2);
+	auto effects = type->at(2);
+	auto rets = type->at(3);
 
 	// Construct the entry basic-block, append it to the function and position
 	// the IR builder at the end of the basic-block.
@@ -151,7 +177,12 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	};
 
 	Array<Arg> args{*cg.scratch};
+
+	// When we have effects the first argument is the effect tuple
 	Ulen i = 0;
+	if (effects != cg.types.unit()) {
+		i++;
+	}
 	for (const auto& elem : m_objs->elems()) {
 		if (auto name = elem.name()) {
 			auto type = elem.type()->codegen(cg);
@@ -190,6 +221,22 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	cg.llvm.AppendExistingBasicBlock(addr->ref(), join_bb);
 	cg.llvm.PositionBuilderAtEnd(cg.builder, join_bb);
 
+	// Populate our effects which are passed by pointer so we can synthesize address
+	// to them directly here.
+	if (effects != cg.types.unit()) {
+		// The type of src is effects->addrof(cg)
+		auto src = CgAddr { effects->addrof(cg), cg.llvm.GetParam(addr->ref(), 0) };
+		// Populate the using for this scope
+		Ulen i = 0;
+		for (const auto& field : effects->fields()) {
+			auto field_addr = src.at(cg, i);
+			if (field && !cg.scopes.last().usings.emplace_back(this, *field, move(*field_addr))) {
+				return false;
+			}
+			i++;
+		}
+	}
+
 	// Once we have storage allocated for all objs and args we will make a copy of
 	// the function parameters into them inside our join block.
 	for (auto& arg : args) {
@@ -227,23 +274,24 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 
 	// When the block doesn't contain a terminator we will need to emit a return.
 	if (!cg.llvm.GetBasicBlockTerminator(resume_bb)) {
-		if (rets->length() == 0) {
+		switch (rets->length()) {
+		case 0:
 			// The empty tuple () is our void type. We can emit RetVoid.
 			cg.llvm.BuildRetVoid(cg.builder);
-			return true;
-		} else if (rets->length() == 1) {
+			break;
+		case 1:
+			// Detuple single element tuples.
 			if (auto value = CgValue::zero(rets->at(0), cg)) {
-				// When there is just a single element in our tuple we detuple it in
-				// AstTupleExpr so we must also detuple it here in the return too.
 				cg.llvm.BuildRet(cg.builder, value->ref());
-				return true;
 			}
-		} else if (auto value = CgValue::zero(rets, cg)) {
-			// Otherwise we return a zeroed tuple which matches the return type.
-			cg.llvm.BuildRet(cg.builder, value->ref());
-			return true;
+			break;
+		default:
+			if (auto value = CgValue::zero(rets, cg)) {
+				// Otherwise we return a zeroed tuple which matches the return type.
+				cg.llvm.BuildRet(cg.builder, value->ref());
+			}
+			break;
 		}
-		return false;
 	}
 
 	return cg.scopes.pop_back();
@@ -262,6 +310,21 @@ Bool AstTypedef::codegen(Cg& cg) const noexcept {
 	if (!type) {
 		return false;
 	}	
+	if (!cg.typedefs.emplace_back(m_name, type)) {
+		return false;
+	}
+	m_generated = true;
+	return true;
+}
+
+Bool AstEffect::codegen(Cg& cg) const noexcept {
+	if (m_generated) {
+		return true;
+	}
+	auto type = m_type->codegen(cg);
+	if (!type) {
+		return false;
+	}
 	if (!cg.typedefs.emplace_back(m_name, type)) {
 		return false;
 	}
@@ -307,12 +370,12 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 
-		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, cg.types.unit(), rets_t });
 		if (!fn_t) {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "printf", fn_t->ref());
-		if (!cg.fns.emplace_back(nullptr, "printf", CgAddr{fn_t->addrof(cg), fn_v})) {
+		if (!cg.fns.emplace_back(nullptr, "printf", CgAddr { fn_t->addrof(cg), fn_v })) {
 			return false;
 		}
 	}
@@ -326,12 +389,12 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!args_t || !rets_t) {
 			return false;
 		}
-		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, cg.types.unit(), rets_t });
 		if (!fn_t) {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "enable_fpu", fn_t->ref());
-		if (!cg.fns.emplace_back(nullptr, "enable_fpu", CgAddr{fn_t->addrof(cg), fn_v})) {
+		if (!cg.fns.emplace_back(nullptr, "enable_fpu", CgAddr { fn_t->addrof(cg), fn_v })) {
 			return false;
 		}
 	}
@@ -351,12 +414,12 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!args_t || !rets_t) {
 			return false;
 		}
-		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, cg.types.unit(), rets_t });
 		if (!fn_t) {
 			return false;
 		}
 		auto fn_v = cg.llvm.AddFunction(cg.module, "llvm.sqrt.f32", fn_t->ref());
-		if (!cg.fns.emplace_back(nullptr, "sqrt", CgAddr{fn_t->addrof(cg), fn_v})) {
+		if (!cg.fns.emplace_back(nullptr, "sqrt", CgAddr { fn_t->addrof(cg), fn_v })) {
 			return false;
 		}
 	}
@@ -379,7 +442,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		if (!args_t || !rets_t) {
 			return false;
 		}
-		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, cg.types.unit(), rets_t });
 		if (!fn_t) {
 			return false;
 		}
@@ -398,7 +461,6 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// e.g array extents and what not.
 	for (auto let : m_lets) {
 		cg.scratch->clear();
-
 		if (!let->codegen_global(cg)) {
 			return false;
 		}
@@ -409,8 +471,15 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// not generate the same type twice. This is how we do a topological sort.
 	for (auto type : m_typedefs) {
 		cg.scratch->clear();
-
 		if (!type->codegen(cg)) {
+			return false;
+		}
+	}
+
+	// Emit all the effects next.
+	for (auto effect : m_effects) {
+		cg.scratch->clear();
+		if (!effect->codegen(cg)) {
 			return false;
 		}
 	}
@@ -420,7 +489,6 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// prototypes in our language.
 	for (auto fn : m_fns) {
 		cg.scratch->clear();
-
 		if (!fn->prepass(cg)) {
 			return false;
 		}
@@ -429,7 +497,6 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// We can then codegen functions in any order we so desire.
 	for (auto fn : m_fns) {
 		cg.scratch->clear();
-
 		if (!fn->codegen(cg)) {
 			return false;
 		}
