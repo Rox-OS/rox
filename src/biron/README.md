@@ -7,30 +7,40 @@ Biron is an experimental toy systems programming language built for Rox.
 * Finish modules
 * Implement enum types
 * Implement match keyword
+* Implement parametric polymorphics (at AST level!)
 * Intrinsics
-* Type inference for return values
+* Type inference for return value
 
 ## Features
-* Type inference
-* Few keywords: `true false fn if as let for else type defer union break return continue`
-* Rich builtin types:
+* [Bi-directional type inference](https://en.wikipedia.org/wiki/Type_inference)
+* [Static structual type system](https://en.wikipedia.org/wiki/Structural_type_system)
+  * Aggregate types of the same layout are the same type.
+  * Optional [nominal typing](https://en.wikipedia.org/wiki/Nominal_type_system) made available with `type` definitions.
+* [Polymorphic effect system](https://en.wikipedia.org/wiki/Effect_system)
+  * Nominally typed effects required for all side effects.
+* [Structured programming](https://en.wikipedia.org/wiki/Structured_programming)
+  * `if` `else` `for` `break` `continue` `defer` `return`
+* [Array programming](https://en.wikipedia.org/wiki/Array_programming)
+* [Static multiple dispatch](https://en.wikipedia.org/wiki/Multiple_dispatch)
+* Few keywords
+  * `true false fn if as let for else type defer break using return effect module import continue`
+* Consistent set of builtin types
   * Sized integer types: `(S|U)int{8,16,32,64}`
   * Sized floating-point types: `Real{32,64}`
   * Sized boolean types: `Bool{8,16,32,64}`
-  * Memory addressing type: `Address`
-    * Similar to `uintptr_t` but for working with memory addresses.
   * Pointers: `*T`
   * Slices: `[]T`
   * Arrays: `[N]T`
   * Tuples: `(T1, ... Tn)`
   * Unions: `T1 | ... | Tn`
-  * Non-NUL-terminated UTF-8 string: `String`
-* Structured control flow:
-  * `if` `else` `for` `break` `continue` `defer` `return`
-* Array programming
-* Free-form methods with static multiple-dispatch
+  * Atomics: `@T`
+    * Works with any type that is `<= size of Address * 2`
+  * Memory addressing type: `Address`
+    * Similar to `uintptr_t` but for working with memory addresses and can be casted to any pointer type.
+  * Non-NUL-terminated and immutable UTF-8 string: `String`
 * Designed to run on baremetal
-* Small: ~10k lines of freestanding C++ with no build dependencies
+* Small
+  * ~12k lines of freestanding C++ with no build dependencies
   * Robust error handling
   * Embeddable
     * Custom allocators for limiting memory usage

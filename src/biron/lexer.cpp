@@ -225,8 +225,7 @@ Token Lexer::read() noexcept {
 				else if (ident == "true")     return {Kind::KW_TRUE,     {n, 4}};
 				break;
 			case 5:
-				/**/ if (ident == "union")    return {Kind::KW_UNION,    {n, 5}};
-				else if (ident == "defer")    return {Kind::KW_DEFER,    {n, 5}};
+				/**/ if (ident == "defer")    return {Kind::KW_DEFER,    {n, 5}};
 				else if (ident == "false")    return {Kind::KW_FALSE,    {n, 5}};
 				else if (ident == "break")    return {Kind::KW_BREAK,    {n, 5}};
 				else if (ident == "using")    return {Kind::KW_USING,    {n, 5}};
