@@ -18,7 +18,7 @@ struct AstConst;
 struct AstExpr : AstNode {
 	static inline constexpr const auto KIND = Kind::EXPR;
 	enum class Kind : Uint8 {
-		TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE, EFF
+		TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE, EFF, SELECTOR
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstExpr(Kind kind, Range range) noexcept
@@ -107,6 +107,21 @@ struct AstVarExpr : AstExpr {
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
 	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
 	[[nodiscard]] StringView name() const noexcept { return m_name; }
+private:
+	StringView m_name;
+};
+
+struct AstSelectorExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::SELECTOR;
+	constexpr AstSelectorExpr(StringView name, Range range) noexcept
+		: AstExpr{KIND, range}
+		, m_name{name}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
 private:
 	StringView m_name;
 };

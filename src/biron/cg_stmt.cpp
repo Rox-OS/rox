@@ -340,9 +340,16 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	if (*dst->type()->deref() != *src->type()) {
-		auto dst_type_string = dst->type()->deref()->to_string(*cg.scratch);
-		auto src_type_string = src->type()->to_string(*cg.scratch);
+	auto src_type = src->type();
+	auto dst_type = dst->type()->deref();
+	if (dst_type->is_atomic()) {
+		cg.error(range(), "Cannot assign to atomic type");
+		return false;
+	}
+
+	if (*dst_type != *src_type) {
+		auto dst_type_string = dst_type->to_string(*cg.scratch);
+		auto src_type_string = src_type->to_string(*cg.scratch);
 		cg.error(range(),
 		         "Cannot assign an rvalue of type '%S' to an lvalue of type '%S'",
 		         src_type_string,

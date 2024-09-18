@@ -99,6 +99,10 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 			at(0)->dump(builder);
 		}
 		break;
+	case Kind::ATOMIC:
+		builder.append('@');
+		at(0)->dump(builder);
+		break;
 	case Kind::SLICE:
 		builder.append("[]");
 		at(0)->dump(builder);
@@ -181,6 +185,10 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 	case Kind::VA:
 		builder.append("...");
 		break;
+	case Kind::ENUM:
+		builder.append('{');
+		// TODO
+		builder.append('}');
 	}
 }
 
@@ -211,7 +219,7 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 	if (!types.reserve(m_elems.length())) {
 		return nullptr;
 	}
-	Array<Maybe<StringView>> fields{cg.allocator};
+	Array<ConstField> fields{cg.allocator};
 	if (!fields.reserve(m_elems.length())) {
 		return nullptr;
 	}
@@ -224,7 +232,7 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 			cg.oom();
 			return nullptr;
 		}
-		if (!fields.push_back(elem.name())) {
+		if (!fields.emplace_back(elem.name(), None{})) {
 			cg.oom();
 			return nullptr;
 		}
@@ -237,7 +245,7 @@ CgType* AstTupleType::codegen_named(Cg& cg, StringView name) const noexcept {
 	if (!types.reserve(m_elems.length())) {
 		return nullptr;
 	}
-	Array<Maybe<StringView>> fields{cg.allocator};
+	Array<ConstField> fields{cg.allocator};
 	if (!fields.reserve(m_elems.length())) {
 		return nullptr;
 	}
@@ -250,7 +258,7 @@ CgType* AstTupleType::codegen_named(Cg& cg, StringView name) const noexcept {
 			cg.oom();
 			return nullptr;
 		}
-		if (!fields.push_back(elem.name())) {
+		if (!fields.emplace_back(elem.name(), None{})) {
 			cg.oom();
 			return nullptr;
 		}
@@ -360,6 +368,65 @@ CgType* AstFnType::codegen(Cg& cg) const noexcept {
 		return nullptr;
 	}
 	return cg.types.make(CgType::FnInfo { cg.types.unit(), args, cg.types.unit(), rets });
+}
+
+CgType* AstAtomType::codegen(Cg& cg) const noexcept {
+	auto base = m_base->codegen(cg);
+	if (!base) {
+		return nullptr;
+	}
+	if (!base->is_integer() && !base->is_pointer()) {
+		StringBuilder b{*cg.scratch};
+		base->dump(b);
+		cg.error(m_base->range(), "Cannot have an atomic of type '%S'", b.view());
+		return nullptr;
+	}
+	return cg.types.make(CgType::AtomicInfo { base });
+}
+
+CgType* AstEnumType::codegen_named(Cg& cg, StringView name) const noexcept {
+	if (m_enums.empty()) {
+		cg.error(range(), "Cannot have an empty enum type");
+		return nullptr;
+	}
+
+	CgType* type = cg.types.u64();
+	Sint128 offset = 0;
+	Array<ConstField> fields{*cg.scratch};
+	for (const auto& enumerator : m_enums) {
+		// We need to adjust
+		if (auto& init = enumerator.init) {
+			auto infer = init->gen_type(cg, type);
+			if (!infer) {
+				cg.error(init->range(), "Cannot infer type for enumerator");
+				return nullptr;
+			}
+			if (!type) {
+				type = infer;
+			}
+			auto value = init->eval_value(cg);
+			if (!value) {
+				cg.error(init->range(), "Expected constant expression for enumerator");
+				return nullptr;
+			}
+			offset = value->to<Sint128>();
+		}
+		if (!fields.emplace_back(enumerator.name, AstConst { range(), Sint64(offset) })) {
+			cg.oom();
+			return nullptr;
+		}
+		offset++;
+	}
+
+	// TODO(dweiler): assert no duplicate fields or incompatible types
+	if (name.empty()) {
+		return cg.types.make(CgType::EnumInfo { type, move(fields), None{} });
+	}
+	return cg.types.make(CgType::EnumInfo { type, move(fields), name });
+}
+
+CgType* AstEnumType::codegen(Cg& cg) const noexcept {
+	return codegen_named(cg, {});
 }
 
 CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {
@@ -505,7 +572,7 @@ CgType* CgTypeCache::make(CgType::StringInfo) noexcept {
 
 CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 	Array<CgType*> padded{m_cache.allocator()};
-	Array<Maybe<StringView>> fields{m_cache.allocator()};
+	Array<ConstField> fields{m_cache.allocator()};
 	if (!padded.reserve(info.types.length())) {
 		return nullptr;
 	}
@@ -534,8 +601,11 @@ CgType* CgTypeCache::make(CgType::TupleInfo info) noexcept {
 		if (!padded.push_back(type)) {
 			return nullptr;
 		}
-		if (info.fields && !fields.push_back((*info.fields)[index])) {
-			return nullptr;
+		if (info.fields) {
+			const auto& field = (*info.fields)[index];
+			if (!fields.emplace_back(field.name, field.init.copy())) {
+				return nullptr;
+			}
 		}
 		index++;
 	}
@@ -820,6 +890,46 @@ CgType* CgTypeCache::make(CgType::VaInfo) noexcept {
 		None{},
 		None{},
 		nullptr
+	);
+}
+
+CgType* CgTypeCache::make(CgType::AtomicInfo info) noexcept {
+	Array<CgType*> types{m_cache.allocator()};
+	if (!types.push_back(info.base)) {
+		return nullptr;
+	}
+	return m_cache.make<CgType>(
+		CgType::Kind::ATOMIC,
+		info.base->layout(),
+		0_ulen,
+		move(types),
+		None{},
+		None{},
+		info.base->ref()
+	);
+}
+
+CgType* CgTypeCache::make(CgType::EnumInfo info) noexcept {
+	Array<CgType*> types{m_cache.allocator()};
+	if (!types.push_back(info.base)) {
+		return nullptr;
+	}
+	// We need to make a copy of the ConstField
+	Array<ConstField> fields{m_cache.allocator()};
+	for (const auto& field : info.fields) {
+		auto copy = field.copy();
+		if (!copy || !fields.push_back(move(*copy))) {
+			return nullptr;
+		}
+	}
+	return m_cache.make<CgType>(
+		CgType::Kind::ENUM,
+		info.base->layout(),
+		0_ulen,
+		move(types),
+		move(fields),
+		info.named,
+		info.base->ref()
 	);
 }
 

@@ -18,6 +18,8 @@ struct CgType;
 struct AstType;
 
 // Compile time typed constants
+struct ConstField;
+
 struct AstConst {
 	enum class Kind {
 		NONE,
@@ -43,16 +45,16 @@ struct AstConst {
 	};
 
 	struct ConstTuple {
-		constexpr ConstTuple(AstType* type, Array<AstConst>&& values, Maybe<Array<Maybe<StringView>>>&& fields)
+		constexpr ConstTuple(AstType* type, Array<AstConst>&& values, Maybe<Array<ConstField>>&& fields)
 			: type{type}
 			, values{move(values)}
 			, fields{move(fields)}
 		{
 		}
 		constexpr ConstTuple(ConstTuple&&) noexcept = default;
-		AstType*                        type;
-		Array<AstConst>                 values;
-		Maybe<Array<Maybe<StringView>>> fields;
+		AstType*                 type;
+		Array<AstConst>          values;
+		Maybe<Array<ConstField>> fields;
 	};
 
 	struct UntypedReal {
@@ -179,6 +181,12 @@ private:
 	};
 
 	void drop() noexcept;
+};
+
+struct ConstField {
+	Maybe<StringView> name;
+	Maybe<AstConst>   init;
+	Maybe<ConstField> copy() const noexcept;
 };
 
 // Compile time casting logic for AstConst

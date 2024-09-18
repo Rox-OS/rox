@@ -60,4 +60,26 @@ void AstFnType::dump(StringBuilder& builder) const noexcept {
 	m_rets->dump(builder);
 }
 
+void AstAtomType::dump(StringBuilder& builder) const noexcept {
+	builder.append('@');
+	m_base->dump(builder);
+}
+
+void AstEnumType::dump(StringBuilder& builder) const noexcept {
+	builder.append('{');
+	Bool f = true;
+	for (const auto& enumerator : m_enums) {
+		if (!f) builder.append(", ");
+		f = false;
+		builder.append(enumerator.name);
+		if (enumerator.init) {
+			builder.append(' ');
+			builder.append('=');
+			builder.append(' ');
+			enumerator.init->dump(builder);
+		}
+	}
+	builder.append('}');
+}
+
 } // namespace Biron

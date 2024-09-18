@@ -42,7 +42,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		if (!info.types.push_back(type)) {
 			return false;
 		}
-		if (!info.fields->push_back(effect->name())) {
+		if (!info.fields->emplace_back(effect->name(), None{})) {
 			return false;
 		}
 	}
@@ -230,7 +230,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 		Ulen i = 0;
 		for (const auto& field : effects->fields()) {
 			auto field_addr = src.at(cg, i);
-			if (field && !cg.scopes.last().usings.emplace_back(this, *field, move(*field_addr))) {
+			if (field.name && !cg.scopes.last().usings.emplace_back(this, *field.name, move(*field_addr))) {
 				return false;
 			}
 			i++;
@@ -302,7 +302,7 @@ Bool AstTypedef::codegen(Cg& cg) const noexcept {
 		return true;
 	}
 	CgType* type = nullptr;
-	if (m_type->is_type<AstTupleType>()) {
+	if (m_type->is_type<AstTupleType>() || m_type->is_type<AstEnumType>()) {
 		type = m_type->codegen_named(cg, m_name);
 	} else {
 		type = m_type->codegen(cg);

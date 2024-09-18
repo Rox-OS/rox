@@ -27,6 +27,11 @@ void AstVarExpr::dump(StringBuilder& builder) const noexcept {
 	builder.append(m_name);
 }
 
+void AstSelectorExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('.');
+	builder.append(m_name);
+}
+
 void AstIntExpr::dump(StringBuilder& builder) const noexcept {
 	switch (m_kind) {
 	case Kind::U8:
@@ -98,7 +103,9 @@ void AstBoolExpr::dump(StringBuilder& builder) const noexcept {
 }
 
 void AstAggExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('<');
 	m_type->dump(builder);
+	builder.append('>');
 	builder.append('{');
 	Bool f = true;
 	for (const auto &expr : m_exprs) {

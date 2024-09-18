@@ -32,20 +32,21 @@ Maybe<AstConst> AstExpr::eval_value(Cg&) const noexcept {
 
 const char* AstExpr::name() const noexcept {
 	switch (m_kind) {
-	case Kind::TUPLE:   return "TUPLE";
-	case Kind::CALL:    return "CALL";
-	case Kind::TYPE:    return "TYPE";
-	case Kind::VAR:     return "VAR";
-	case Kind::INT:     return "INT";
-	case Kind::FLT:     return "FLT";
-	case Kind::BOOL:    return "BOOL";
-	case Kind::STR:     return "STR";
-	case Kind::AGG:     return "AGG";
-	case Kind::BIN:     return "BIN";
-	case Kind::UNARY:   return "UNARY";
-	case Kind::INDEX:   return "INDEX";
-	case Kind::EXPLODE: return "EXPLODE";
-	case Kind::EFF:     return "EFF";
+	case Kind::TUPLE:    return "TUPLE";
+	case Kind::CALL:     return "CALL";
+	case Kind::TYPE:     return "TYPE";
+	case Kind::VAR:      return "VAR";
+	case Kind::INT:      return "INT";
+	case Kind::FLT:      return "FLT";
+	case Kind::BOOL:     return "BOOL";
+	case Kind::STR:      return "STR";
+	case Kind::AGG:      return "AGG";
+	case Kind::BIN:      return "BIN";
+	case Kind::UNARY:    return "UNARY";
+	case Kind::INDEX:    return "INDEX";
+	case Kind::EXPLODE:  return "EXPLODE";
+	case Kind::EFF:      return "EFF";
+	case Kind::SELECTOR: return "SELECTOR";
 	}
 	BIRON_UNREACHABLE();
 }
@@ -259,12 +260,12 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 		Array<CgVar> usings{*cg.scratch};
 		const auto& fields = effects->fields();
 		for (const auto& field : fields) {
-			if (!field) {
+			if (!field.name) {
 				continue;
 			}
-			auto lookup = cg.lookup_using(*field);
+			auto lookup = cg.lookup_using(*field.name);
 			if (!lookup) {
-				cg.error(m_callee->range(), "This function requires the '%S' effect", *field);
+				cg.error(m_callee->range(), "This function requires the '%S' effect", *field.name);
 				return None{};
 			}
 			if (!usings.push_back(*lookup)) {
@@ -448,6 +449,48 @@ CgType* AstVarExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	return deref->is_fn() ? type : deref;
 }
 
+CgType* AstSelectorExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	if (want && want->is_enum()) {
+		return want;
+	}
+	cg.error(range(), "Cannot infer type from implicit selector expression");
+	return nullptr;
+}
+
+Maybe<CgValue> AstSelectorExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+
+	const auto& fields = type->fields();
+	for (const auto& field : fields) {
+		if (*field.name == m_name) {
+			auto value = field.init->codegen(cg, type);
+			if (!value) {
+				return None{};
+			}
+			// TODO(dweiler): Check this cast is safe ... Safeish cast
+			return CgValue { type, value->ref() };
+		}
+	}
+
+	cg.error(range(), "Could not find enumerator");
+	return None{};
+}
+
+Maybe<CgAddr> AstSelectorExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto value = gen_value(cg, want ? want->deref() : nullptr);
+	if (!value) {
+		return None{};
+	}
+	auto dst = cg.emit_alloca(value->type());
+	if (!dst || !dst->store(cg, *value)) {
+		return None{};
+	}
+	return dst;
+}
+
 Maybe<AstConst> AstIntExpr::eval_value(Cg&) const noexcept {
 	switch (m_kind) {
 	case Kind::U8:  return AstConst { range(), Uint8(m_as_uint) };
@@ -465,6 +508,10 @@ Maybe<AstConst> AstIntExpr::eval_value(Cg&) const noexcept {
 }
 
 Maybe<CgValue> AstIntExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	if (want && want->is_atomic()) {
+		want = want->types()[0];
+	}
+
 	auto type = gen_type(cg, want);
 	if (!type) {
 		return None{};
@@ -915,7 +962,7 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			const auto& fields = lhs_type->fields();
 			for (Ulen l = fields.length(), i = 0; i < l; i++) {
 				const auto& field = fields[i];
-				if (field && *field == name) {
+				if (field.name && *field.name == name) {
 					return lhs_addr->at(cg, i);
 				}
 			}
@@ -1067,8 +1114,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 				cg.fatal(range(), "Could not find 'memory_eq' intrinsic");
 				return None{};
 			}
-			auto lhs_dst = m_lhs->gen_addr(cg, nullptr);
-			auto rhs_dst = m_rhs->gen_addr(cg, nullptr);
+			auto lhs_dst = m_lhs->gen_addr(cg, lhs_type->addrof(cg));
+			auto rhs_dst = m_rhs->gen_addr(cg, rhs_type->addrof(cg));
 			LLVM::ValueRef args[] = {
 				lhs_dst->ref(),
 				rhs_dst->ref(),
@@ -1372,7 +1419,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			auto is_tuple =
 				lhs_type->is_tuple() || (lhs_type->is_pointer() && lhs_type->deref()->is_tuple());
 			if (!is_tuple) {
-				cg.error(m_lhs->range(), "Expression is not a tuple");
+				cg.error(m_lhs->range(), "Expected tuple type. Got '%S' instead", lhs_type->to_string(*cg.scratch));
 				return None{};
 			}
 			if (m_rhs->is_expr<AstVarExpr>()) {
@@ -1446,7 +1493,7 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 				}
 				Ulen i = 0;
 				for (const auto& field : lhs_type->fields()) {
-					if (field && *field == rhs->name()) {
+					if (field.name && *field.name == rhs->name()) {
 						return lhs_type->at(i);
 					}
 					i++;

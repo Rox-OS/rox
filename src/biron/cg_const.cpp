@@ -45,7 +45,7 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 		{
 			// Generate constant CgValues for each tuple element.
 			Array<CgValue> values{*cg.scratch};
-			Maybe<Array<Maybe<StringView>>> fields;
+			Maybe<Array<ConstField>> fields;
 			auto& tuple = as_tuple();
 			if (!values.reserve(tuple.values.length())) {
 				return cg.oom();
@@ -67,7 +67,8 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 					return cg.oom();
 				}
 				for (const auto& field : *tuple.fields) {
-					if (!dst.push_back(field)) {
+					// TODO init : field.init->codegen(cg, type->at(i))
+					if (!dst.emplace_back(field.name, None{})) {
 						return cg.oom();
 					}
 				}

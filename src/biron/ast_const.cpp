@@ -66,46 +66,28 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 	case Kind::F64:   return AstConst { range(), m_as_f64  };
 	case Kind::TUPLE:
 		{
-			Array<AstConst> values{m_as_tuple.values.allocator()};
-			if (!values.reserve(m_as_tuple.values.length())) {
+			auto values = m_as_tuple.values.copy();
+			auto fields = m_as_tuple.fields.copy();
+			if (!values || !fields) {
 				return None{};
 			}
-			for (const auto& value : m_as_tuple.values) {
-				auto copy = value.copy();
-				if (!copy || !values.push_back(move(*copy))) {
-					return None{};
-				}
-			}
-			Maybe<Array<Maybe<StringView>>> fields;
-			if (m_as_tuple.fields) {
-				auto& dst = fields.emplace(m_as_tuple.fields->allocator());
-				if (!dst.reserve(m_as_tuple.fields->length())) {
-					return None{};
-				}
-				for (const auto& field : *m_as_tuple.fields) {
-					if (!dst.push_back(field)) {
-						return None{};
-					}
-				}
-			}
-			return AstConst { range(), ConstTuple { m_as_tuple.type, move(values), move(fields) } };
+			return AstConst {
+				range(),
+				ConstTuple { m_as_tuple.type, move(*values), move(*fields) }
+			};
 		}
 	case Kind::STRING:
 		return AstConst { range(), as_string() };
 	case Kind::ARRAY:
 		{
-			const auto& array = m_as_array.elems;
-			Array<AstConst> values{array.allocator()};
-			if (!values.reserve(array.length())) {
+			auto elems = m_as_array.elems.copy();
+			if (!elems) {
 				return None{};
 			}
-			for (const auto& it : array) {
-				auto value = it.copy();
-				if (!value || !values.push_back(move(*value))) {
-					return None{};
-				}
-			}
-			return AstConst { range(), ConstArray { m_as_array.type, move(values) } };
+			return AstConst {
+				range(),
+				ConstArray { m_as_array.type, move(*elems) }
+			};
 		}
 	case Kind::UNTYPED_INT:  return AstConst { range(), AstConst::UntypedInt { m_as_uint } };
 	case Kind::UNTYPED_REAL: return AstConst { range(), AstConst::UntypedReal { m_as_f64 } };
@@ -127,6 +109,15 @@ void AstConst::drop() noexcept {
 	#if defined(BIRON_COMPILER_GCC)
 	#pragma GCC diagnostic pop
 	#endif
+}
+
+Maybe<ConstField> ConstField::copy() const noexcept {
+	auto copy_name = name.copy();
+	auto copy_init = init.copy();
+	if (!copy_name || !copy_init) {
+		return None{};
+	}
+	return ConstField { move(copy_name), move(copy_init) };
 }
 
 } // namespace Biron

@@ -48,14 +48,14 @@ type LimineStackSizeResponse = (
 );
 
 @(export(true), section(".requests"))
-let LIMINE_BASE_VERSION = [3]Uint64 {
+let LIMINE_BASE_VERSION = <[3]Uint64> {
   0xf9562b2d5c95a6c8,
   0x6a7b384944536bdc,
   2
 };
 
 @(export(true), section(".requests_beg_marker"))
-let LIMINE_REQUESTS_BEG_MARKER = [4]Uint64 {
+let LIMINE_REQUESTS_BEG_MARKER = <[4]Uint64> {
   0xf6b8f4b39de7d1ae,
   0xfab91a6940fcb9cf,
   0x785c6ed015d3e316,
@@ -63,7 +63,7 @@ let LIMINE_REQUESTS_BEG_MARKER = [4]Uint64 {
 };
 
 @(export(true), section(".requests"))
-let LIMINE_HHDM_REQUEST = LimineHHDMRequest {
+let LIMINE_HHDM_REQUEST = <LimineHHDMRequest> {
   {
     0xc7b1dd30df4c8b88,
     0x0a82e883a194f07b,
@@ -74,7 +74,7 @@ let LIMINE_HHDM_REQUEST = LimineHHDMRequest {
 };
 
 @(export(true), section(".requests"))
-let LIMINE_STACK_SIZE_REQUEST = LimineStackSizeRequest {
+let LIMINE_STACK_SIZE_REQUEST = <LimineStackSizeRequest> {
   {
     0xc7b1dd30df4c8b88,
     0x0a82e883a194f07b,
@@ -87,7 +87,7 @@ let LIMINE_STACK_SIZE_REQUEST = LimineStackSizeRequest {
 };
 
 @(export(true), section(".requests"))
-let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
+let LIMINE_FRAMEBUFFER_REQUEST = <LimineFramebufferRequest> {
   {
     0xc7b1dd30df4c8b88,
     0x0a82e883a194f07b,
@@ -98,13 +98,13 @@ let LIMINE_FRAMEBUFFER_REQUEST = LimineFramebufferRequest {
 };
 
 @(export(true), section(".requests_end_marker"))
-let LIMINE_REQUESTS_END_MARKER = [2]Uint64 {
+let LIMINE_REQUESTS_END_MARKER = <[2]Uint64> {
   0xadc0e0531bb10d03,
   0x9572709f31764c62
 };
 
 // An 8x8 Latin font
-let FONT = [128][8]Uint8 {
+let FONT = <[128][8]Uint8> {
   { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
   { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
   { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
@@ -271,7 +271,7 @@ fn kmain() {
 
   let fb = LIMINE_FRAMEBUFFER_REQUEST.response.framebuffers.1[0];
 
-  let sim = &Sim{};
+  let sim = &<Sim> { };
   sim.init();
   // Then ~~burn~~ sim forever.
   for {
@@ -356,19 +356,19 @@ fn particle_pressure(p: *Particle) -> Real32 {
 
 
 fn (sim: *Sim) init() {
-  let world_size = [2]Real32{128.0, 128.0};
+  let world_size = <[2]Real32> { 128.0, 128.0 };
   sim.world_size = world_size;
 
   let particles = &sim.particles[0];
   let boundary_particles = &sim.boundary_particles[0];
 
   for let i = 0_s64; i < 128 + 2; i += 1 {
-    boundary_particles[i]           = [2]Real32{(i as Real32) - 0.5, -0.5};
-    boundary_particles[i + 128 + 2] = [2]Real32{(i as Real32) - 0.5, world_size[1] + 0.5};
+    boundary_particles[i]           = <[2]Real32> {(i as Real32) - 0.5, -0.5};
+    boundary_particles[i + 128 + 2] = <[2]Real32> {(i as Real32) - 0.5, world_size[1] + 0.5};
   }
   for let i = 0_s64; i < 128; i += 1 {
-    boundary_particles[i + 2 * (128 + 2)]       = [2]Real32{-0.5,                (i as Real32) + 0.5};
-    boundary_particles[i + 2 * (128 + 2) + 128] = [2]Real32{world_size[0] + 0.5, (i as Real32) + 0.5};
+    boundary_particles[i + 2 * (128 + 2)]       = <[2]Real32> {-0.5,                (i as Real32) + 0.5};
+    boundary_particles[i + 2 * (128 + 2) + 128] = <[2]Real32> {world_size[0] + 0.5, (i as Real32) + 0.5};
   }
 
   let block_x = 0.5_f32;
@@ -425,7 +425,7 @@ fn (sim: *Sim) step() {
     let particle = &particles[i];
 
     let f_p = particle_pressure(particle) / (particle.density * particle.density);
-    let force = [2]Real32{};
+    let force = <[2]Real32> { };
 
     for let j = 0_u64; j < count of sim.particles; j += 1 {
       if i == j {
@@ -446,13 +446,13 @@ fn (sim: *Sim) step() {
         d[1] = 0.0;
         r = 1.0;
       } else {
-        d /= [2]Real32{r, r};
+        d /= <[2]Real32> { r, r };
       }
       let w = H - r;
       w *= 0.23873241_f32; // 12 / (pi * h^4)
       let f_n = particle_pressure(neighbor) / (neighbor.density * neighbor.density);
       let f = (f_p + f_n) * w;
-      force += [2]Real32{f, f} * d;
+      force += <[2]Real32> { f, f } * d;
     }
 
     for let j = 0_u64; j < count of sim.boundary_particles; j += 1 {
@@ -465,10 +465,10 @@ fn (sim: *Sim) step() {
       w *= 0.23873241_f32; // 12 / (pi * h^4)
       let f_n = particle_pressure(particle) / (REST_DENSITY * REST_DENSITY);
       let f = (f_p + f_n) * w;
-      force += [2]Real32{f, f} * d;
+      force += <[2]Real32> { f, f } * d;
     }
 
-    particle.velocity += force / [2]Real32{particle.density, particle.density};
+    particle.velocity += force / <[2]Real32> { particle.density, particle.density };
   }
 
   // Use pressure-corrected velocity and apply boundary conditions.

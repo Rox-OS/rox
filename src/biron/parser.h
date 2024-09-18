@@ -26,6 +26,7 @@ struct AstTupleType;
 struct AstIdentType;
 struct AstVarArgsType;
 struct AstPtrType;
+struct AstAtomType;
 struct AstFnType;
 
 struct AstStmt;
@@ -68,6 +69,7 @@ struct Parser {
 	[[nodiscard]] AstIdentType*    parse_ident_type(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstVarArgsType*  parse_varargs_type(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstPtrType*      parse_ptr_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstAtomType*     parse_atom_type(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstFnType*       parse_fn_type(Array<AstAttr*>&& attrs) noexcept;
 
 	// Statements
@@ -105,16 +107,19 @@ private:
 		error(m_this_token.range, message, forward<Ts>(args)...);
 	}
 
-	[[nodiscard]] AstExpr* parse_primary_expr(Bool simple) noexcept;
-	[[nodiscard]] AstExpr* parse_postfix_expr(Bool simple) noexcept;
+	[[nodiscard]] AstExpr* parse_primary_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_postfix_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_unary_expr(Bool simple) noexcept;
-	[[nodiscard]] AstExpr* parse_ident_expr(Bool simple) noexcept;
+	[[nodiscard]] AstExpr* parse_var_expr() noexcept;
+	[[nodiscard]] AstExpr* parse_selector_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_agg_expr(AstExpr* type) noexcept;
 	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
 	[[nodiscard]] AstExpr* parse_call_expr(AstExpr* operand) noexcept;
 	[[nodiscard]] AstExpr* parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexcept;
 	[[nodiscard]] AstType* parse_bracket_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstType* parse_enum_type(Array<AstAttr*>&& attrs) noexcept;
+
 	Token next() noexcept {
 		m_last_token = m_this_token;
 		if (m_peek_token) {

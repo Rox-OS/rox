@@ -5,6 +5,8 @@
 #include <biron/util/pool.h>
 #include <biron/util/string.h>
 
+#include <biron/ast_const.h>
+
 namespace Biron {
 
 struct Cg;
@@ -20,16 +22,18 @@ struct CgType {
 		F32, F64,          // Float{32, 64}
 		STRING,            // String
 		POINTER,           // *T
+		ATOMIC,            // @T
 		SLICE,             // []T
 		ARRAY,             // [N]T
 		PADDING,           // [N]u8 // Special meta-type for tuple padding
 		TUPLE,             // (T1, ..., Tn)
 		UNION,             // T1 | ... | Tn
+		ENUM,              // {E1, ... En}
 		FN,                // fn (T1, ..., Tn) -> (R1, ..., Rn)
 		VA,                // ...
 	};
 
-	using Field = Maybe<StringView>;
+	// using Field = Maybe<StringView>;
 
 	void dump(StringBuilder& builder) const noexcept;
 	StringView to_string(Allocator& allocator) const noexcept;
@@ -43,11 +47,24 @@ struct CgType {
 		BIRON_ASSERT(m_types && "No nested types");
 		return (*m_types);
 	}
-	[[nodiscard]] constexpr const Array<Field>& fields() const noexcept {
+	[[nodiscard]] constexpr const Array<ConstField>& fields() const noexcept {
 		BIRON_ASSERT(m_fields && "No nested fields");
 		return (*m_fields);
 	}
 
+	// Custom make tags for the type cache
+	struct Layout {
+		Ulen size;
+		Ulen align;
+		constexpr Bool operator==(const Layout& other) const noexcept {
+			return size == other.size && align == other.align;
+		}
+		constexpr Bool operator!=(const Layout& other) const noexcept {
+			return size != other.size || align != other.align;
+		}
+	};
+
+	[[nodiscard]] constexpr const Layout& layout() const noexcept { return m_layout; }
 	[[nodiscard]] constexpr Ulen size() const noexcept { return m_layout.size; }
 	[[nodiscard]] constexpr Ulen align() const noexcept { return m_layout.align; }
 	[[nodiscard]] constexpr Ulen length() const noexcept { return m_types ? m_types->length() : 0; };
@@ -84,6 +101,8 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
 	[[nodiscard]] constexpr Bool is_fn() const noexcept { return m_kind == Kind::FN; }
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
+	[[nodiscard]] constexpr Bool is_atomic() const noexcept { return m_kind == Kind::ATOMIC; }
+	[[nodiscard]] constexpr Bool is_enum() const noexcept { return m_kind == Kind::ENUM; }
 
 	[[nodiscard]] constexpr LLVM::TypeRef ref() const noexcept { return m_ref; }
 
@@ -125,18 +144,6 @@ struct CgType {
 		return !operator!=(other);
 	}
 
-	// Custom make tags for the type cache
-	struct Layout {
-		Ulen size;
-		Ulen align;
-		constexpr Bool operator==(const Layout& other) const noexcept {
-			return size == other.size && align == other.align;
-		}
-		constexpr Bool operator!=(const Layout& other) const noexcept {
-			return size != other.size || align != other.align;
-		}
-	};
-
 	struct IntInfo : Layout {
 		Bool sign;
 	};
@@ -155,9 +162,9 @@ struct CgType {
 	};
 
 	struct TupleInfo {
-		Array<CgType*>                  types;
-		Maybe<Array<Maybe<StringView>>> fields;
-		Maybe<StringView>               named;
+		Array<CgType*>           types;
+		Maybe<Array<ConstField>> fields;
+		Maybe<StringView>        named;
 	};
 
 	struct UnionInfo {
@@ -186,6 +193,16 @@ struct CgType {
 
 	struct VaInfo { };
 
+	struct AtomicInfo {
+		CgType* base;
+	};
+
+	struct EnumInfo {
+		CgType*           base;
+		Array<ConstField> fields;
+		Maybe<StringView> named;
+	};
+
 private:
 	friend struct CgTypeCache;
 	friend struct Cache;
@@ -194,7 +211,7 @@ private:
 	       Layout layout,
 	       Ulen extent,
 	       Maybe<Array<CgType*>>&& types,
-	       Maybe<Array<Field>>&& fields,
+	       Maybe<Array<ConstField>>&& fields,
 	       Maybe<StringView> name,
 	       LLVM::TypeRef ref) noexcept
 		: m_kind{kind}
@@ -211,7 +228,7 @@ private:
 	Layout m_layout;
 	Ulen m_extent;
 	Maybe<Array<CgType*>> m_types;
-	Maybe<Array<Field>> m_fields;
+	Maybe<Array<ConstField>> m_fields;
 	Maybe<StringView> m_name;
 	LLVM::TypeRef m_ref;
 };
@@ -255,6 +272,8 @@ struct CgTypeCache {
 	CgType* make(CgType::PaddingInfo info) noexcept;
 	CgType* make(CgType::FnInfo info) noexcept;
 	CgType* make(CgType::VaInfo info) noexcept;
+	CgType* make(CgType::AtomicInfo info) noexcept;
+	CgType* make(CgType::EnumInfo info) noexcept;
 
 	~CgTypeCache() noexcept {
 		for (const auto& type : m_cache) {

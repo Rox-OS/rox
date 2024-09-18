@@ -56,10 +56,10 @@ Token Lexer::read() noexcept {
 	case ':': return {Kind::COLON,    {fwd(), 1}};
 	case '(': return {Kind::LPAREN,   {fwd(), 1}};
 	case ')': return {Kind::RPAREN,   {fwd(), 1}};
-	case '[': return {Kind::LBRACKET, {fwd(), 1}};
-	case ']': return {Kind::RBRACKET, {fwd(), 1}};
 	case '{': return {Kind::LBRACE,   {fwd(), 1}};
 	case '}': return {Kind::RBRACE,   {fwd(), 1}};
+	case '[': return {Kind::LBRACKET, {fwd(), 1}};
+	case ']': return {Kind::RBRACKET, {fwd(), 1}};
 	case '+':
 		n = fwd(); // Consume '+'
 		if (peek() == '=') {

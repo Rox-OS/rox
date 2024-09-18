@@ -16,9 +16,9 @@ struct AstAttr;
 using AttrArray = Array<AstAttr*>;
 
 struct AstType : AstNode {
-	static inline constexpr auto KIND = Kind::TYPE;
+	static inline constexpr auto const KIND = Kind::TYPE;
 	enum class Kind {
-		TUPLE, UNION, IDENT, BOOL, VARARGS, PTR, ARRAY, SLICE, FN
+		TUPLE, UNION, IDENT, BOOL, VARARGS, PTR, ARRAY, SLICE, FN, ATOM, ENUM
 	};
 	constexpr AstType(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
@@ -38,7 +38,7 @@ private:
 };
 
 struct AstIdentType : AstType {
-	static inline constexpr auto KIND = Kind::IDENT;
+	static inline constexpr auto const KIND = Kind::IDENT;
 	constexpr AstIdentType(StringView ident, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_ident{ident}
@@ -54,7 +54,7 @@ private:
 };
 
 struct AstBoolType : AstType {
-	static inline constexpr auto KIND = Kind::BOOL;
+	static inline constexpr auto const KIND = Kind::BOOL;
 	constexpr AstBoolType(Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_attrs{move(attrs)}
@@ -85,7 +85,7 @@ struct AstTupleType : AstType {
 		AstType*          m_type;
 	};
 
-	static inline constexpr auto KIND = Kind::TUPLE;
+	static inline constexpr auto const KIND = Kind::TUPLE;
 	constexpr AstTupleType(Array<Elem>&& elems, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_elems{move(elems)}
@@ -104,7 +104,7 @@ private:
 };
 
 struct AstUnionType : AstType {
-	static inline constexpr auto KIND = Kind::UNION;
+	static inline constexpr auto const KIND = Kind::UNION;
 	constexpr AstUnionType(Array<AstType*>&& types, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_types{move(types)}
@@ -122,7 +122,7 @@ private:
 };
 
 struct AstVarArgsType : AstType {
-	static inline constexpr auto KIND = Kind::VARARGS;
+	static inline constexpr auto const KIND = Kind::VARARGS;
 	constexpr AstVarArgsType(Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_attrs{move(attrs)}
@@ -135,7 +135,7 @@ private:
 };
 
 struct AstPtrType : AstType {
-	static inline constexpr auto KIND = Kind::PTR;
+	static inline constexpr auto const KIND = Kind::PTR;
 	constexpr AstPtrType(AstType* type, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_type{type}
@@ -150,7 +150,7 @@ private:
 };
 
 struct AstArrayType : AstType {
-	static inline constexpr auto KIND = Kind::ARRAY;
+	static inline constexpr auto const KIND = Kind::ARRAY;
 	constexpr AstArrayType(AstType* type, AstExpr* extent, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_type{type}
@@ -167,7 +167,7 @@ private:
 };
 
 struct AstSliceType : AstType {
-	static inline constexpr auto KIND = Kind::SLICE;
+	static inline constexpr auto const KIND = Kind::SLICE;
 	constexpr AstSliceType(AstType* type, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_type{type}
@@ -182,7 +182,7 @@ private:
 };
 
 struct AstFnType : AstType {
-	static inline constexpr auto KIND = Kind::FN;
+	static inline constexpr auto const KIND = Kind::FN;
 	constexpr AstFnType(AstTupleType* args, AstTupleType* rets, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_args{args}
@@ -196,6 +196,48 @@ private:
 	AstTupleType*   m_args;
 	AstTupleType*   m_rets;
 	Array<AstAttr*> m_attrs;
+};
+
+struct AstAtomType : AstType {
+	static inline constexpr const auto KIND = Kind::ATOM;
+	constexpr AstAtomType(AstType* base, Array<AstAttr*>&& attrs, Range range) noexcept
+		: AstType{KIND, range}
+		, m_base{base}
+		, m_attrs{move(attrs)}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
+private:
+	AstType*        m_base;
+	Array<AstAttr*> m_attrs;
+};
+
+struct AstEnumType : AstType {
+	static inline constexpr const auto KIND = Kind::ATOM;
+	struct Enumerator {
+		constexpr Enumerator(StringView name, AstExpr* init) noexcept
+			: name{name}
+			, init{init}
+		{
+		}
+		constexpr Enumerator(Enumerator&&) = default;
+		StringView name;
+		AstExpr*   init;
+	};
+
+	constexpr AstEnumType(Array<Enumerator>&& enums, Array<AstAttr*>&& attrs, Range range) noexcept
+		: AstType{KIND, range}
+		, m_enums{move(enums)}
+		, m_attrs{move(attrs)}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen_named(Cg& cg, StringView name) const noexcept override;
+private:
+	Array<Enumerator> m_enums;
+	Array<AstAttr*>   m_attrs;
 };
 
 } // namespace Biron

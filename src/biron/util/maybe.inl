@@ -4,7 +4,15 @@
 #include <biron/util/traits/is_same.inl>
 namespace Biron {
 
+template<typename T>
+struct Maybe;
+
 struct None {};
+
+template<typename T>
+concept MaybeCopyable = requires(const T& object) {
+	{ object.copy() } -> Same<Maybe<T>>;
+};
 
 template<typename T>
 struct Maybe {
@@ -65,14 +73,26 @@ struct Maybe {
 	[[nodiscard]] constexpr Bool operator==(const Maybe& other) const noexcept {
 		return other.m_either == m_either;
 	}
+	Maybe copy() const noexcept
+		requires CopyConstructible<T> || MaybeCopyable<T>
+	{
+		if (is_none()) {
+			return None{};
+		}
+		if constexpr (CopyConstructible<T>) {
+			return Maybe { *this };
+		} else if constexpr (MaybeCopyable<T>) {
+			auto result = some().copy();
+			if (!result) {
+				return None{};
+			}
+			return Maybe { move(*result) };
+		}
+		return None{};
+	}
 private:
 	constexpr Maybe* drop() noexcept { m_either.reset(); return this; }
 	Either<T, Nat> m_either;
-};
-
-template<typename T>
-concept MaybeCopyable = requires(const T& object) {
-	{ object.copy() } -> Same<Maybe<T>>;
 };
 
 } // namespace Biron

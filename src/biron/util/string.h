@@ -53,6 +53,7 @@ struct StringView {
 	[[nodiscard]] constexpr const char* data() const noexcept { return m_data; }
 	[[nodiscard]] constexpr Ulen length() const noexcept { return m_length; }
 	[[nodiscard]] constexpr const char& operator[](Ulen i) const noexcept { return m_data[i]; }
+	[[nodiscard]] constexpr Bool empty() const noexcept { return m_length == 0; }
 	friend Bool operator==(StringView lhs, StringView rhs) noexcept;
 	friend Bool operator!=(StringView lhs, StringView rhs) noexcept;
 	[[nodiscard]] Bool starts_with(StringView other) const noexcept;
