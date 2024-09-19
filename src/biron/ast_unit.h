@@ -96,6 +96,7 @@ struct AstEffect : AstNode {
 	}
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
+	[[nodiscard]] constexpr const AstType* type() const noexcept { return m_type; }
 private:
 	StringView   m_name;
 	AstType*     m_type;
@@ -132,6 +133,7 @@ struct AstUnit {
 	void dump(StringBuilder& builder) const noexcept;
 private:
 	friend struct AstIdentType;
+	friend struct AstUsingStmt;
 	AstModule*         m_module;
 	Array<AstFn*>      m_fns;
 	Array<AstLetStmt*> m_lets;

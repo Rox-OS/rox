@@ -789,7 +789,7 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 
 CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	if (m_type) {
-		if (auto type = m_type->codegen(cg)) {
+		if (auto type = m_type->codegen(cg, None{})) {
 			return type;
 		}
 	} else if (want) {
@@ -1468,7 +1468,8 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		return m_lhs->gen_type(cg, want);
 	case Op::AS:
 		if (m_rhs->is_expr<AstTypeExpr>()) {
-			return static_cast<AstTypeExpr*>(m_rhs)->type()->codegen(cg);
+			auto type = static_cast<AstTypeExpr*>(m_rhs)->type();
+			return type->codegen(cg, None{});
 		} else {
 			cg.error(m_rhs->range(), "Expected type expression on right-hand side of 'as' operator");
 			return nullptr;
@@ -1491,12 +1492,14 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 				if (auto fn = cg.lookup_fn(rhs->name())) {
 					return fn->addr().type();
 				}
-				Ulen i = 0;
-				for (const auto& field : lhs_type->fields()) {
-					if (field.name && *field.name == rhs->name()) {
-						return lhs_type->at(i);
+				if (lhs_type->is_tuple() || lhs_type->is_enum()) {
+					Ulen i = 0;
+					for (const auto& field : lhs_type->fields()) {
+						if (field.name && *field.name == rhs->name()) {
+							return lhs_type->at(i);
+						}
+						i++;
 					}
-					i++;
 				}
 				cg.error(m_rhs->range(), "Undeclared field '%S'", rhs->name());
 				return nullptr;

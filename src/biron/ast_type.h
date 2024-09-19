@@ -31,8 +31,7 @@ struct AstType : AstNode {
 	[[nodiscard]] constexpr Bool is_type() const noexcept {
 		return m_kind == T::KIND;
 	}
-	virtual CgType* codegen(Cg& cg) const noexcept = 0;
-	virtual CgType* codegen_named(Cg& cg, StringView name) const noexcept;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept = 0;
 private:
 	Kind m_kind;
 };
@@ -46,7 +45,7 @@ struct AstIdentType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 	[[nodiscard]] constexpr StringView name() const noexcept { return m_ident; }
 private:
 	StringView      m_ident;
@@ -61,7 +60,7 @@ struct AstBoolType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
 	Array<AstAttr*> m_attrs;
 };
@@ -93,8 +92,7 @@ struct AstTupleType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override; 
-	virtual CgType* codegen_named(Cg& cg, StringView name) const noexcept override; 
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override; 
 	[[nodiscard]] constexpr const Array<Elem>& elems() const noexcept {
 		return m_elems;
 	}
@@ -112,7 +110,7 @@ struct AstUnionType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 	[[nodiscard]] constexpr const Array<AstType*>& types() const noexcept {
 		return m_types;
 	}
@@ -129,7 +127,7 @@ struct AstVarArgsType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
 	Array<AstAttr*> m_attrs;
 };
@@ -143,7 +141,7 @@ struct AstPtrType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
 	AstType*        m_type;
 	Array<AstAttr*> m_attrs;
@@ -159,7 +157,7 @@ struct AstArrayType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
 	AstType*        m_type;
 	AstExpr*        m_extent;
@@ -175,7 +173,7 @@ struct AstSliceType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
 	AstType*        m_type;
 	Array<AstAttr*> m_attrs;
@@ -183,19 +181,21 @@ private:
 
 struct AstFnType : AstType {
 	static inline constexpr auto const KIND = Kind::FN;
-	constexpr AstFnType(AstTupleType* args, AstTupleType* rets, Array<AstAttr*>&& attrs, Range range) noexcept
+	constexpr AstFnType(AstTupleType* args, Array<AstIdentType*>&& effects, AstTupleType* rets, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
 		, m_args{args}
+		, m_effects{move(effects)}
 		, m_rets{rets}
 		, m_attrs{move(attrs)}
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
-	AstTupleType*   m_args;
-	AstTupleType*   m_rets;
-	Array<AstAttr*> m_attrs;
+	AstTupleType*        m_args;
+	Array<AstIdentType*> m_effects;
+	AstTupleType*        m_rets;
+	Array<AstAttr*>      m_attrs;
 };
 
 struct AstAtomType : AstType {
@@ -207,7 +207,7 @@ struct AstAtomType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
 	AstType*        m_base;
 	Array<AstAttr*> m_attrs;
@@ -233,8 +233,7 @@ struct AstEnumType : AstType {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
-	virtual CgType* codegen(Cg& cg) const noexcept override;
-	virtual CgType* codegen_named(Cg& cg, StringView name) const noexcept override;
+	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
 	Array<Enumerator> m_enums;
 	Array<AstAttr*>   m_attrs;

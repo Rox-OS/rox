@@ -205,12 +205,7 @@ CgType* CgType::addrof(Cg& cg) noexcept {
 	return cg.types.make(CgType::PtrInfo { { 8, 8 }, this });
 }
 
-CgType* AstType::codegen_named(Cg& cg, StringView) const noexcept {
-	cg.fatal(range(), "Unimplemented codegen_named");
-	return nullptr;
-}
-
-CgType* AstTupleType::codegen(Cg& cg) const noexcept {
+CgType* AstTupleType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 	if (m_elems.empty()) {
 		return cg.types.unit();
 	}
@@ -224,7 +219,7 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 		return nullptr;
 	}
 	for (auto& elem : m_elems) {
-		auto type = elem.type()->codegen(cg);
+		auto type = elem.type()->codegen(cg, None{});
 		if (!type) {
 			return nullptr;
 		}
@@ -237,42 +232,16 @@ CgType* AstTupleType::codegen(Cg& cg) const noexcept {
 			return nullptr;
 		}
 	}
-	return cg.types.make(CgType::TupleInfo { move(types), move(fields), None{} });
+	return cg.types.make(CgType::TupleInfo { move(types), move(fields), move(name) });
 }
 
-CgType* AstTupleType::codegen_named(Cg& cg, StringView name) const noexcept {
-	Array<CgType*> types{cg.allocator};
-	if (!types.reserve(m_elems.length())) {
-		return nullptr;
-	}
-	Array<ConstField> fields{cg.allocator};
-	if (!fields.reserve(m_elems.length())) {
-		return nullptr;
-	}
-	for (auto& elem : m_elems) {
-		auto type = elem.type()->codegen(cg);
-		if (!type) {
-			return nullptr;
-		}
-		if (!types.push_back(type)) {
-			cg.oom();
-			return nullptr;
-		}
-		if (!fields.emplace_back(elem.name(), None{})) {
-			cg.oom();
-			return nullptr;
-		}
-	}
-	return cg.types.make(CgType::TupleInfo { move(types), move(fields), name });
-}
-
-CgType* AstUnionType::codegen(Cg& cg) const noexcept {
+CgType* AstUnionType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 	Array<CgType*> types{cg.allocator};
 	if (!types.reserve(m_types.length())) {
 		return nullptr;
 	}
 	for (const auto elem : m_types) {
-		auto type = elem->codegen(cg);
+		auto type = elem->codegen(cg, None{});
 		if (!type) {
 			return nullptr;
 		}
@@ -281,10 +250,10 @@ CgType* AstUnionType::codegen(Cg& cg) const noexcept {
 			return nullptr;
 		}
 	}
-	return cg.types.make(CgType::UnionInfo { move(types) });
+	return cg.types.make(CgType::UnionInfo { move(types), name });
 }
 
-CgType* AstIdentType::codegen(Cg& cg) const noexcept {
+CgType* AstIdentType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 	if (m_ident == "Uint8")   return cg.types.u8();
 	if (m_ident == "Uint16")  return cg.types.u16();
 	if (m_ident == "Uint32")  return cg.types.u32();
@@ -301,9 +270,15 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	if (m_ident == "Real64")  return cg.types.f64();
 	if (m_ident == "String")  return cg.types.str();
 	if (m_ident == "Address") return cg.types.ptr();
+	if (m_ident == "Length")  return cg.types.u64();
 	for (auto type : cg.typedefs) {
 		if (type.name() == m_ident) {
 			return type.type();
+		}
+	}
+	for (auto effect : cg.effects) {
+		if (effect.name() == m_ident) {
+			return effect.type();
 		}
 	}
 	// Check the unit for non-generated types and generate them here. This will
@@ -311,7 +286,14 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	for (const auto& type : cg.unit->m_typedefs) {
 		if (type->name() == m_ident) {
 			if (type->codegen(cg)) {
-				return codegen(cg);
+				return codegen(cg, name);
+			}
+		}
+	}
+	for (const auto& effect : cg.unit->m_effects) {
+		if (effect->name() == m_ident) {
+			if (effect->codegen(cg)) {
+				return codegen(cg, name);
 			}
 		}
 	}
@@ -319,21 +301,21 @@ CgType* AstIdentType::codegen(Cg& cg) const noexcept {
 	return nullptr;
 }
 
-CgType* AstVarArgsType::codegen(Cg&) const noexcept {
+CgType* AstVarArgsType::codegen(Cg&, Maybe<StringView>) const noexcept {
 	// There is nothing to codegen for a va.
 	return nullptr;
 }
 
-CgType* AstPtrType::codegen(Cg& cg) const noexcept {
-	auto base = m_type->codegen(cg);
+CgType* AstPtrType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
+	auto base = m_type->codegen(cg, None{});
 	if (!base) {
 		return nullptr;
 	}
 	return cg.types.make(CgType::PtrInfo { { 8, 8 }, base });
 }
 
-CgType* AstArrayType::codegen(Cg& cg) const noexcept {
-	auto base = m_type->codegen(cg);
+CgType* AstArrayType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
+	auto base = m_type->codegen(cg, None{});
 	if (!base) {
 		return nullptr;
 	}
@@ -350,28 +332,55 @@ CgType* AstArrayType::codegen(Cg& cg) const noexcept {
 	return cg.types.make(CgType::ArrayInfo { base, *extent });
 }
 
-CgType* AstSliceType::codegen(Cg& cg) const noexcept {
-	auto base = m_type->codegen(cg);
+CgType* AstSliceType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
+	auto base = m_type->codegen(cg, None{});
 	if (!base) {
 		return nullptr;
 	}
 	return cg.types.make(CgType::SliceInfo { base });
 }
 
-CgType* AstFnType::codegen(Cg& cg) const noexcept {
-	auto args = m_args->codegen(cg);
+CgType* AstFnType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
+	auto args = m_args->codegen(cg, None{});
 	if (!args) {
 		return nullptr;
 	}
-	auto rets = m_rets->codegen(cg);
+
+	// Generate a tuple for the effects as well
+	CgType::TupleInfo info { *cg.scratch, { *cg.scratch }, None {} };
+	for (auto effect : m_effects) {
+		auto type = effect->codegen(cg, None{});
+		if (!type) {
+			return nullptr;
+		}
+		// When working with functions we use addresses.
+		if (type->is_fn()) {
+			type = type->addrof(cg);
+		}
+		if (!info.types.push_back(type)) {
+			return nullptr;
+		}
+		if (!info.fields->emplace_back(effect->name(), None{})) {
+			return nullptr;
+		}
+	}
+	auto effects = info.types.empty()
+		? cg.types.unit()
+		: cg.types.make(move(info));
+	if (!effects) {
+		return nullptr;
+	}
+
+	auto rets = m_rets->codegen(cg, None{});
 	if (!rets) {
 		return nullptr;
 	}
-	return cg.types.make(CgType::FnInfo { cg.types.unit(), args, cg.types.unit(), rets });
+
+	return cg.types.make(CgType::FnInfo { cg.types.unit(), args, effects, rets });
 }
 
-CgType* AstAtomType::codegen(Cg& cg) const noexcept {
-	auto base = m_base->codegen(cg);
+CgType* AstAtomType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
+	auto base = m_base->codegen(cg, None{});
 	if (!base) {
 		return nullptr;
 	}
@@ -384,7 +393,7 @@ CgType* AstAtomType::codegen(Cg& cg) const noexcept {
 	return cg.types.make(CgType::AtomicInfo { base });
 }
 
-CgType* AstEnumType::codegen_named(Cg& cg, StringView name) const noexcept {
+CgType* AstEnumType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 	if (m_enums.empty()) {
 		cg.error(range(), "Cannot have an empty enum type");
 		return nullptr;
@@ -418,15 +427,7 @@ CgType* AstEnumType::codegen_named(Cg& cg, StringView name) const noexcept {
 		offset++;
 	}
 
-	// TODO(dweiler): assert no duplicate fields or incompatible types
-	if (name.empty()) {
-		return cg.types.make(CgType::EnumInfo { type, move(fields), None{} });
-	}
 	return cg.types.make(CgType::EnumInfo { type, move(fields), name });
-}
-
-CgType* AstEnumType::codegen(Cg& cg) const noexcept {
-	return codegen_named(cg, {});
 }
 
 CgType* CgTypeCache::make(CgType::IntInfo info) noexcept {

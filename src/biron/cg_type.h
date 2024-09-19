@@ -168,7 +168,8 @@ struct CgType {
 	};
 
 	struct UnionInfo {
-		Array<CgType*> types;
+		Array<CgType*>    types;
+		Maybe<StringView> named;
 	};
 
 	struct ArrayInfo {

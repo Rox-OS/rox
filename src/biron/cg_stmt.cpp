@@ -2,6 +2,8 @@
 #include <biron/ast_expr.h>
 #include <biron/ast_attr.h>
 #include <biron/ast_const.h>
+#include <biron/ast_unit.h>
+#include <biron/ast_type.h>
 
 #include <biron/cg.h>
 #include <biron/cg_value.h>
@@ -29,9 +31,12 @@ Bool AstBlockStmt::codegen(Cg& cg) const noexcept {
 
 Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 	// TODO(dweiler): Work out function return type and specify it here for want
-	auto value = m_expr->gen_value(cg, nullptr);
-	if (!value) {
-		return false;
+	Maybe<CgValue> value;
+	if (m_expr) {
+		value = m_expr->gen_value(cg, nullptr);
+		if (!value) {
+			return false;
+		}
 	}
 
 	// Generate all the defer statements in reverse order here before the return
@@ -42,12 +47,11 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	if (!m_expr) {
+	if (value) {
+		cg.llvm.BuildRet(cg.builder, value->ref());
+	} else {
 		cg.llvm.BuildRetVoid(cg.builder);
-		return true;
 	}
-
-	cg.llvm.BuildRet(cg.builder, value->ref());
 
 	return true;
 }
@@ -301,15 +305,30 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 }
 
 Bool AstUsingStmt::codegen(Cg& cg) const noexcept {
-	auto type = m_init->gen_type(cg, nullptr);
+	// Search 'name' for effect
+	auto& effects = cg.unit->m_effects;
+	const AstType* ast_type = nullptr;
+	for (const auto& effect : effects) {
+		if (effect->name() == m_name) {
+			ast_type = effect->type();
+			break;
+		}
+	}
+	if (!ast_type) {
+		cg.error(range(), "Undeclared effect '%S'", m_name);
+		return false;
+	}
+
+	auto type = ast_type->codegen(cg, None{});
 	if (!type) {
 		return false;
 	}
+
 	auto addr = cg.emit_alloca(type);
 	if (!addr) {
 		return false;
 	}
-	auto value = m_init->gen_value(cg, nullptr);
+	auto value = m_init->gen_value(cg, type);
 	if (!value || !addr->store(cg, *value)) {
 		return false;
 	}
@@ -415,7 +434,7 @@ Bool AstForStmt::codegen(Cg& cg) const noexcept {
 	//	<else-stmt>?
 	//	br exit
 	// exit:
-	//	
+	//
 	if (m_init && !m_init->codegen(cg)) {
 		return false;
 	}

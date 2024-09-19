@@ -18,12 +18,12 @@ Bool CgScope::emit_defers(Cg& cg) const noexcept {
 }
 
 Bool AstFn::prepass(Cg& cg) const noexcept {
-	auto objs = m_objs->codegen(cg);
+	auto objs = m_objs->codegen(cg, None{});
 	if (!objs) {
 		return false;
 	}
 
-	auto args = m_args->codegen(cg);
+	auto args = m_args->codegen(cg, None{});
 	if (!args) {
 		return false;
 	}
@@ -31,7 +31,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 	// We need to generate a tuple for the effects of this function.
 	CgType::TupleInfo info { *cg.scratch, { *cg.scratch }, None {} };
 	for (auto effect : m_effects) {
-		auto type = effect->codegen(cg);
+		auto type = effect->codegen(cg, None{});
 		if (!type) {
 			return false;
 		}
@@ -53,7 +53,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto rets = m_rets->codegen(cg);
+	auto rets = m_rets->codegen(cg, None{});
 	if (!rets) {
 		return false;
 	}
@@ -185,7 +185,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	}
 	for (const auto& elem : m_objs->elems()) {
 		if (auto name = elem.name()) {
-			auto type = elem.type()->codegen(cg);
+			auto type = elem.type()->codegen(cg, None{});
 			if (!type) {
 				return false;
 			}
@@ -202,7 +202,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 
 	for (const auto& elem : m_args->elems()) {
 		if (auto name = elem.name()) {
-			auto type = elem.type()->codegen(cg);
+			auto type = elem.type()->codegen(cg, None{});
 			if (!type) {
 				return false;
 			}
@@ -301,12 +301,7 @@ Bool AstTypedef::codegen(Cg& cg) const noexcept {
 	if (m_generated) {
 		return true;
 	}
-	CgType* type = nullptr;
-	if (m_type->is_type<AstTupleType>() || m_type->is_type<AstEnumType>()) {
-		type = m_type->codegen_named(cg, m_name);
-	} else {
-		type = m_type->codegen(cg);
-	}
+	auto type = m_type->codegen(cg, m_name);
 	if (!type) {
 		return false;
 	}	
@@ -321,7 +316,7 @@ Bool AstEffect::codegen(Cg& cg) const noexcept {
 	if (m_generated) {
 		return true;
 	}
-	auto type = m_type->codegen(cg);
+	auto type = m_type->codegen(cg, None{});
 	if (!type) {
 		return false;
 	}

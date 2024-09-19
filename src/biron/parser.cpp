@@ -870,7 +870,7 @@ AstType* Parser::parse_enum_type(Array<AstAttr*>&& attrs) noexcept {
 }
 
 // FnType
-//	::= 'fn' TupleType? TupleType ('->' TupleType)?
+//	::= 'fn' TupleType ('<' Ident (',' Ident)* '>')? ('->' Type)? BlockStmt
 AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
@@ -882,28 +882,54 @@ AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 		return nullptr;
 	}
 	AstType* rets = nullptr;
+	Array<AstIdentType*> effects{m_allocator};
+	if (peek().kind == Token::Kind::LT) {
+		next(); // Consume '<'
+		while (peek().kind != Token::Kind::GT) {
+			auto type = parse_ident_type({m_allocator});
+			if (!type || !effects.push_back(type)) {
+				return nullptr;
+			}
+			if (peek().kind == Token::Kind::COMMA) {
+				next(); // Consume ','
+			} else {
+				break;
+			}
+		}
+		if (peek().kind != Token::Kind::GT) {
+			ERROR("Expected '>'");
+			return nullptr;
+		}
+		next(); // Consume '>'
+	}
+
 	if (peek().kind == Token::Kind::ARROW) {
 		next(); // Consume '->'
 		rets = parse_type();
 		if (!rets) {
 			return nullptr;
 		}
-		if (!rets->is_type<AstTupleType>()) {
-			// Convert into a single element tuple
-			Array<AstTupleType::Elem> elems{m_allocator};
-			if (!elems.emplace_back(None{}, rets)) {
-				return nullptr;
-			}
-			rets = new_node<AstTupleType>(move(elems), m_allocator, rets->range());
-		}
 	} else {
+		// When there are no return types we return the "empty tuple"
 		rets = new_node<AstTupleType>(m_allocator, m_allocator, Range{0, 0});
 	}
 	if (!rets) {
 		return nullptr;
 	}
+
+	if (!rets->is_type<AstTupleType>()) {
+		// The parser treats a single return type as-if it was a single element
+		// tuple with that type.
+		Array<AstTupleType::Elem> elems{m_allocator};
+		if (!elems.emplace_back(None{}, rets)) {
+			ERROR("Out of memory");
+			return nullptr;
+		}
+		rets = new_node<AstTupleType>(move(elems), m_allocator, rets->range());
+	}
+
 	auto range = beg_token.range.include(rets->range());
-	return new_node<AstFnType>(args, static_cast<AstTupleType*>(rets), move(attrs), range);
+	return new_node<AstFnType>(args, move(effects), static_cast<AstTupleType*>(rets), move(attrs), range);
 }
 
 // Stmt
@@ -1209,7 +1235,7 @@ AstModule* Parser::parse_module() noexcept {
 // Import
 //	::= 'import' Ident ';'
 AstImport* Parser::parse_import() noexcept {
-	if (peek().kind != Token::Kind::KW_MODULE) {
+	if (peek().kind != Token::Kind::KW_IMPORT) {
 		ERROR("Expected 'import'");
 		return nullptr;
 	}
@@ -1392,7 +1418,6 @@ AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 
 	auto args = parse_tuple_type(None{});
 	if (!args) {
-		ERROR("Could not parse arguments");
 		return nullptr;
 	}
 
@@ -1561,6 +1586,8 @@ Maybe<AstUnit> Parser::parse() noexcept {
 				ERROR("Out of memory");
 				return None{};
 			}
+		} else {
+			return None{};
 		}
 		break;
 	case Token::Kind::KW_TYPE:
@@ -1569,6 +1596,8 @@ Maybe<AstUnit> Parser::parse() noexcept {
 				ERROR("Out of memory");
 				return None{};
 			}
+		} else {
+			return None{};
 		}
 		break;
 	case Token::Kind::KW_LET:
@@ -1578,6 +1607,8 @@ Maybe<AstUnit> Parser::parse() noexcept {
 				ERROR("Out of memory");
 				return None{};
 			}
+		} else {
+			return None{};
 		}
 		break;
 	case Token::Kind::KW_MODULE:
@@ -1586,6 +1617,8 @@ Maybe<AstUnit> Parser::parse() noexcept {
 				ERROR("Duplicate 'module' in file");
 				return None{};
 			}
+		} else {
+			return None{};
 		}
 		break;
 	case Token::Kind::KW_IMPORT:
@@ -1594,6 +1627,8 @@ Maybe<AstUnit> Parser::parse() noexcept {
 				ERROR("Duplicate 'import' in file");
 				return None{};
 			}
+		} else {
+			return None{};
 		}
 		break;
 	case Token::Kind::KW_EFFECT:
@@ -1602,6 +1637,8 @@ Maybe<AstUnit> Parser::parse() noexcept {
 				ERROR("Out of memory");
 				return None{};
 			}
+		} else {
+			return None{};
 		}
 		break;
 	case Token::Kind::END:

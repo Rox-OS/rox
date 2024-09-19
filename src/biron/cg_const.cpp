@@ -124,7 +124,9 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			if (!values.reserve(m_as_array.elems.length())) {
 				return cg.oom();
 			}
-			auto array_type = m_as_array.type ? m_as_array.type->codegen(cg) : type;
+			auto array_type = m_as_array.type
+				? m_as_array.type->codegen(cg, None{})
+				: type;
 			if (!array_type) {
 				return cg.oom();
 			}
