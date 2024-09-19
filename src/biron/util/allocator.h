@@ -3,7 +3,12 @@
 #include <biron/util/types.inl>
 #include <biron/util/exchange.inl>
 
+#include <atomic>
+
 namespace Biron {
+
+template<typename T>
+using Atomic = std::atomic<T>;
 
 struct System;
 
@@ -27,8 +32,11 @@ struct SystemAllocator : Allocator {
 	}
 	virtual void* allocate(Ulen size) noexcept override;
 	virtual void deallocate(void* old, Ulen size) noexcept override;
+	[[nodiscard]] Ulen peak() const noexcept { return m_peak_bytes.load(); }
 private:
 	const System& m_system;
+	Atomic<Uint64> m_peak_bytes;
+	Atomic<Uint64> m_current_bytes;
 };
 
 template<Ulen E>

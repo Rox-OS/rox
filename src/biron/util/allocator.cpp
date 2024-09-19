@@ -1,13 +1,25 @@
 #include <biron/util/allocator.h>
 #include <biron/util/system.inl>
+#include <biron/util/numeric.inl>
 
 namespace Biron {
 
+template<typename T>
+T atomic_fetch_max_explicit(Atomic<T>* pv, T v) noexcept {
+	auto t = pv->load();
+	while (!pv->compare_exchange_weak(t, max(v, t)))
+		;
+	return t;
+}
+
 void* SystemAllocator::allocate(Ulen size) noexcept {
+	m_current_bytes += size;
+	atomic_fetch_max_explicit(&m_peak_bytes, m_current_bytes.load());
 	return m_system.mem_allocate(m_system, size);
 }
 
 void SystemAllocator::deallocate(void* old, Ulen size) noexcept {
+	m_current_bytes -= size;
 	m_system.mem_deallocate(m_system, old, size);
 }
 

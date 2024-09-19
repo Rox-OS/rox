@@ -126,16 +126,13 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		if (dst_type->is_padding()) {
 			// Emit zeroinitializer for padding.
 			auto padding_addr = addr->at(cg, i);
-			if (!padding_addr) {
-				return cg.oom();
-			}
-			if (!padding_addr->zero(cg)) {
+			if (!padding_addr.zero(cg)) {
 				return cg.oom();
 			}
 		} else {
 			// We use j++ to index as values contains non-padding fields.
 			auto dst = addr->at(cg, i);
-			if (!dst || !dst->store(cg, values[j++])) {
+			if (!dst.store(cg, values[j++])) {
 				return cg.oom();
 			}
 		}
@@ -144,7 +141,11 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<CgValue> AstTupleExpr::gen_value(Cg& cg, CgType* want) const noexcept {
-	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+	if (auto addr = gen_addr(cg, type->addrof(cg))) {
 		return addr->load(cg);
 	}
 	cg.fatal(range(), "Could not generate address");
@@ -225,13 +226,13 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	auto call = callee;
 	auto type = callee->type()->deref();
 	if (type->is_tuple()) {
-		call = callee->at(cg, 0)->load(cg)->to_addr();
+		call = callee->at(cg, 0).load(cg).to_addr();
 		type = type->at(0)->deref();
 	} else {
 		// This is a function call
 		if (type->is_pointer()) {
 			// This is an indirect function call
-			call = callee->load(cg)->to_addr();
+			call = callee->load(cg).to_addr();
 			type = type->deref();
 		} else {
 			// This is a direct function call
@@ -278,7 +279,7 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 		}
 		// Populate the effects tuple with all our effects.
 		for (Ulen l = usings.length(), i = 0; i < l; i++) {
-			dst->at(cg, i)->store(cg, *usings[i].addr().load(cg));
+			dst->at(cg, i).store(cg, usings[i].addr().load(cg));
 		}
 		// Then pass that tuple by address as the first argument to the function.
 		if (!values.push_back(dst->ref())) {
@@ -288,7 +289,7 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 
 	// Populate the objects now
 	if (objs != cg.types.unit()) {
-		auto packet = callee->at(cg, 1)->load(cg)->to_addr();
+		auto packet = callee->at(cg, 1).load(cg).to_addr();
 
 		// The packet will have type *(...) or *T due to single element tuple
 		// detupling semantics.
@@ -298,11 +299,8 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 		// since this is ambigious!
 		if (type->is_tuple() && !type->name()) {
 			for (Ulen l = type->length(), i = 0; i < l; i++) {
-				auto value = packet.at(cg, i)->load(cg);
-				if (!value) {
-					return None{};
-				}
-				if (!values.push_back(value->ref())) {
+				auto value = packet.at(cg, i).load(cg);
+				if (!values.push_back(value.ref())) {
 					return cg.oom();
 				}
 			}
@@ -316,8 +314,7 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	Ulen k = 0;
 	for (Ulen l = m_args->length(), i = 0; i < l; i++) {
 		auto arg = m_args->at(i);
-		if (arg->is_expr<AstExplodeExpr>()) {
-			auto expr = static_cast<const AstExplodeExpr*>(arg);
+		if (auto expr = arg->to_expr<const AstExplodeExpr>()) {
 			auto args = expr->gen_value(cg, expected);
 			if (!args) {
 				return None{};
@@ -431,7 +428,11 @@ Maybe<CgAddr> AstVarExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 }
 
 Maybe<CgValue> AstVarExpr::gen_value(Cg& cg, CgType* want) const noexcept {
-	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+	if (auto addr = gen_addr(cg, type->addrof(cg))) {
 		return addr->load(cg);
 	}
 	cg.fatal(range(), "Could not generate value (AstVarExpr)");
@@ -465,14 +466,15 @@ Maybe<CgValue> AstSelectorExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 
 	const auto& fields = type->fields();
 	for (const auto& field : fields) {
-		if (*field.name == m_name) {
-			auto value = field.init->codegen(cg, type);
-			if (!value) {
-				return None{};
-			}
-			// TODO(dweiler): Check this cast is safe ... Safeish cast
-			return CgValue { type, value->ref() };
+		if (*field.name != m_name) {
+			continue;
 		}
+		auto value = field.init->codegen(cg, type);
+		if (!value) {
+			return None{};
+		}
+		// TODO(dweiler): Check this cast is safe ... Safeish cast
+		return CgValue { type, value->ref() };
 	}
 
 	cg.error(range(), "Could not find enumerator");
@@ -613,7 +615,12 @@ Maybe<AstConst> AstStrExpr::eval_value(Cg&) const noexcept {
 	return AstConst { range(), m_literal };
 }
 
-Maybe<CgValue> AstStrExpr::gen_value(Cg& cg, CgType*) const noexcept {
+Maybe<CgValue> AstStrExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+
 	// When building a string we need to escape it and add a NUL terminator. Biron
 	// does not have NUL terminated strings but it always adds a NUL for literals
 	// so they can be safely passed to C functions expecting NUL termination.
@@ -637,9 +644,8 @@ Maybe<CgValue> AstStrExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	auto ptr = cg.llvm.BuildGlobalString(cg.builder, builder.data(), "");
 	auto len = cg.llvm.ConstInt(cg.types.u64()->ref(), m_literal.length(), false);
 	LLVM::ValueRef values[2] = { ptr, len };
-	auto t = gen_type(cg, nullptr);
-	auto v = cg.llvm.ConstNamedStruct(t->ref(), values, countof(values));
-	return CgValue { t, v };
+	auto value = cg.llvm.ConstNamedStruct(type->ref(), values, countof(values));
+	return CgValue { type, value };
 }
 
 CgType* AstStrExpr::gen_type(Cg& cg, CgType*) const noexcept {
@@ -651,9 +657,9 @@ Maybe<AstConst> AstBoolExpr::eval_value(Cg&) const noexcept {
 }
 
 Maybe<CgValue> AstBoolExpr::gen_value(Cg& cg, CgType* want) const noexcept {
-	auto t = gen_type(cg, want);
-	auto v = cg.llvm.ConstInt(t->ref(), m_value ? 1 : 0, false);
-	return CgValue { t, v };
+	auto type = gen_type(cg, want);
+	auto value = cg.llvm.ConstInt(type->ref(), m_value ? 1 : 0, false);
+	return CgValue { type, value };
 }
 
 CgType* AstBoolExpr::gen_type(Cg& cg, CgType*) const noexcept {
@@ -742,7 +748,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	Array<CgAddr> addrs{*cg.scratch};
 	for (Ulen l = count, i = 0; i < l; i++) {
 		auto dst = addr->at(cg, i);
-		if (!dst || !addrs.push_back(*dst)) {
+		if (!addrs.push_back(dst)) {
 			return cg.oom();
 		}
 	}
@@ -780,7 +786,11 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<CgValue> AstAggExpr::gen_value(Cg& cg, CgType* want) const noexcept {
-	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+	if (auto addr = gen_addr(cg, type->addrof(cg))) {
 		return addr->load(cg);
 	}
 	cg.fatal(range(), "Could not generate value (AstAggExpr)");
@@ -908,87 +918,96 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	if (m_op != Op::DOT) {
 		return None{};
 	}
-	auto lhs_type = m_lhs->gen_type(cg, nullptr);
+
+	auto lhs_type = m_lhs->gen_type(cg, want ? want->deref() : nullptr);
 	if (!lhs_type) {
 		return None{};
 	}
-	auto is_tuple = lhs_type->is_tuple()
-		|| (lhs_type->is_pointer() && lhs_type->deref()->is_tuple());
-	if (is_tuple) {
-		if (m_rhs->is_expr<AstVarExpr>()) {
-			auto lhs_addr = m_lhs->gen_addr(cg, nullptr);
-			if (!lhs_addr) {
-				return None{};
-			}
-			if (lhs_type->is_pointer()) {
-				// Handle implicit dereference, that is:
-				// 	ptr.field is sugar for (*ptr).field when ptr is a ptr
-				lhs_type = lhs_type->deref();
-				lhs_addr = lhs_addr->load(cg)->to_addr();
-			}
-			auto expr = static_cast<const AstVarExpr *>(m_rhs);
 
-			// When calling a method we generate a Tuple with the first value the
-			// address of the method and the second value the objects to pass to the
-			// method. This is later exploded into the method call.
-			Maybe<CgAddr> fun_addr;
-			// TODO(dweiler): Name mangling.
-			if (auto fn = cg.lookup_fn(expr->name())) {
-				fun_addr = fn->addr();
-			}
+	auto is_tuple = 
+		lhs_type->is_tuple() ||
+			(lhs_type->is_pointer() && lhs_type->deref()->is_tuple());
 
-			if (fun_addr) {
-				Array<CgType*> types{*cg.scratch};
-				if (!types.resize(2)) {
-					return cg.oom();
-				}
-				types[0] = fun_addr->type();
-				types[1] = lhs_addr->type();
-				auto tuple = cg.types.make(CgType::TupleInfo { move(types), None{}, None{} });
-				if (!tuple) {
-					return cg.oom();
-				}
-				// Populate the tuple with our two addresses.
-				auto dst = cg.emit_alloca(tuple);
-				if (!dst) {
-					return None{};
-				}
-				dst->at(cg, 0)->store(cg, fun_addr->to_value());
-				dst->at(cg, 1)->store(cg, lhs_addr->to_value());
-				return dst;
-			}
+	if (!is_tuple) {
+		return None{};
+	}
 
-			const auto& name = expr->name();
-			const auto& fields = lhs_type->fields();
-			for (Ulen l = fields.length(), i = 0; i < l; i++) {
-				const auto& field = fields[i];
-				if (field.name && *field.name == name) {
-					return lhs_addr->at(cg, i);
-				}
-			}
-			cg.error(m_rhs->range(), "Undeclared field '%S'", name);
-			return None{};
-		} else if (m_rhs->is_expr<AstIntExpr>()) {
-			auto rhs = m_rhs->eval_value(cg);
-			if (!rhs || !rhs->is_integral()) {
-				cg.error(m_rhs->range(), "Expected integer constant expression");
-				return None{};
-			}
-			auto index = rhs->to<Uint64>();
-			if (!index) {
-				cg.error(m_rhs->range(), "Expected integer constant expression");
-				return None{};
-			}
-			auto addr = m_lhs->gen_addr(cg, want);
-			if (!addr) {
-				return None{};
-			}
-			return addr->at(cg, *index);
-		} else {
-			cg.error(m_rhs->range(), "Unknown expression");
+	if (m_rhs->is_expr<AstVarExpr>()) {
+		auto lhs_addr = m_lhs->gen_addr(cg, want);
+		if (!lhs_addr) {
 			return None{};
 		}
+		if (lhs_type->is_pointer()) {
+			// Handle implicit dereference, that is:
+			// 	ptr.field is sugar for (*ptr).field when ptr is a ptr
+			lhs_type = lhs_type->deref();
+			lhs_addr = lhs_addr->load(cg).to_addr();
+		}
+		auto expr = static_cast<const AstVarExpr *>(m_rhs);
+
+		// When calling a method we generate a tuple with the first value the
+		// address of the method and the second value the objects to pass to the
+		// method. This is later exploded into the method call.
+		Maybe<CgAddr> fun_addr;
+		// TODO(dweiler): Name mangling.
+		if (auto fn = cg.lookup_fn(expr->name())) {
+			fun_addr = fn->addr();
+		}
+
+		if (fun_addr) {
+			InlineAllocator<128> stack;
+			Array<CgType*> types{stack};
+			if (!types.resize(2)) {
+				return cg.oom();
+			}
+			types[0] = fun_addr->type();
+			types[1] = lhs_addr->type();
+			auto tuple = cg.types.make(CgType::TupleInfo { move(types), None{}, None{} });
+			if (!tuple) {
+				return cg.oom();
+			}
+			// Populate the tuple with our two addresses.
+			auto dst = cg.emit_alloca(tuple);
+			if (!dst) {
+				return None{};
+			}
+			CgAddr addrs[] = {
+				dst->at(cg, 0),
+				dst->at(cg, 1)
+			};
+			addrs[0].store(cg, fun_addr->to_value());
+			addrs[1].store(cg, lhs_addr->to_value());
+			return dst;
+		}
+
+		const auto& name = expr->name();
+		const auto& fields = lhs_type->fields();
+		for (Ulen l = fields.length(), i = 0; i < l; i++) {
+			const auto& field = fields[i];
+			if (field.name && *field.name == name) {
+				return lhs_addr->at(cg, i);
+			}
+		}
+		cg.error(m_rhs->range(), "Undeclared field '%S'", name);
+		return None{};
+	} else if (m_rhs->is_expr<AstIntExpr>()) {
+		auto rhs = m_rhs->eval_value(cg);
+		if (!rhs || !rhs->is_integral()) {
+			cg.error(m_rhs->range(), "Expected integer constant expression");
+			return None{};
+		}
+		auto index = rhs->to<Uint64>();
+		if (!index) {
+			cg.error(m_rhs->range(), "Expected integer constant expression");
+			return None{};
+		}
+		auto addr = m_lhs->gen_addr(cg, want);
+		if (!addr) {
+			return None{};
+		}
+		return addr->at(cg, *index);
 	}
+	cg.error(m_rhs->range(), "Unknown expression");
 	return None{};
 }
 
@@ -1441,22 +1460,36 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		break;
 	}
 
-	cg.fatal(range(), "Could not generate value (AstBinExpr)");
+	cg.fatal(range(), "Could not generate value");
 	return None{};
 }
 
 CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	switch (m_op) {
-	case Op::ADD: case Op::SUB: case Op::MUL: case Op::DIV:
-		{
-			auto type = m_lhs->gen_type(cg, want);
-			if (type) {
-				return type;
-			} else {
-				return m_rhs->gen_type(cg, want);
-			}
+	case Op::ADD:
+		[[fallthrough]];
+	case Op::SUB:
+		[[fallthrough]];
+	case Op::MUL:
+		[[fallthrough]];
+	case Op::DIV:
+		if (auto type = m_lhs->gen_type(cg, want)) {
+			return type;
+		} else {
+			return m_rhs->gen_type(cg, want);
 		}
-	case Op::EQ: case Op::NE: case Op::GT: case Op::GE: case Op::LT: case Op::LE:
+		break;
+	case Op::EQ:
+		[[fallthrough]];
+	case Op::NE:
+		[[fallthrough]];
+	case Op::GT:
+		[[fallthrough]];
+	case Op::GE:
+		[[fallthrough]];
+	case Op::LT:
+		[[fallthrough]];
+	case Op::LE:
 		return cg.types.b32();
 	case Op::MIN: case Op::MAX:
 		return m_lhs->gen_type(cg, want);
@@ -1467,9 +1500,8 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	case Op::LSHIFT: case Op::RSHIFT:
 		return m_lhs->gen_type(cg, want);
 	case Op::AS:
-		if (m_rhs->is_expr<AstTypeExpr>()) {
-			auto type = static_cast<AstTypeExpr*>(m_rhs)->type();
-			return type->codegen(cg, None{});
+		if (auto expr = m_rhs->to_expr<AstTypeExpr>()) {
+			return expr->type()->codegen(cg, None{});
 		} else {
 			cg.error(m_rhs->range(), "Expected type expression on right-hand side of 'as' operator");
 			return nullptr;
@@ -1486,8 +1518,7 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 			}
 			if (m_rhs->is_expr<AstCallExpr>()) {
 				return m_rhs->gen_type(cg, want);
-			} else if (m_rhs->is_expr<AstVarExpr>()) {
-				auto rhs = static_cast<const AstVarExpr *>(m_rhs);
+			} else if (auto rhs = m_rhs->to_expr<const AstVarExpr>()) {
 				// TODO(dweiler): Name mangling.
 				if (auto fn = cg.lookup_fn(rhs->name())) {
 					return fn->addr().type();
@@ -1516,8 +1547,8 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	case Op::OF:
 		// The OF operator always returns some integer constant expression except
 		// for "type of"
-		if (m_lhs->is_expr<AstVarExpr>()) {
-			auto name = static_cast<const AstVarExpr *>(m_lhs)->name();
+		if (auto lhs = m_lhs->to_expr<const AstVarExpr>()) {
+			auto name = lhs->name();
 			if (name == "type") {
 				// type  of => type
 				return m_rhs->gen_type(cg, nullptr);
@@ -1572,9 +1603,14 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+
 	switch (m_op) {
 	case Op::NEG:
-		if (auto operand = m_operand->gen_value(cg, want)) {
+		if (auto operand = m_operand->gen_value(cg, type)) {
 			if (operand->type()->is_real()) {
 				return CgValue { operand->type(), cg.llvm.BuildFNeg(cg.builder, operand->ref(), "") };
 			} else {
@@ -1583,20 +1619,20 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		}
 		break;
 	case Op::NOT:
-		if (auto operand = m_operand->gen_value(cg, want)) {
+		if (auto operand = m_operand->gen_value(cg, type)) {
 			return CgValue { operand->type(), cg.llvm.BuildNot(cg.builder, operand->ref(), "") };
 		}
 		break;
 	case Op::DEREF:
 		// When dereferencing on the RHS we just gen_addr followed by a load.
-		if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
+		if (auto addr = gen_addr(cg, type->addrof(cg))) {
 			return addr->load(cg);
 		}
 		break;
 	case Op::ADDROF:
 		// When taking the address we just gen_addr and turn it into a CgValue which
 		// gives us an R-value of the address.
-		if (auto operand = m_operand->gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
+		if (auto operand = m_operand->gen_addr(cg, type->addrof(cg))) {
 			return operand->to_value();
 		}
 		break;
@@ -1611,7 +1647,9 @@ CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		return nullptr;
 	}
 	switch (m_op) {
-	case Op::NEG: case Op::NOT:
+	case Op::NEG:
+		[[fallthrough]];
+	case Op::NOT:
 		return type;
 	case Op::DEREF:
 		return type->deref();
@@ -1640,9 +1678,7 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 			return None{};
 		}
 		auto index = eval->to<Uint64>();
-		if (auto addr = operand->at(cg, *index)) {
-			return addr;
-		}
+		return operand->at(cg, *index);
 	} else {
 		// Otherwise runtime indexing
 		auto index = m_index->gen_value(cg, nullptr);
@@ -1657,27 +1693,29 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 			         index_type_string);
 			return None{};
 		}
-		if (auto addr = operand->at(cg, *index)) {
-			return addr;
-		}
+		return operand->at(cg, *index);
 	}
 	return None{};
 }
 
 Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg, CgType* want) const noexcept {
-	if (auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr)) {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+	if (auto addr = gen_addr(cg, type->addrof(cg))) {
 		return addr->load(cg);
 	}
 	cg.fatal(range(), "Could not generate value (AstIndexExpr)");
 	return None{};
 }
 
-CgType* AstIndexExpr::gen_type(Cg& cg, CgType*) const noexcept {
-	auto type = m_operand->gen_type(cg, nullptr);
+CgType* AstIndexExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	auto type = m_operand->gen_type(cg, want);
 	if (!type) {
 		return nullptr;
 	}
-	if (!type->is_pointer() && !type->is_array() && !type->is_slice()) {
+	if (!type->is_pointer() && !type->is_array() && !type->is_slice() && !type->is_string()) {
 		auto type_string = type->to_string(*cg.scratch);
 		cg.error(range(),
 		         "Cannot index expression of type '%S'",
@@ -1723,7 +1761,7 @@ Maybe<CgValue> AstExplodeExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 Maybe<CgAddr> AstEffExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 	auto expr = expression();
 	if (!expr) {
-		cg.error(m_operand->range(), "Expected effect for expression");
+		cg.error(m_operand->range(), "Expected expression for effect");
 		return None{};
 	}
 	auto find = cg.lookup_using(expr->name());
@@ -1734,16 +1772,16 @@ Maybe<CgAddr> AstEffExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 	return find->addr();
 }
 
-Maybe<CgValue> AstEffExpr::gen_value(Cg& cg, CgType*) const noexcept {
-	auto addr = gen_addr(cg, nullptr);
+Maybe<CgValue> AstEffExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr);
 	if (!addr) {
 		return None{};
 	}
 	return addr->load(cg);
 }
 
-CgType* AstEffExpr::gen_type(Cg& cg, CgType*) const noexcept {
-	auto addr = gen_addr(cg, nullptr);
+CgType* AstEffExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr);
 	if (!addr) {
 		return nullptr;
 	}

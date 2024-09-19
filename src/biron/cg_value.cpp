@@ -4,7 +4,7 @@
 namespace Biron {
 
 // CgAddr
-Maybe<CgValue> CgAddr::load(Cg& cg) const noexcept {
+CgValue CgAddr::load(Cg& cg) const noexcept {
 	if (m_type->deref()->is_fn()) {
 		return to_value();
 	}
@@ -67,7 +67,7 @@ Bool CgAddr::zero(Cg& cg) const noexcept {
 	return store(cg, *zero);
 }
 
-Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
+CgAddr CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 	// Our CgAddr always has a pointer type. When indexing something through 'at'
 	// at runtime we have to be careful because we're not generating an R-value.
 	// We're generating an L-value because we may want to assign a result to the
@@ -107,7 +107,7 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 	auto is_ptr = type->is_pointer();
 	auto gep = cg.llvm.BuildGEP2(cg.builder,
 	                             is_ptr ? type->deref()->ref() : type->ref(),
-	                             is_ptr ? load(cg)->ref() : ref(),
+	                             is_ptr ? load(cg).ref() : ref(),
 	                             indices + is_ptr,
 	                             countof(indices) - is_ptr,
 	                             "at");
@@ -125,7 +125,7 @@ CgAddr::CgAddr(CgType *const type, LLVM::ValueRef ref) noexcept
 	BIRON_ASSERT(type->is_pointer() && "CgAddr constructed with a non-pointer");
 }
 
-Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
+CgAddr CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	auto u32 = cg.types.u32();
 
 	auto type = m_type->deref();
@@ -137,7 +137,7 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	auto is_ptr = type->is_pointer();
 	auto gep = cg.llvm.BuildGEP2(cg.builder,
 	                             is_ptr ? type->deref()->ref() : type->ref(),
-	                             is_ptr ? load(cg)->ref() : ref(),
+	                             is_ptr ? load(cg).ref() : ref(),
 	                             indices + is_ptr,
 	                             countof(indices) - is_ptr,
 	                             "");
@@ -149,10 +149,10 @@ Maybe<CgAddr> CgAddr::at(Cg& cg, Ulen i) const noexcept {
 }
 
 Maybe<CgValue> CgValue::at(Cg& cg, Ulen i) const noexcept {
-	if (m_type->is_array()) {
+	if (m_type->is_array() || m_type->is_string()) {
 		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
 		return CgValue { m_type->deref(), value };
-	} else if (m_type->is_tuple() || m_type->is_string()) {
+	} else if (m_type->is_tuple()) {
 		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
 		return CgValue { m_type->at(i), value };
 	}

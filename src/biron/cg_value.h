@@ -15,16 +15,15 @@ struct AstNode;
 struct CgAddr {
 	CgAddr(CgType *const type, LLVM::ValueRef ref) noexcept;
 
-	Maybe<CgAddr> at(Cg& cg, Ulen index) const noexcept;
-	Maybe<CgAddr> at(Cg& cg, const CgValue& index) const noexcept;
+	CgAddr at(Cg& cg, Ulen index) const noexcept;
+	CgAddr at(Cg& cg, const CgValue& index) const noexcept;
 
-	Maybe<CgValue> load(Cg& cg) const noexcept;
+	CgValue load(Cg& cg) const noexcept;
 	Bool store(Cg& cg, const CgValue& value) const noexcept;
 	Bool zero(Cg& cg) const noexcept;
 
-	[[nodiscard]] constexpr CgType* type() const noexcept { return m_type; }
 	[[nodiscard]] constexpr LLVM::ValueRef ref() const noexcept { return m_ref; }
-
+	[[nodiscard]] constexpr CgType* type() const noexcept { return m_type; }
 	[[nodiscard]] CgValue to_value() const noexcept;
 
 private:
@@ -53,21 +52,21 @@ struct CgValue {
 
 	Maybe<CgValue> at(Cg& cg, Ulen i) const noexcept;
 
-	[[nodiscard]] constexpr LLVM::ValueRef ref() const noexcept { return m_ref; }
-
 	// Construct a zero-value of the given type.
 	static Maybe<CgValue> zero(CgType* type, Cg& cg) noexcept;
 
+	[[nodiscard]] constexpr LLVM::ValueRef ref() const noexcept { return m_ref; }
 	[[nodiscard]] constexpr CgType* type() const noexcept { return m_type; }
-
-	[[nodiscard]] CgAddr to_addr() const noexcept {
-		return CgAddr { m_type, m_ref };
-	}
+	[[nodiscard]] CgAddr to_addr() const noexcept;
 
 private:
 	CgType* m_type;
 	LLVM::ValueRef m_ref;
 };
+
+inline CgAddr CgValue::to_addr() const noexcept {
+	return CgAddr { m_type, m_ref };
+}
 
 inline CgValue CgAddr::to_value() const noexcept {
 	return CgValue { m_type, m_ref };

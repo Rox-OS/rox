@@ -339,9 +339,9 @@ Bool AstUsingStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstExprStmt::codegen(Cg& cg) const noexcept {
-	if (m_expr->is_expr<AstTupleExpr>()) {
-		auto expr = static_cast<const AstTupleExpr*>(m_expr);
+	if (auto expr = m_expr->to_expr<const AstTupleExpr>()) {
 		if (expr->length() == 0) {
+			// The unit tuple as an expression is a no-op.
 			return true;
 		}
 	}
@@ -380,31 +380,23 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 	case StoreOp::WR:
 		return dst->store(cg, *src);
 	case StoreOp::ADD:
-		if (auto load = dst->load(cg)) {
-			if (auto value = cg.emit_add(*load, *src, range())) {
-				return dst->store(cg, *value);
-			}
+		if (auto value = cg.emit_add(dst->load(cg), *src, range())) {
+			return dst->store(cg, *value);
 		}
 		break;
 	case StoreOp::SUB:
-		if (auto load = dst->load(cg)) {
-			if (auto value = cg.emit_sub(*load, *src, range())) {
-				return dst->store(cg, *value);
-			}
+		if (auto value = cg.emit_sub(dst->load(cg), *src, range())) {
+			return dst->store(cg, *value);
 		}
 		break;
 	case StoreOp::MUL:
-		if (auto load = dst->load(cg)) {
-			if (auto value = cg.emit_mul(*load, *src, range())) {
-				return dst->store(cg, *value);
-			}
+		if (auto value = cg.emit_mul(dst->load(cg), *src, range())) {
+			return dst->store(cg, *value);
 		}
 		break;
 	case StoreOp::DIV:
-		if (auto load = dst->load(cg)) {
-			if (auto value = cg.emit_div(*load, *src, range())) {
-				return dst->store(cg, *value);
-			}
+		if (auto value = cg.emit_div(dst->load(cg), *src, range())) {
+			return dst->store(cg, *value);
 		}
 	}
 	

@@ -32,6 +32,14 @@ struct AstExpr : AstNode {
 	[[nodiscard]] constexpr Bool is_expr() const noexcept {
 		return m_kind == T::KIND;
 	}
+	template<DerivedFrom<AstExpr> T>
+	[[nodiscard]] constexpr const T* to_expr() const noexcept {
+		return is_expr<T>() ? static_cast<const T*>(this) : nullptr;
+	}
+	template<DerivedFrom<AstExpr> T>
+	[[nodiscard]] constexpr T* to_expr() noexcept {
+		return is_expr<T>() ? static_cast<T*>(this) : nullptr;
+	}
 	[[nodiscard]] virtual Maybe<AstConst> eval_value(Cg& cg) const noexcept;
 	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg, CgType* want) const noexcept;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept;
@@ -339,9 +347,7 @@ struct AstEffExpr : AstExpr {
 	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
 private:
 	[[nodiscard]] const AstVarExpr* expression() const noexcept {
-		return m_operand->is_expr<AstVarExpr>()
-			? static_cast<const AstVarExpr*>(m_operand)
-			: nullptr;
+		return to_expr<const AstVarExpr>();
 	}
 	AstExpr* m_operand;
 };

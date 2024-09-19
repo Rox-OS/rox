@@ -18,10 +18,6 @@ struct AstAttr : AstNode {
 	{
 	}
 	virtual ~AstAttr() noexcept = default;
-	template<DerivedFrom<AstAttr> T>
-	[[nodiscard]] constexpr Bool is_attr() const noexcept {
-		return m_kind == T::KIND;
-	}
 	void dump(StringBuilder& builder) const noexcept;
 	Maybe<AstConst> eval(Cg& cg) const noexcept;
 	StringView name() const noexcept { return m_name; }

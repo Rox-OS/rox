@@ -262,21 +262,9 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 		return parse_chr_expr();
 	case Token::Kind::LPAREN:
 		return parse_tuple_expr();
-	case Token::Kind::LT:
-		{
-			// <T>
-			next(); // Consume '<'
-			auto type = parse_type_expr();
-			if (!type) {
-				return nullptr;
-			}
-			if (peek().kind != Token::Kind::GT) {
-				ERROR("Expected '>'");
-				return nullptr;
-			}
-			next(); // Consume '>'
-			return type;
-		}
+	case Token::Kind::KW_NEW:
+		next(); // Consume 'new'
+		return parse_type_expr();
 	case Token::Kind::LBRACE:
 		// Aggregate initializer without any type specified
 		return parse_agg_expr(nullptr);
@@ -290,10 +278,11 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 AstExpr* Parser::parse_agg_expr(AstExpr* type_expr) noexcept {
 	AstType* type = nullptr;
 	if (type_expr) {
-		if (!type_expr->is_expr<AstTypeExpr>()) {
+		if (auto expr = type_expr->to_expr<AstTypeExpr>()) {
+			type = expr->type();
+		} else {
 			return nullptr;
 		}
-		type = static_cast<AstTypeExpr*>(type_expr)->type();
 	}
 	if (peek().kind != Token::Kind::LBRACE) {
 		return type_expr;

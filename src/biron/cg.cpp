@@ -363,7 +363,7 @@ Maybe<CgValue> Cg::emit_for_array(const CgValue& lhs,
 	auto dst = emit_alloca(lhs.type());
 	Ulen i = 0;
 	for (auto value : values) {
-		dst->at(*this, i++)->store(*this, value);
+		dst->at(*this, i++).store(*this, value);
 	}
 	return dst->load(*this);
 }

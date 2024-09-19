@@ -254,33 +254,35 @@ CgType* AstUnionType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 }
 
 CgType* AstIdentType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
-	if (m_ident == "Uint8")   return cg.types.u8();
-	if (m_ident == "Uint16")  return cg.types.u16();
-	if (m_ident == "Uint32")  return cg.types.u32();
-	if (m_ident == "Uint64")  return cg.types.u64();
-	if (m_ident == "Sint8")   return cg.types.s8();
-	if (m_ident == "Sint16")  return cg.types.s16();
-	if (m_ident == "Sint32")  return cg.types.s32();
-	if (m_ident == "Sint64")  return cg.types.s64();
-	if (m_ident == "Bool8")   return cg.types.b8();
-	if (m_ident == "Bool16")  return cg.types.b16();
-	if (m_ident == "Bool32")  return cg.types.b32();
-	if (m_ident == "Bool64")  return cg.types.b64();
-	if (m_ident == "Real32")  return cg.types.f32();
-	if (m_ident == "Real64")  return cg.types.f64();
-	if (m_ident == "String")  return cg.types.str();
-	if (m_ident == "Address") return cg.types.ptr();
-	if (m_ident == "Length")  return cg.types.u64();
+	/**/ if (m_ident == "Uint8")   return cg.types.u8();
+	else if (m_ident == "Uint16")  return cg.types.u16();
+	else if (m_ident == "Uint32")  return cg.types.u32();
+	else if (m_ident == "Uint64")  return cg.types.u64();
+	else if (m_ident == "Sint8")   return cg.types.s8();
+	else if (m_ident == "Sint16")  return cg.types.s16();
+	else if (m_ident == "Sint32")  return cg.types.s32();
+	else if (m_ident == "Sint64")  return cg.types.s64();
+	else if (m_ident == "Bool8")   return cg.types.b8();
+	else if (m_ident == "Bool16")  return cg.types.b16();
+	else if (m_ident == "Bool32")  return cg.types.b32();
+	else if (m_ident == "Bool64")  return cg.types.b64();
+	else if (m_ident == "Real32")  return cg.types.f32();
+	else if (m_ident == "Real64")  return cg.types.f64();
+	else if (m_ident == "String")  return cg.types.str();
+	else if (m_ident == "Address") return cg.types.ptr();
+	else if (m_ident == "Length")  return cg.types.u64();
 	for (auto type : cg.typedefs) {
 		if (type.name() == m_ident) {
 			return type.type();
 		}
 	}
+
 	for (auto effect : cg.effects) {
 		if (effect.name() == m_ident) {
 			return effect.type();
 		}
 	}
+
 	// Check the unit for non-generated types and generate them here. This will
 	// basically perform an implicit dependency sort of the types for us for free.
 	for (const auto& type : cg.unit->m_typedefs) {
@@ -290,6 +292,7 @@ CgType* AstIdentType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 			}
 		}
 	}
+
 	for (const auto& effect : cg.unit->m_effects) {
 		if (effect->name() == m_ident) {
 			if (effect->codegen(cg)) {
@@ -297,6 +300,7 @@ CgType* AstIdentType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 			}
 		}
 	}
+
 	cg.error(range(), "Undeclared entity '%S'", m_ident, range().length);
 	return nullptr;
 }

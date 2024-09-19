@@ -230,7 +230,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 		Ulen i = 0;
 		for (const auto& field : effects->fields()) {
 			auto field_addr = src.at(cg, i);
-			if (field.name && !cg.scopes.last().usings.emplace_back(this, *field.name, move(*field_addr))) {
+			if (field.name && !cg.scopes.last().usings.emplace_back(this, *field.name, move(field_addr))) {
 				return false;
 			}
 			i++;

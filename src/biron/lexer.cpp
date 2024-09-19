@@ -217,6 +217,7 @@ Token Lexer::read() noexcept {
 				break;
 			case 3:
 				/**/ if (ident == "let")      return {Kind::KW_LET,      {n, 3}};
+				else if (ident == "new")      return {Kind::KW_NEW,      {n, 3}};
 				else if (ident == "for")      return {Kind::KW_FOR,      {n, 3}};
 				break;
 			case 4:

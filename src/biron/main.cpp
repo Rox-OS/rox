@@ -199,5 +199,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	terminal.out("Compiler peaked at %zu bytes\n", allocator.peak());
+
 	return 0;
 }

@@ -14,10 +14,11 @@ struct Either {
 	constexpr Either(LHS&& lhs) noexcept : m_as_lhs{move(lhs)}, m_kind{KIND_LHS} {}
 	constexpr Either(RHS&& rhs) noexcept : m_as_rhs{move(rhs)}, m_kind{KIND_RHS} {}
 	constexpr Either(Either&& other) noexcept
-		: m_kind{exchange(other.m_kind, KIND_NIL)}
+		: m_kind{other.m_kind}
 	{
-		/**/ if (is_lhs()) new (&m_as_lhs, Nat{}) LHS{move(other.m_as_lhs)};
-		else if (is_rhs()) new (&m_as_rhs, Nat{}) RHS{move(other.m_as_rhs)};
+		/**/ if (other.is_lhs()) new (&m_as_lhs, Nat{}) LHS{move(other.m_as_lhs)};
+		else if (other.is_rhs()) new (&m_as_rhs, Nat{}) RHS{move(other.m_as_rhs)};
+		// Will call LHS/RHS destructors and set other.m_kind to NIL
 		other.reset();
 	}
 	constexpr Either(const Either& other) noexcept
