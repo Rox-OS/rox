@@ -58,7 +58,7 @@ struct Maybe {
 	[[nodiscard]] constexpr const T* operator->() const noexcept { return &some(); }
 	[[nodiscard]] constexpr auto is_some() const noexcept { return m_either.is_lhs(); }
 	[[nodiscard]] constexpr auto is_none() const noexcept { return !is_some(); }
-	[[nodiscard]] constexpr operator bool() const noexcept { return is_some(); }
+	[[nodiscard]] constexpr explicit operator bool() const noexcept { return is_some(); }
 	constexpr void reset() noexcept { drop(); }
 	constexpr void reset(T&& value) noexcept { new (drop(), Nat{}) Maybe{move(value)}; }
 	constexpr void reset(Maybe&& other) noexcept { new (drop(), Nat{}) Maybe{move(other)}; }

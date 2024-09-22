@@ -139,7 +139,6 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Op::BAND:   builder.append(" & ");
 	break; case Op::LSHIFT: builder.append(" << ");
 	break; case Op::RSHIFT: builder.append(" >> ");
-	break; case Op::DOT:    builder.append('.');
 	break;
 	}
 	m_rhs->dump(builder);
@@ -174,6 +173,12 @@ void AstEffExpr::dump(StringBuilder& builder) const noexcept {
 
 void AstInferSizeExpr::dump(StringBuilder& builder) const noexcept {
 	builder.append('?');
+}
+
+void AstAccessExpr::dump(StringBuilder& builder) const noexcept {
+	m_lhs->dump(builder);
+	builder.append('.');
+	m_rhs->dump(builder);
 }
 
 } // namespace Biron

@@ -48,6 +48,7 @@ const char* AstExpr::name() const noexcept {
 	case Kind::EFF:       return "EFF";
 	case Kind::SELECTOR:  return "SELECTOR";
 	case Kind::INFERSIZE: return "INFERSIZE";
+	case Kind::ACCESS:    return "ACCESS";
 	}
 	BIRON_UNREACHABLE();
 }
@@ -828,11 +829,6 @@ CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
-	if (m_op == Op::DOT) {
-		// TODO(dweiler): See if we can work out constant tuple indexing
-		return None{};
-	}
-
 	if (m_op == Op::AS) {
 		auto lhs = m_lhs->eval_value(cg);
 		if (!lhs) {
@@ -844,7 +840,9 @@ Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
 
 	if (m_op == Op::OF) {
 		if (!m_lhs->is_expr<AstVarExpr>()) {
-			cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator");
+			// StringBuilder b{*cg.scratch};
+			// m_lhs->dump(b);
+			// cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator got %S", b.view());
 			return None{};
 		}
 		auto name = static_cast<const AstVarExpr *>(m_lhs)->name();
@@ -932,40 +930,66 @@ Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
-	if (m_op != Op::DOT) {
-		return None{};
-	}
-
-	auto lhs_type = m_lhs->gen_type(cg, want ? want->deref() : nullptr);
+CgType* AstAccessExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	auto lhs_type = m_lhs->gen_type(cg, nullptr);
 	if (!lhs_type) {
-		return None{};
+		return nullptr;
 	}
-
-	auto is_tuple = 
-		lhs_type->is_tuple() ||
-			(lhs_type->is_pointer() && lhs_type->deref()->is_tuple());
-
-	auto is_string =
-		lhs_type->is_string() ||
-			(lhs_type->is_pointer() && lhs_type->deref()->is_string());
-
-	if (!is_tuple && !is_string) {
-		return None{};
+	if (lhs_type->is_pointer()) {
+		lhs_type = lhs_type->deref();
 	}
+	if (!lhs_type->is_tuple()) {
+		auto to_string = lhs_type->to_string(*cg.scratch);
+		cg.error(m_lhs->range(), "Expected tuple type. Got '%S' instead", to_string);
+		return nullptr;
+	}
+	if (m_rhs->is_expr<AstCallExpr>()) {
+		return m_rhs->gen_type(cg, want);
+	} else if (auto rhs = m_rhs->to_expr<const AstVarExpr>()) {
+		// TODO(dweiler): Name mangling.
+		if (auto fn = cg.lookup_fn(rhs->name())) {
+			return fn->addr().type();
+		}
+		if (lhs_type->is_tuple() || lhs_type->is_enum()) {
+			Ulen i = 0;
+			for (const auto& field : lhs_type->fields()) {
+				if (field.name && *field.name == rhs->name()) {
+					return lhs_type->at(i);
+				}
+				i++;
+			}
+		}
+		cg.error(m_rhs->range(), "Undeclared field '%S'", rhs->name());
+		return nullptr;
+	} else if (m_rhs->is_expr<AstIntExpr>()) {
+		const auto value = m_rhs->eval_value(cg);
+		if (!value || !value->is_integral()) {
+			cg.error(m_rhs->range(), "Not a valid integer constant expression");
+			return nullptr;
+		}
+		const auto u64 = value->to<Uint64>();
+		if (!u64) {
+			return nullptr;
+		}
+		return lhs_type->at(*u64);
+	}
+	return nullptr;
+}
 
-	if (m_rhs->is_expr<AstVarExpr>()) {
+Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	if (const auto expr = m_rhs->to_expr<const AstVarExpr>()) {
 		auto lhs_addr = m_lhs->gen_addr(cg, want);
 		if (!lhs_addr) {
 			return None{};
 		}
-		if (lhs_type->is_pointer()) {
+		auto type = lhs_addr->type()->deref();
+		const auto* fields = &type->fields();
+		if (type->is_pointer()) {
 			// Handle implicit dereference, that is:
 			// 	ptr.field is sugar for (*ptr).field when ptr is a ptr
-			lhs_type = lhs_type->deref();
 			lhs_addr = lhs_addr->load(cg).to_addr();
+			fields = &type->deref()->fields();
 		}
-		auto expr = static_cast<const AstVarExpr *>(m_rhs);
 
 		// When calling a method we generate a tuple with the first value the
 		// address of the method and the second value the objects to pass to the
@@ -1003,9 +1027,8 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		}
 
 		const auto& name = expr->name();
-		const auto& fields = lhs_type->fields();
-		for (Ulen l = fields.length(), i = 0; i < l; i++) {
-			const auto& field = fields[i];
+		for (Ulen l = fields->length(), i = 0; i < l; i++) {
+			const auto& field = (*fields)[i];
 			if (field.name && *field.name == name) {
 				return lhs_addr->at(cg, i);
 			}
@@ -1029,7 +1052,18 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		}
 		return addr->at(cg, *index);
 	}
-	cg.error(m_rhs->range(), "Unknown expression");
+	cg.error(m_rhs->range(), "Unknown expression for access");
+	return None{};
+}
+
+Maybe<CgValue> AstAccessExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	if (m_rhs->is_expr<AstVarExpr>() || m_rhs->is_expr<AstIntExpr>()) {
+		auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr);
+		if (!addr) {
+			return None{};
+		}
+		return addr->load(cg);
+	}
 	return None{};
 }
 
@@ -1040,7 +1074,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	CgType* lhs_type = nullptr;
 	CgType* rhs_type = nullptr;
 
-	if (m_op != Op::DOT && m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS && m_op != Op::OF) {
+	if (m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS && m_op != Op::OF) {
 		// Operands to binary operator must be the same type
 		lhs_type = m_lhs->gen_type(cg, want);
 		if (lhs_type) {
@@ -1093,14 +1127,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		if (!value) {
 			return None{};
 		}
-		auto u64 = value->to<Uint64>();
-		if (!u64) {
-			return None{};
-		}
-		// The result will be a ConstInt
-		auto t = cg.types.u64();
-		auto v = cg.llvm.ConstInt(t->ref(), u64, false);
-		return CgValue { t, v };
+		return value->codegen(cg, cg.types.u64());
 	}
 
 	Maybe<CgValue> lhs;
@@ -1397,7 +1424,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		}
 		break;
 	case Op::BOR:
-		if (lhs_type->is_sint() || lhs_type->is_uint() || lhs_type->is_bool()) {
+		if (lhs_type->is_integer() || lhs_type->is_bool()) {
 			if (gen_values()) {
 				auto value = cg.llvm.BuildOr(cg.builder, lhs->ref(), rhs->ref(), "");
 				return CgValue { lhs_type, value };
@@ -1411,7 +1438,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		}
 		break;
 	case Op::BAND:
-		if (lhs_type->is_sint() || lhs_type->is_uint() || lhs_type->is_bool()) {
+		if (lhs_type->is_integer() || lhs_type->is_bool()) {
 			if (gen_values()) {
 				auto value = cg.llvm.BuildAnd(cg.builder, lhs->ref(), rhs->ref(), "");
 				return CgValue { lhs_type, value };
@@ -1425,7 +1452,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		}
 		break;
 	case Op::LSHIFT:
-		if (lhs_type->is_sint() || lhs_type->is_uint()) {
+		if (lhs_type->is_integer()) {
 			if (gen_values()) {
 				auto value = cg.llvm.BuildShl(cg.builder, lhs->ref(), rhs->ref(), "");
 				return CgValue { lhs_type, value };
@@ -1455,39 +1482,24 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			}
 		}
 		break;
-	case Op::DOT:
-		{
-			auto lhs_type = m_lhs->gen_type(cg, nullptr);
-			if (!lhs_type) {
-				return None{};
-			}
-			auto is_tuple =
-				lhs_type->is_tuple() || (lhs_type->is_pointer() && lhs_type->deref()->is_tuple());
-			if (!is_tuple) {
-				cg.error(m_lhs->range(), "Expected tuple type. Got '%S' instead", lhs_type->to_string(*cg.scratch));
-				return None{};
-			}
-			if (m_rhs->is_expr<AstVarExpr>()) {
-				auto addr = gen_addr(cg, nullptr);
-				if (!addr) {
-					return None{};
-				}
-				return addr->load(cg);
-			} else if (m_rhs->is_expr<AstIntExpr>()) {
-				auto addr = gen_addr(cg, nullptr);
-				if (!addr) {
-					return None{};
-				}
-				return addr->load(cg);
-			}
-		}
-		break;
 	default:
 		break;
 	}
 
 	cg.fatal(range(), "Could not generate value");
 	return None{};
+}
+
+Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto value = gen_value(cg, want ? want->deref() : nullptr);
+	if (!value) {
+		return None{};
+	}
+	auto addr = cg.emit_alloca(value->type());
+	if (!addr || !addr->store(cg, *value)) {
+		return None{};
+	}
+	return addr;
 }
 
 CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
@@ -1546,43 +1558,6 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 			return nullptr;
 		}
 		break;
-	case Op::DOT:
-		{
-			auto lhs_type = m_lhs->gen_type(cg, nullptr);
-			if (!lhs_type) {
-				return nullptr;
-			}
-			if (lhs_type->is_pointer()) {
-				lhs_type = lhs_type->deref();
-			}
-			if (m_rhs->is_expr<AstCallExpr>()) {
-				return m_rhs->gen_type(cg, want);
-			} else if (auto rhs = m_rhs->to_expr<const AstVarExpr>()) {
-				// TODO(dweiler): Name mangling.
-				if (auto fn = cg.lookup_fn(rhs->name())) {
-					return fn->addr().type();
-				}
-				if (lhs_type->is_tuple() || lhs_type->is_enum()) {
-					Ulen i = 0;
-					for (const auto& field : lhs_type->fields()) {
-						if (field.name && *field.name == rhs->name()) {
-							return lhs_type->at(i);
-						}
-						i++;
-					}
-				}
-				cg.error(m_rhs->range(), "Undeclared field '%S'", rhs->name());
-				return nullptr;
-			} else if (m_rhs->is_expr<AstIntExpr>()) {
-				auto i = m_rhs->eval_value(cg);
-				if (!i || !i->is_integral()) {
-					cg.error(m_rhs->range(), "Not a valid integer constant expression");
-					return nullptr;
-				}
-				return lhs_type->at(*i->to<Uint64>());
-			}
-		}
-		break;
 	case Op::OF:
 		// The OF operator always returns some integer constant expression except
 		// for "type of"
@@ -1598,6 +1573,14 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 				// pad   of => u64
 				return cg.types.u64();
 			}
+		} else if (m_lhs->to_expr<AstTypeExpr>()) {
+			// auto name = lhs->name();
+			// if (name != "type") {
+			// 	cg.error(m_lhs->range(), "Expected type property");
+			// 	return nullptr;
+			// }
+			// type  of => type
+			return m_rhs->gen_type(cg, nullptr);
 		} else {
 			cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator");
 			return nullptr;
@@ -1698,8 +1681,8 @@ CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
-	auto operand = m_operand->gen_addr(cg, want);
+Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
+	auto operand = m_operand->gen_addr(cg, nullptr);
 	if (!operand) {
 		return None{};
 	}
@@ -1716,6 +1699,9 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			return None{};
 		}
 		auto index = eval->to<Uint64>();
+		if (!index) {
+			return None{};
+		}
 		return operand->at(cg, *index);
 	} else {
 		// Otherwise runtime indexing
@@ -1770,6 +1756,7 @@ CgType* AstIndexExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	if (!type) {
 		return nullptr;
 	}
+
 	if (!type->is_pointer() && !type->is_array() && !type->is_slice() && !type->is_string()) {
 		auto type_string = type->to_string(*cg.scratch);
 		cg.error(range(), "Cannot index expression of type '%S'", type_string);

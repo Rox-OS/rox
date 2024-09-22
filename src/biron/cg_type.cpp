@@ -422,7 +422,7 @@ CgType* AstEnumType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 				cg.error(init->range(), "Expected constant expression for enumerator");
 				return nullptr;
 			}
-			offset = value->to<Sint128>();
+			offset = *value->to<Sint128>();
 		}
 		if (!fields.emplace_back(enumerator.name, AstConst { range(), Sint64(offset) })) {
 			cg.oom();

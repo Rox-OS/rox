@@ -144,7 +144,7 @@ AstExpr* Parser::parse_postfix_expr() noexcept {
 					return nullptr;
 				}
 				auto range = operand->range().include(expr->range());
-				operand = new_node<AstBinExpr>(AstBinExpr::Op::DOT, operand, expr, range);
+				operand = new_node<AstAccessExpr>(operand, expr, range);
 			}
 			break;
 		case Token::Kind::LBRACKET:
@@ -247,6 +247,8 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 	switch (peek().kind) {
 	case Token::Kind::DOT:
 		return parse_selector_expr();
+	case Token::Kind::KW_TYPE:
+		[[fallthrough]];
 	case Token::Kind::IDENT:
 		return parse_var_expr();
 	case Token::Kind::KW_TRUE:
@@ -659,7 +661,7 @@ AstIdentType* Parser::parse_ident_type(Array<AstAttr*>&& attrs) noexcept {
 		ERROR("Expected identifier");
 		return nullptr;
 	}
-	auto token = next();
+	auto token = next(); // consume Ident
 	auto name = m_lexer.string(token.range);
 	return new_node<AstIdentType>(name, move(attrs), token.range);
 }
@@ -684,7 +686,7 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 				return nullptr;
 			}
 			if (!elems.emplace_back(None{}, nested)) {
-				ERROR("Out of memory");
+				ERROR("Out of memory while parsing tuple type");
 				return nullptr;
 			}
 			if (peek().kind == Token::Kind::COMMA) {
@@ -716,10 +718,17 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 			if (token) {
 				auto name = m_lexer.string(token->range);
 				type = new_node<AstIdentType>(name, m_arena, token->range);
+				if (!type) {
+					ERROR("Out of memory");
+					return nullptr;
+				}
 			} else {
 				type = parse_type();
+				if (!type) {
+					return nullptr;
+				}
 			}
-			if (!type || !elems.emplace_back(None{}, type)) {
+			if (!elems.emplace_back(None{}, type)) {
 				ERROR("Out of memory");
 				return nullptr;
 			}

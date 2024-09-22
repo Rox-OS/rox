@@ -31,7 +31,7 @@ struct Diagnostic {
 			StringView view{fmt->data(), fmt->length()};
 			diagnostic(range, Kind::ERROR, view);
 		} else {
-			diagnostic(range, Kind::FATAL, "Out of memory");
+			diagnostic(range, Kind::FATAL, "Out of memory while formatting diagnostic");
 		}
 	}
 
@@ -43,7 +43,7 @@ struct Diagnostic {
 			StringView view{fmt->data(), fmt->length()};
 			diagnostic(range, Kind::FATAL, view);
 		} else {
-			diagnostic(range, Kind::FATAL, "Out of memory");
+			diagnostic(range, Kind::FATAL, "Out of memory while formatting diagnostic");
 		}
 	}
 

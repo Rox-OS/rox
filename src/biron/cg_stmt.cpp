@@ -182,7 +182,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 		if (!addr) {
 			return false;
 		}
-		if (type->is_tuple() || type->is_array()) {
+		if (false && (type->is_tuple() || type->is_array())) {
 			auto src = m_init->gen_addr(cg, nullptr);
 			if (src) {
 				cg.llvm.BuildMemCpy(cg.builder,
@@ -345,7 +345,10 @@ Bool AstExprStmt::codegen(Cg& cg) const noexcept {
 			return true;
 		}
 	}
-	return m_expr->gen_value(cg, nullptr);
+	if (m_expr->gen_value(cg, nullptr)) {
+		return true;
+	}
+	return false;
 }
 
 Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
