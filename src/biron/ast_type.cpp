@@ -45,7 +45,7 @@ void AstArrayType::dump(StringBuilder& builder) const noexcept {
 	builder.append('[');
 	m_extent->dump(builder);
 	builder.append(']');
-	m_type->dump(builder);
+	m_base->dump(builder);
 }
 
 void AstSliceType::dump(StringBuilder& builder) const noexcept {

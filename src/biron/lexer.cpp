@@ -84,8 +84,9 @@ Token Lexer::read() noexcept {
 			return {Kind::STAR,   {n,     1}};
 		}
 		break;
-	case '%': return {Kind::PERCENT, {fwd(), 1}};
-	case '$': return {Kind::DOLLAR,  {fwd(), 1}};
+	case '%': return {Kind::PERCENT,  {fwd(), 1}};
+	case '$': return {Kind::DOLLAR,   {fwd(), 1}};
+	case '?': return {Kind::QUESTION, {fwd(), 1}};
 	case '|':
 		n = fwd(); // Consume '|'
 		if (peek() == '|') {

@@ -32,21 +32,22 @@ Maybe<AstConst> AstExpr::eval_value(Cg&) const noexcept {
 
 const char* AstExpr::name() const noexcept {
 	switch (m_kind) {
-	case Kind::TUPLE:    return "TUPLE";
-	case Kind::CALL:     return "CALL";
-	case Kind::TYPE:     return "TYPE";
-	case Kind::VAR:      return "VAR";
-	case Kind::INT:      return "INT";
-	case Kind::FLT:      return "FLT";
-	case Kind::BOOL:     return "BOOL";
-	case Kind::STR:      return "STR";
-	case Kind::AGG:      return "AGG";
-	case Kind::BIN:      return "BIN";
-	case Kind::UNARY:    return "UNARY";
-	case Kind::INDEX:    return "INDEX";
-	case Kind::EXPLODE:  return "EXPLODE";
-	case Kind::EFF:      return "EFF";
-	case Kind::SELECTOR: return "SELECTOR";
+	case Kind::TUPLE:     return "TUPLE";
+	case Kind::CALL:      return "CALL";
+	case Kind::TYPE:      return "TYPE";
+	case Kind::VAR:       return "VAR";
+	case Kind::INT:       return "INT";
+	case Kind::FLT:       return "FLT";
+	case Kind::BOOL:      return "BOOL";
+	case Kind::STR:       return "STR";
+	case Kind::AGG:       return "AGG";
+	case Kind::BIN:       return "BIN";
+	case Kind::UNARY:     return "UNARY";
+	case Kind::INDEX:     return "INDEX";
+	case Kind::EXPLODE:   return "EXPLODE";
+	case Kind::EFF:       return "EFF";
+	case Kind::SELECTOR:  return "SELECTOR";
+	case Kind::INFERSIZE: return "INFERSIZE";
 	}
 	BIRON_UNREACHABLE();
 }
@@ -172,6 +173,9 @@ CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		if (!type) {
 			return nullptr;
 		}
+		if (type->is_fn()) {
+			type = type->addrof(cg);
+		}
 		if (!types.push_back(type)) {
 			cg.oom();
 			return nullptr;
@@ -185,7 +189,7 @@ CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	if (!fn) {
 		return nullptr;
 	}
-
+	
 	auto type = fn->deref();
 	if (type->is_tuple()) {
 		// This is a method call
@@ -442,7 +446,7 @@ Maybe<CgValue> AstVarExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 CgType* AstVarExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	auto addr = gen_addr(cg, want ? want->addrof(cg) : nullptr);
 	if (!addr) {
-		cg.fatal(range(), "Could not generate type");
+		cg.fatal(range(), "Could not generate type (AstVarExpr)");
 		return nullptr;
 	}
 	auto type = addr->type();
@@ -798,15 +802,29 @@ Maybe<CgValue> AstAggExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	if (m_type) {
-		if (auto type = m_type->codegen(cg, None{})) {
-			return type;
-		}
-	} else if (want) {
+	if (!m_type) {
 		return want;
 	}
-	cg.fatal(range(), "Could not generate type");
-	return nullptr;
+	// Special behavior needed when infering the length.
+	if (auto type = m_type->to_type<AstArrayType>()) {
+		if (type->extent()->is_expr<AstInferSizeExpr>()) {
+			auto base = type->base()->codegen(cg, None{});
+			if (!base) {
+				return nullptr;
+			}
+			auto type = cg.types.make(CgType::ArrayInfo {
+				base,
+				m_exprs.length(),
+				None{}
+			});
+			if (!type) {
+				cg.oom();
+				return nullptr;
+			}
+			return type;
+		}
+	}
+	return m_type->codegen(cg, None{});
 }
 
 Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
@@ -928,7 +946,11 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		lhs_type->is_tuple() ||
 			(lhs_type->is_pointer() && lhs_type->deref()->is_tuple());
 
-	if (!is_tuple) {
+	auto is_string =
+		lhs_type->is_string() ||
+			(lhs_type->is_pointer() && lhs_type->deref()->is_string());
+
+	if (!is_tuple && !is_string) {
 		return None{};
 	}
 
@@ -1071,9 +1093,13 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		if (!value) {
 			return None{};
 		}
+		auto u64 = value->to<Uint64>();
+		if (!u64) {
+			return None{};
+		}
 		// The result will be a ConstInt
 		auto t = cg.types.u64();
-		auto v = cg.llvm.ConstInt(t->ref(), *value->to<Uint64>(), false);
+		auto v = cg.llvm.ConstInt(t->ref(), u64, false);
 		return CgValue { t, v };
 	}
 
@@ -1490,18 +1516,31 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	case Op::LT:
 		[[fallthrough]];
 	case Op::LE:
+		[[fallthrough]];
+	case Op::LOR:
+		[[fallthrough]];
+	case Op::LAND:
 		return cg.types.b32();
-	case Op::MIN: case Op::MAX:
+	case Op::MIN:
+		[[fallthrough]];
+	case Op::MAX:
 		return m_lhs->gen_type(cg, want);
-	case Op::LOR: case Op::LAND:
-		return cg.types.b8();
-	case Op::BOR: case Op::BAND:
-		return m_lhs->gen_type(cg, want);
-	case Op::LSHIFT: case Op::RSHIFT:
+	case Op::BOR:
+		[[fallthrough]];
+	case Op::BAND:
+		[[fallthrough]];
+	case Op::LSHIFT:
+		[[fallthrough]];
+	case Op::RSHIFT:
 		return m_lhs->gen_type(cg, want);
 	case Op::AS:
 		if (auto expr = m_rhs->to_expr<AstTypeExpr>()) {
-			return expr->type()->codegen(cg, None{});
+			auto type = expr->type()->codegen(cg, None{});
+			if (type->is_fn()) {
+				return type->addrof(cg);
+			} else {
+				return type;
+			}
 		} else {
 			cg.error(m_rhs->range(), "Expected type expression on right-hand side of 'as' operator");
 			return nullptr;
@@ -1659,10 +1698,9 @@ CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	BIRON_UNREACHABLE();
 }
 
-Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
-	auto operand = m_operand->gen_addr(cg, nullptr);
+Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto operand = m_operand->gen_addr(cg, want);
 	if (!operand) {
-		cg.fatal(m_operand->range(), "Could not generate operand");
 		return None{};
 	}
 
@@ -1681,12 +1719,11 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 		return operand->at(cg, *index);
 	} else {
 		// Otherwise runtime indexing
-		auto index = m_index->gen_value(cg, nullptr);
+		auto index = m_index->gen_value(cg, cg.types.u64());
 		if (!index) {
-			cg.fatal(m_index->range(), "Could not generate index");
 			return None{};
 		}
-		if (!index->type()->is_uint() && !index->type()->is_sint()) {
+		if (!index->type()->is_integer()) {
 			auto index_type_string = index->type()->to_string(*cg.scratch);
 			cg.error(m_index->range(),
 			         "Expected expression of integer type for index. Got '%S' instead",
@@ -1703,11 +1740,29 @@ Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	if (!type) {
 		return None{};
 	}
-	if (auto addr = gen_addr(cg, type->addrof(cg))) {
-		return addr->load(cg);
+
+	// Cannot use CgValue::at when working with something that requires a load.
+	if (!type->is_pointer() && !type->is_slice() && !type->is_string()) {
+		// Optimization when the index is a constant expression.
+		if (auto eval = m_index->eval_value(cg)) {
+			if (!eval->is_integral()) {
+				cg.error(eval->range(), "Cannot index with a constant expression of non-integer type");
+				return None{};
+			}
+			auto index = eval->to<Uint64>();
+			auto operand = m_operand->gen_value(cg, type);
+			if (!operand) {
+				return None{};
+			}
+			return operand->at(cg, *index);
+		}
 	}
-	cg.fatal(range(), "Could not generate value (AstIndexExpr)");
-	return None{};
+
+	auto addr = gen_addr(cg, type->addrof(cg));
+	if (!addr) {
+		return None{};
+	}
+	return addr->load(cg);
 }
 
 CgType* AstIndexExpr::gen_type(Cg& cg, CgType* want) const noexcept {
@@ -1717,9 +1772,7 @@ CgType* AstIndexExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	}
 	if (!type->is_pointer() && !type->is_array() && !type->is_slice() && !type->is_string()) {
 		auto type_string = type->to_string(*cg.scratch);
-		cg.error(range(),
-		         "Cannot index expression of type '%S'",
-		         type_string);
+		cg.error(range(), "Cannot index expression of type '%S'", type_string);
 		return nullptr;
 	}
 	return type->deref();

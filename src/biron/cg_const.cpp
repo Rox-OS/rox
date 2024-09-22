@@ -1,4 +1,5 @@
 #include <biron/ast_const.h>
+#include <biron/ast_expr.h>
 #include <biron/ast_type.h>
 
 #include <biron/cg_value.h>
@@ -124,9 +125,24 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 			if (!values.reserve(m_as_array.elems.length())) {
 				return cg.oom();
 			}
-			auto array_type = m_as_array.type
-				? m_as_array.type->codegen(cg, None{})
-				: type;
+			CgType* array_type = type;
+			if (auto typed = m_as_array.type) {
+				auto type = typed->to_type<const AstArrayType>();
+				auto extent = type->extent();
+				if (extent->is_expr<const AstInferSizeExpr>()) {
+					auto base = type->base()->codegen(cg, None{});
+					if (!base) {
+						return cg.oom();
+					}
+					array_type = cg.types.make(CgType::ArrayInfo {
+						base,
+						m_as_array.elems.length(),
+						None{}
+					});
+				} else {
+					array_type = type->codegen(cg, None{});
+				}
+			}
 			if (!array_type) {
 				return cg.oom();
 			}

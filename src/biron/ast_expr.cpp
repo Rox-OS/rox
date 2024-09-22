@@ -172,4 +172,8 @@ void AstEffExpr::dump(StringBuilder& builder) const noexcept {
 	builder.append('!');
 }
 
+void AstInferSizeExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('?');
+}
+
 } // namespace Biron

@@ -1,58 +1,10 @@
 module test;
 
-type Rect = (w: Sint32, h: Sint32, x: Sint32, y: Sint32);
-type Foo = Uint32 | Real32;
-type Bar = {A, B};
-
-fn(self: *Rect) area() -> Sint32 {
-  return self.w * self.h;
-}
-
-fn(self: *Rect) print(label: String) {
-  printf("%s: w = %d, h = %d, x = %d, y = %d\n", label, self.w, self.h, self.x, self.y);
-}
-
-fn in_range(value: Sint32, min: Sint32, max: Sint32) -> Bool32 {
-  return value >= min && value <= max;
-}
-
-fn(lhs: @(aliasable(false)) *Rect, rhs: @(aliasable(false)) *Rect) collide() -> Bool32 {
-  let x_overlap = in_range(lhs.x, rhs.x, rhs.x + rhs.w) ||
-                  in_range(rhs.x, lhs.x, lhs.x + lhs.w);
-  let y_overlap = in_range(lhs.y, rhs.y, rhs.y + rhs.h) ||
-                  in_range(rhs.y, lhs.y, lhs.y + lhs.h);
-  return x_overlap && y_overlap;
-}
+let E = new [?]Uint32 { 0, 1 };
 
 @(export(true))
-fn __biron_runtime_memory_ne(lhs: *Uint8, rhs: *Uint8, len: Uint64) -> Bool32 {
-  for let i = 0_u64; i < len; i += 1_u64 {
-    if lhs[i] != rhs[i] {
-      return true;
-    }
+fn main() {
+  for let x = 0_u64; x < count of E; x += 1 {
+    printf("%d\n", E[x]);
   }
-  return false;
-}
-
-@(export(true))
-fn __biron_runtime_memory_eq(lhs: *Uint8, rhs: *Uint8, len: Uint64) -> Bool32 {
-  for let i = 0_u64; i < len; i += 1_u64 {
-    if lhs[i] != rhs[i] {
-      return false;
-    }
-  }
-  return true;
-}
-
-@(export(true))
-fn main() -> Sint32 {
-  let lhs = &new Rect{10, 10, 0, 10};
-  let rhs = &new Rect{10, 10, 0,  0};
-  lhs.print("lhs");
-  rhs.print("rhs");
-  if (lhs, rhs).collide() {
-    printf("overlap\n");
-  }
-  printf("lhs area = %d\n", lhs.area());
-  printf("rhs area = %d\n", rhs.area());
 }

@@ -31,6 +31,14 @@ struct AstType : AstNode {
 	[[nodiscard]] constexpr Bool is_type() const noexcept {
 		return m_kind == T::KIND;
 	}
+	template<DerivedFrom<AstType> T>
+	[[nodiscard]] constexpr T* to_type() noexcept {
+		return is_type<T>() ? static_cast<T*>(this) : nullptr;
+	}
+	template<DerivedFrom<AstType> T>
+	[[nodiscard]] constexpr const T* to_type() const noexcept {
+		return is_type<T>() ? static_cast<const T*>(this) : nullptr;
+	}
 	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept = 0;
 private:
 	Kind m_kind;
@@ -149,17 +157,19 @@ private:
 
 struct AstArrayType : AstType {
 	static inline constexpr auto const KIND = Kind::ARRAY;
-	constexpr AstArrayType(AstType* type, AstExpr* extent, Array<AstAttr*>&& attrs, Range range) noexcept
+	constexpr AstArrayType(AstType* base, AstExpr* extent, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
-		, m_type{type}
+		, m_base{base}
 		, m_extent{extent}
 		, m_attrs{move(attrs)}
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
+	[[nodiscard]] AstType* base() const noexcept { return m_base; }
+	[[nodiscard]] AstExpr* extent() const noexcept { return m_extent; }
 private:
-	AstType*        m_type;
+	AstType*        m_base;
 	AstExpr*        m_extent;
 	Array<AstAttr*> m_attrs;
 };

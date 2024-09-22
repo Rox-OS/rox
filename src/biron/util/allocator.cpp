@@ -13,17 +13,22 @@ T atomic_fetch_max_explicit(Atomic<T>* pv, T v) noexcept {
 }
 
 void* SystemAllocator::allocate(Ulen size) noexcept {
-	m_current_bytes += size;
-	atomic_fetch_max_explicit(&m_peak_bytes, m_current_bytes.load());
-	return m_system.mem_allocate(m_system, size);
+	if (auto addr = m_system.mem_allocate(m_system, size)) {
+		m_current_bytes += size;
+		atomic_fetch_max_explicit(&m_peak_bytes, m_current_bytes.load());
+		return addr;
+	}
+	return nullptr;
 }
 
 void SystemAllocator::deallocate(void* old, Ulen size) noexcept {
-	m_current_bytes -= size;
-	m_system.mem_deallocate(m_system, old, size);
+	if (old) {
+		m_current_bytes -= size;
+		m_system.mem_deallocate(m_system, old, size);
+	}
 }
 
-void* TemporaryAllocator::allocate(Ulen size) noexcept {
+void* ArenaAllocator::allocate(Ulen size) noexcept {
 	const Ulen bytes = ((size + ALIGN - 1) / ALIGN) * ALIGN;
 	if (m_tail && m_tail->offset + bytes < m_tail->capacity) {
 		void *const result = &m_tail->data[m_tail->offset];
@@ -43,13 +48,13 @@ void* TemporaryAllocator::allocate(Ulen size) noexcept {
 	return allocate(size);
 }
 
-void TemporaryAllocator::deallocate(void* old, Ulen size) noexcept {
+void ArenaAllocator::deallocate(void* old, Ulen size) noexcept {
 	if (old && &m_tail->data[m_tail->offset] == old) {
 		m_tail->offset -= size;
 	}
 }
 
-void TemporaryAllocator::clear() noexcept {
+void ArenaAllocator::clear() noexcept {
 	Chunk* chunk = m_tail;
 	while (chunk) {
 		Chunk* prev = chunk->prev;
@@ -63,20 +68,20 @@ void* ScratchAllocator::allocate(Ulen size) noexcept {
 	if (auto result = m_inline.allocate(size)) {
 		return result;
 	}
-	return m_temporary.allocate(size);
+	return m_arena.allocate(size);
 }
 
 void ScratchAllocator::deallocate(void* old, Ulen size) noexcept {
 	if (m_inline.owns(old, size)) {
 		m_inline.deallocate(old, size);
 	} else {
-		m_temporary.deallocate(old, size);
+		m_arena.deallocate(old, size);
 	}
 }
 
 void ScratchAllocator::clear() noexcept {
 	m_inline.clear();
-	m_temporary.clear();
+	m_arena.clear();
 }
 
 } // namespace Biron

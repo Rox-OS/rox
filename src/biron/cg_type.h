@@ -145,20 +145,25 @@ struct CgType {
 	}
 
 	struct IntInfo : Layout {
-		Bool sign;
+		Bool              sign;
+		Maybe<StringView> named;
 	};
 
 	struct RealInfo : Layout {
+		Maybe<StringView> named;
 	};
 
 	struct PtrInfo : Layout {
-		CgType* base;
+		CgType*           base;
+		Maybe<StringView> named;
 	};
 
 	struct BoolInfo : Layout {
+		Maybe<StringView> named;
 	};
 
 	struct StringInfo : Layout {
+		Maybe<StringView> named;
 	};
 
 	struct TupleInfo {
@@ -173,8 +178,9 @@ struct CgType {
 	};
 
 	struct ArrayInfo {
-		CgType* base;
-		Ulen    extent;
+		CgType*           base;
+		Ulen              extent;
+		Maybe<StringView> named;
 	};
 
 	struct SliceInfo {
@@ -195,7 +201,8 @@ struct CgType {
 	struct VaInfo { };
 
 	struct AtomicInfo {
-		CgType* base;
+		CgType*           base;
+		Maybe<StringView> named;
 	};
 
 	struct EnumInfo {

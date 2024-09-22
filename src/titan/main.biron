@@ -249,6 +249,18 @@ fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32
          (b << fb.b_mask.shift as Uint32);
 }
 
+@(section(".text"))
+let enable_fpu = new [?]Uint8 {
+  0x48, 0x83, 0xec, 0x02,             // sub    $0x2,%rsp
+  0x0f, 0x20, 0xe0,                   // mov    %cr4,%rax
+  0x48, 0x0d, 0x00, 0x02, 0x00, 0x00, // or     $0x200,%rax
+  0x0f, 0x22, 0xe0,                   // mov    %rax,%cr4
+  0x66, 0xc7, 0x04, 0x24, 0x7f, 0x03, // movw   $0x37f,(%rsp)
+  0xd9, 0x2c, 0x24,                   // fldcw  (%rsp)
+  0x48, 0x83, 0xc4, 0x02,             // add    $0x2,%rsp
+  0xc3                                // ret
+};
+
 // When in the kernel we do not want the Redzone and we want Biron to always
 // setup the stack so it's 16-byte aligned. This behavior is required by SysV
 // and will be true of all other functions but not necessarily the entry point.
@@ -256,7 +268,7 @@ fn make_color(fb: *LimineFramebuffer, r: Uint32, g: Uint32, b: Uint32) -> Uint32
 // entry point is set in link.ld.
 @(export(true), redzone(false), alignstack(16))
 fn kmain() {
-  enable_fpu();
+  (&enable_fpu as fn())();
 
   // Ensure we support 128 MiB stack, Higher-Half Direct Map and a XRGB Framebuffer
   if LIMINE_STACK_SIZE_REQUEST.response == 0_u64 as *LimineStackSizeResponse {

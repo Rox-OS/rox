@@ -375,25 +375,6 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	// Register "enable_fpu" (hack)
-	{
-		Array<CgType*> args{cg.allocator};
-		Array<CgType*> rets{cg.allocator};
-		auto args_t = cg.types.make(CgType::TupleInfo { move(args), None{}, None{} });
-		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), None{}, None{} });
-		if (!args_t || !rets_t) {
-			return false;
-		}
-		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, cg.types.unit(), rets_t });
-		if (!fn_t) {
-			return false;
-		}
-		auto fn_v = cg.llvm.AddFunction(cg.module, "enable_fpu", fn_t->ref());
-		if (!cg.fns.emplace_back(nullptr, "enable_fpu", CgAddr { fn_t->addrof(cg), fn_v })) {
-			return false;
-		}
-	}
-
 	// sqrt
 	{
 		Array<CgType*> args{cg.allocator};

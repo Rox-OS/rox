@@ -44,18 +44,18 @@ struct AstAssignStmt;
 
 struct Parser {
 	constexpr Parser(Lexer& lexer, Diagnostic& diagnostic, Allocator& allocator) noexcept
-		: m_lexer{lexer}
+		: m_arena{allocator}
+		, m_lexer{lexer}
 		, m_in_defer{false}
 		, m_caches{allocator}
 		, m_diagnostic{diagnostic}
-		, m_allocator{allocator}
 	{
 	}
 
 	~Parser() noexcept;
 
 	// Biron Expression
-	[[nodiscard]] AstExpr*         parse_expr(Bool simple) noexcept;
+	[[nodiscard]] AstExpr*         parse_expr() noexcept;
 	[[nodiscard]] AstTupleExpr*    parse_tuple_expr() noexcept;
 	[[nodiscard]] AstIntExpr*      parse_int_expr() noexcept;
 	[[nodiscard]] AstFltExpr*      parse_flt_expr() noexcept;
@@ -109,14 +109,14 @@ private:
 
 	[[nodiscard]] AstExpr* parse_primary_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_postfix_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_unary_expr(Bool simple) noexcept;
+	[[nodiscard]] AstExpr* parse_unary_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_var_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_selector_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_agg_expr(AstExpr* type) noexcept;
 	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
 	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
 	[[nodiscard]] AstExpr* parse_call_expr(AstExpr* operand) noexcept;
-	[[nodiscard]] AstExpr* parse_binop_rhs(Bool simple, int expr_prec, AstExpr* lhs) noexcept;
+	[[nodiscard]] AstExpr* parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept;
 	[[nodiscard]] AstType* parse_bracket_type(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstType* parse_enum_type(Array<AstAttr*>&& attrs) noexcept;
 
@@ -151,13 +151,14 @@ private:
 				return nullptr;
 			}
 		}
-		if (!m_caches.emplace_back(m_allocator, sizeof(T), Ulen(1024))) {
+		if (!m_caches.emplace_back(m_arena, sizeof(T), Ulen(1024))) {
 			error("Out of memory");
 			return nullptr;
 		}
 		return new_node<T>(forward<Ts>(args)...);
 	}
 
+	ArenaAllocator m_arena;
 	Lexer& m_lexer;
 	Token m_this_token;
 	Token m_last_token;
@@ -165,7 +166,6 @@ private:
 	Bool m_in_defer;
 	Array<Cache> m_caches;
 	Diagnostic& m_diagnostic;
-	Allocator& m_allocator;
 };
 
 } // namespace Biron

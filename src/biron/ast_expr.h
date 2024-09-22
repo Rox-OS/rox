@@ -18,7 +18,7 @@ struct AstConst;
 struct AstExpr : AstNode {
 	static inline constexpr const auto KIND = Kind::EXPR;
 	enum class Kind : Uint8 {
-		TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE, EFF, SELECTOR
+		TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE, EFF, SELECTOR, INFERSIZE
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstExpr(Kind kind, Range range) noexcept
@@ -350,6 +350,15 @@ private:
 		return to_expr<const AstVarExpr>();
 	}
 	AstExpr* m_operand;
+};
+
+struct AstInferSizeExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::INFERSIZE;
+	constexpr AstInferSizeExpr(Range range) noexcept
+		: AstExpr{KIND, range}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
 };
 
 } // namespace Biron

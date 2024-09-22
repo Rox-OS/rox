@@ -28,6 +28,8 @@ struct Allocator {
 struct SystemAllocator : Allocator {
 	constexpr SystemAllocator(const System& system) noexcept
 		: m_system{system}
+		, m_peak_bytes{0}
+		, m_current_bytes{0}
 	{
 	}
 	virtual void* allocate(Ulen size) noexcept override;
@@ -76,20 +78,20 @@ private:
 	Ulen m_offset = 0;
 };
 
-struct TemporaryAllocator : Allocator {
+struct ArenaAllocator : Allocator {
 	static inline constexpr const Ulen ALIGN = 16;
 	static inline constexpr const Ulen MIN_CHUNK_SIZE = 2 * 1024 * 1024; // 2 MiB
-	constexpr TemporaryAllocator(Allocator& allocator) noexcept
+	constexpr ArenaAllocator(Allocator& allocator) noexcept
 		: m_tail{nullptr}
 		, m_allocator{allocator}
 	{
 	}
-	constexpr TemporaryAllocator(TemporaryAllocator&& other) noexcept
+	constexpr ArenaAllocator(ArenaAllocator&& other) noexcept
 		: m_tail{exchange(other.m_tail, nullptr)}
 		, m_allocator{other.m_allocator}
 	{
 	}
-	~TemporaryAllocator() noexcept {
+	~ArenaAllocator() noexcept {
 		clear();
 	}
 	virtual void* allocate(Ulen size) noexcept override;
@@ -110,7 +112,7 @@ private:
 struct ScratchAllocator : Allocator {
 	static inline constexpr const Ulen INSITU = 16384; // 16 KiB
 	constexpr ScratchAllocator(Allocator& allocator) noexcept
-		: m_temporary{allocator}
+		: m_arena{allocator}
 	{
 	}
 	virtual void* allocate(Ulen size) noexcept override;
@@ -118,7 +120,7 @@ struct ScratchAllocator : Allocator {
 	void clear() noexcept;
 private:
 	InlineAllocator<INSITU> m_inline;
-	TemporaryAllocator m_temporary;
+	ArenaAllocator m_arena;
 };
 
 } // namespace Biron

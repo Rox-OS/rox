@@ -14,8 +14,7 @@ Bool format_va(char* dst, Ulen *n, StringView fmt, ...) noexcept {
 	Bool neg = false;
 	char buf[sizeof(Uint64) * 8 + 1];
 	for (Ulen l = fmt.length(), i = 0; i < l; i++) {
-		auto ch = fmt[i];
-		if (ch == '%') switch ((ch = fmt[++i])) {
+		if (auto ch = fmt[i]; ch == '%') switch (fmt[++i]) {
 		case '%':
 			// %% => %
 			if (dst) {

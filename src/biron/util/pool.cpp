@@ -13,7 +13,7 @@ Pool::Pool(Pool&& other) noexcept
 
 Pool::~Pool() noexcept {
 	m_allocator.deallocate(m_storage, m_object_size * m_object_count);
-	m_allocator.deallocate(m_occupied, m_object_count * 4);
+	m_allocator.deallocate(m_occupied, (m_object_count / 32) * 4);
 }
 
 Maybe<Pool> Pool::make(Allocator& allocator, Ulen object_size, Ulen object_count) noexcept {
