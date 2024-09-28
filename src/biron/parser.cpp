@@ -874,18 +874,28 @@ AstType* Parser::parse_enum_type(Array<AstAttr*>&& attrs) noexcept {
 }
 
 // FnType
-//	::= 'fn' TupleType ('<' Ident (',' Ident)* '>')? ('->' Type)? BlockStmt
+//	::= 'fn' TupleType TupleType? ('<' Ident (',' Ident)* '>')? ('->' Type)? BlockStmt
 AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_FN) {
 		ERROR("Expected 'fn'");
 		return nullptr;
 	}
 	auto beg_token = next(); // Consume 'fn'
-	auto args = parse_tuple_type(None{});
-	if (!args) {
+	AstTupleType* tuple0 = parse_tuple_type(None{});
+	if (!tuple0) {
 		return nullptr;
 	}
-	AstType* rets = nullptr;
+	AstTupleType* tuple1 = nullptr;
+	if (peek().kind == Token::Kind::LPAREN) {
+		tuple1 = parse_tuple_type(None{});
+		if (!tuple1) {
+			return nullptr;
+		}
+	}
+
+	AstTupleType* objs = tuple0 ? tuple0 : nullptr;
+	AstTupleType* args = tuple1 ? tuple1 : tuple0;
+
 	Array<AstIdentType*> effects{m_arena};
 	if (peek().kind == Token::Kind::LT) {
 		next(); // Consume '<'
@@ -907,33 +917,38 @@ AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 		next(); // Consume '>'
 	}
 
+	AstTupleType* rets = nullptr;
 	if (peek().kind == Token::Kind::ARROW) {
 		next(); // Consume '->'
-		rets = parse_type();
-		if (!rets) {
+		auto type = parse_type();
+		if (!type) {
 			return nullptr;
+		}
+		if (auto tuple = type->to_type<AstTupleType>()) {
+			rets = tuple;
+		} else {
+			// The parser treats a single return type as-if it was a single element
+			// tuple with that type.
+			Array<AstTupleType::Elem> elems{m_arena};
+			if (!elems.emplace_back(None{}, type)) {
+				ERROR("Out of memory");
+				return nullptr;
+			}
+			rets = new_node<AstTupleType>(move(elems), m_arena, type->range());
 		}
 	} else {
 		// When there are no return types we return the "empty tuple"
 		rets = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
 	}
+
 	if (!rets) {
+		ERROR("Out of memory");
 		return nullptr;
 	}
 
-	if (!rets->is_type<AstTupleType>()) {
-		// The parser treats a single return type as-if it was a single element
-		// tuple with that type.
-		Array<AstTupleType::Elem> elems{m_arena};
-		if (!elems.emplace_back(None{}, rets)) {
-			ERROR("Out of memory");
-			return nullptr;
-		}
-		rets = new_node<AstTupleType>(move(elems), m_arena, rets->range());
-	}
-
 	auto range = beg_token.range.include(rets->range());
-	return new_node<AstFnType>(args, move(effects), static_cast<AstTupleType*>(rets), move(attrs), range);
+
+	return new_node<AstFnType>(objs, args, move(effects), rets, move(attrs), range);
 }
 
 // Stmt

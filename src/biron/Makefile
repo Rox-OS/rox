@@ -97,7 +97,7 @@ else
 	CXXFLAGS += -DNDEBUG
 
 	# Highest optimization flag for release builds.
-	CXXFLAGS += -O3
+	CXXFLAGS += -Os
 
 	# Disable all stack protection features.
 	CXXFLAGS += -fno-stack-protector

@@ -35,10 +35,6 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		if (!type) {
 			return false;
 		}
-		// When working with functions we use addresses.
-		if (type->is_fn()) {
-			type = type->addrof(cg);
-		}
 		if (!info.types.push_back(type)) {
 			return false;
 		}

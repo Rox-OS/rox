@@ -191,8 +191,9 @@ private:
 
 struct AstFnType : AstType {
 	static inline constexpr auto const KIND = Kind::FN;
-	constexpr AstFnType(AstTupleType* args, Array<AstIdentType*>&& effects, AstTupleType* rets, Array<AstAttr*>&& attrs, Range range) noexcept
+	constexpr AstFnType(AstTupleType* objs, AstTupleType* args, Array<AstIdentType*>&& effects, AstTupleType* rets, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstType{KIND, range}
+		, m_objs{objs}
 		, m_args{args}
 		, m_effects{move(effects)}
 		, m_rets{rets}
@@ -202,6 +203,7 @@ struct AstFnType : AstType {
 	virtual void dump(StringBuilder& builder) const noexcept override;
 	virtual CgType* codegen(Cg& cg, Maybe<StringView> name) const noexcept override;
 private:
+	AstTupleType*        m_objs;
 	AstTupleType*        m_args;
 	Array<AstIdentType*> m_effects;
 	AstTupleType*        m_rets;

@@ -23,6 +23,19 @@ struct Allocator {
 		}
 		return nullptr;
 	}
+
+	template<typename T>
+	[[nodiscard]] T* allocate_object() noexcept {
+		if (auto addr = allocate(sizeof(T))) {
+			return reinterpret_cast<T*>(addr);
+		}
+		return nullptr;
+	}
+
+	template<typename T>
+	void deallocate_object(T* obj) noexcept {
+		deallocate(obj, sizeof *obj);
+	}
 };
 
 struct SystemAllocator : Allocator {

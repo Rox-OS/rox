@@ -130,14 +130,17 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		}
 		break;
 	case Kind::UNION:
-		{
-			for (Ulen l = length(), i = 0; i < l; i++) {
-				at(i)->dump(builder);
-				if (i != l - 1) {
-					builder.append(" | ");
-				}
+		for (Ulen l = length(), i = 0; i < l; i++) {
+			at(i)->dump(builder);
+			if (i != l - 1) {
+				builder.append(" | ");
 			}
 		}
+		break;
+	case Kind::ENUM:
+		builder.append('{');
+		// TODO
+		builder.append('}');
 		break;
 	case Kind::FN:
 		{
@@ -185,10 +188,6 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 	case Kind::VA:
 		builder.append("...");
 		break;
-	case Kind::ENUM:
-		builder.append('{');
-		// TODO
-		builder.append('}');
 	}
 }
 
@@ -345,6 +344,11 @@ CgType* AstSliceType::codegen(Cg& cg, Maybe<StringView>) const noexcept {
 }
 
 CgType* AstFnType::codegen(Cg& cg, Maybe<StringView>) const noexcept {
+	auto objs = m_objs->codegen(cg, None{});
+	if (!objs) {
+		return nullptr;
+	}
+
 	auto args = m_args->codegen(cg, None{});
 	if (!args) {
 		return nullptr;
@@ -356,10 +360,6 @@ CgType* AstFnType::codegen(Cg& cg, Maybe<StringView>) const noexcept {
 		auto type = effect->codegen(cg, None{});
 		if (!type) {
 			return nullptr;
-		}
-		// When working with functions we use addresses.
-		if (type->is_fn()) {
-			type = type->addrof(cg);
 		}
 		if (!info.types.push_back(type)) {
 			return nullptr;
@@ -380,7 +380,14 @@ CgType* AstFnType::codegen(Cg& cg, Maybe<StringView>) const noexcept {
 		return nullptr;
 	}
 
-	return cg.types.make(CgType::FnInfo { cg.types.unit(), args, effects, rets });
+	auto fn = cg.types.make(CgType::FnInfo { objs, args, effects, rets });
+	if (!fn) {
+		return nullptr;
+	}
+
+	// All function types are implicit pointer types. Thus to get the actual type
+	// of a function you must type->deref() first.
+	return cg.types.make(CgType::PtrInfo { { 8, 8 }, fn, None{} });
 }
 
 CgType* AstAtomType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {

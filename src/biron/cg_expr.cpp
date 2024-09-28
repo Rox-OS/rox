@@ -174,9 +174,6 @@ CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		if (!type) {
 			return nullptr;
 		}
-		if (type->is_fn()) {
-			type = type->addrof(cg);
-		}
 		if (!types.push_back(type)) {
 			cg.oom();
 			return nullptr;
@@ -191,7 +188,9 @@ CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 		return nullptr;
 	}
 	
+	// All function types are implicit pointer types.
 	auto type = fn->deref();
+
 	if (type->is_tuple()) {
 		// This is a method call
 		type = type->at(0)->deref();
@@ -206,9 +205,7 @@ CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	}
 
 	if (!type->is_fn()) {
-		StringBuilder builder{*cg.scratch};
-		fn->dump(builder);
-		cg.error(m_callee->range(), "Callee is not a function. Callee has type %S", builder.view());
+		cg.error(m_callee->range(), "Expected function type for callee. Got '%S' instead", fn->to_string(*cg.scratch));
 		return nullptr;
 	}
 
@@ -983,12 +980,10 @@ Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			return None{};
 		}
 		auto type = lhs_addr->type()->deref();
-		const auto* fields = &type->fields();
 		if (type->is_pointer()) {
 			// Handle implicit dereference, that is:
 			// 	ptr.field is sugar for (*ptr).field when ptr is a ptr
 			lhs_addr = lhs_addr->load(cg).to_addr();
-			fields = &type->deref()->fields();
 		}
 
 		// When calling a method we generate a tuple with the first value the
@@ -1025,15 +1020,21 @@ Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			addrs[1].store(cg, lhs_addr->to_value());
 			return dst;
 		}
-
-		const auto& name = expr->name();
-		for (Ulen l = fields->length(), i = 0; i < l; i++) {
-			const auto& field = (*fields)[i];
-			if (field.name && *field.name == name) {
-				return lhs_addr->at(cg, i);
-			}
+		if (type->is_pointer()) {
+			// Handle implicit dereference.
+			type = type->deref();
 		}
-		cg.error(m_rhs->range(), "Undeclared field '%S'", name);
+		if (type->is_tuple()) {
+			const auto& name = expr->name();
+			const auto& fields = type->fields();
+			for (Ulen l = fields.length(), i = 0; i < l; i++) {
+				const auto& field = fields[i];
+				if (field.name && *field.name == name) {
+					return lhs_addr->at(cg, i);
+				}
+			}
+			cg.error(m_rhs->range(), "Undeclared field '%S'", name);
+		}
 		return None{};
 	} else if (m_rhs->is_expr<AstIntExpr>()) {
 		auto rhs = m_rhs->eval_value(cg);
@@ -1547,12 +1548,7 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		return m_lhs->gen_type(cg, want);
 	case Op::AS:
 		if (auto expr = m_rhs->to_expr<AstTypeExpr>()) {
-			auto type = expr->type()->codegen(cg, None{});
-			if (type->is_fn()) {
-				return type->addrof(cg);
-			} else {
-				return type;
-			}
+			return expr->type()->codegen(cg, None{});
 		} else {
 			cg.error(m_rhs->range(), "Expected type expression on right-hand side of 'as' operator");
 			return nullptr;
