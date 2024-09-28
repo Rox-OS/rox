@@ -947,6 +947,10 @@ CgType* AstAccessExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		if (auto fn = cg.lookup_fn(rhs->name())) {
 			return fn->addr().type();
 		}
+		// TODO(dweiler): support .* lookup
+		// if (auto let = cg.lookup_let(rhs->name())) {
+		// 	return let->addr().type();
+		// }
 		if (lhs_type->is_tuple() || lhs_type->is_enum()) {
 			Ulen i = 0;
 			for (const auto& field : lhs_type->fields()) {
@@ -994,6 +998,10 @@ Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		if (auto fn = cg.lookup_fn(expr->name())) {
 			fun_addr = fn->addr();
 		}
+		// TODO(dweiler): Support .* lookup
+		// if (auto let = cg.lookup_let(expr->name())) {
+		// 	fun_addr = let->addr().load(cg).to_addr();
+		// }
 
 		if (fun_addr) {
 			InlineAllocator<128> stack;

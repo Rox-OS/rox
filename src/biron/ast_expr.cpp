@@ -103,9 +103,10 @@ void AstBoolExpr::dump(StringBuilder& builder) const noexcept {
 }
 
 void AstAggExpr::dump(StringBuilder& builder) const noexcept {
-	builder.append('<');
+	builder.append("new");
+	builder.append(' ');
 	m_type->dump(builder);
-	builder.append('>');
+	builder.append(' ');
 	builder.append('{');
 	Bool f = true;
 	for (const auto &expr : m_exprs) {

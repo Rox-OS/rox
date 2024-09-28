@@ -202,7 +202,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 		} else {
 L_value:
 			// Otherwise generate a value and store it.
-			auto value = m_init->gen_value(cg, nullptr);
+			auto value = m_init->gen_value(cg, type);
 			if (!value || !addr->store(cg, *value)) {
 				return false;
 			}
