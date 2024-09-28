@@ -118,6 +118,7 @@ void AstAggExpr::dump(StringBuilder& builder) const noexcept {
 }
 
 void AstBinExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('(');
 	m_lhs->dump(builder);
 	switch (m_op) {
 	/****/ case Op::ADD:    builder.append(" + ");
@@ -143,9 +144,11 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break;
 	}
 	m_rhs->dump(builder);
+	builder.append(')');
 }
 
 void AstUnaryExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('(');
 	switch (m_op) {
 	/****/ case Op::NEG:    builder.append('-');
 	break; case Op::NOT:    builder.append('!');
@@ -153,6 +156,7 @@ void AstUnaryExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Op::ADDROF: builder.append('&');
 	}
 	m_operand->dump(builder);
+	builder.append(')');
 }
 
 void AstIndexExpr::dump(StringBuilder& builder) const noexcept {

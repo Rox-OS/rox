@@ -168,8 +168,22 @@ CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		cg.oom();
 		return nullptr;
 	}
+	// When infering the elements of our tuple we expect 'want' to be of a tuple
+	// type or pointer-to-tuple type.
+	//
+	// This allows us to infer stuff like:
+	//	let x = &(a, b, c);
+	CgType* expect = nullptr;
+	if (want) {
+		if (want->is_pointer()) {
+			want = want->deref();
+		}
+		if (want->is_tuple()) {
+			expect = want;
+		}
+	}
 	for (Ulen l = length(), i = 0; i < l; i++) {
-		auto infer = want ? want->at(i) : nullptr;
+		auto infer = expect ? expect->at(i) : nullptr;
 		auto type = at(i)->gen_type(cg, infer);
 		if (!type) {
 			return nullptr;
@@ -188,19 +202,33 @@ CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 		return nullptr;
 	}
 	
-	// All function types are implicit pointer types.
+	// All function types are implicit pointer types so we need a dereference.
 	auto type = fn->deref();
-
 	if (type->is_tuple()) {
-		// This is a method call
+		// This is a method call like:
+		//	(a, b).c
+		//
+		// Which the compiler turns into:
+		//	(&c, &(a, b))
+		//
+		// This is just to make it easier to handle later. We should ideally make
+		// a special intermediate representation but that will require our own IR.
+		//
+		// Anyways, this is why type->at(0) is used here.
 		type = type->at(0)->deref();
 	} else {
 		// This is a function call
 		if (type->is_pointer()) {
-			// This is an indirect function call
+			// This is an indirect function call like:
+			//	a.b()
+			//
+			// Where b is a field of a
 			type = type->deref();
 		} else {
-			// This is a direct function call
+			// This is a direct function call like
+			//	m.a() or a()
+			//
+			// Where a is a function and p is an optional m
 		}
 	}
 
@@ -701,6 +729,7 @@ Maybe<AstConst> AstAggExpr::eval_value(Cg& cg) const noexcept {
 Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	auto type = gen_type(cg, want ? want->deref() : nullptr);
 	if (!type) {
+		cg.fatal(range(), "Could not generate type (AstAggExpr)");
 		return None{};
 	}
 
@@ -803,7 +832,7 @@ CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	if (!m_type) {
 		return want;
 	}
-	// Special behavior needed when infering the length.
+	// Special behavior needed when infering the length of an array.
 	if (auto type = m_type->to_type<AstArrayType>()) {
 		if (type->extent()->is_expr<AstInferSizeExpr>()) {
 			auto base = type->base()->codegen(cg, None{});
@@ -933,6 +962,8 @@ CgType* AstAccessExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		return nullptr;
 	}
 	if (lhs_type->is_pointer()) {
+		// Implicit dereference behavior:
+		//	a.b -> (*a).b
 		lhs_type = lhs_type->deref();
 	}
 	if (!lhs_type->is_tuple()) {
@@ -983,10 +1014,11 @@ Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		if (!lhs_addr) {
 			return None{};
 		}
+
 		auto type = lhs_addr->type()->deref();
 		if (type->is_pointer()) {
-			// Handle implicit dereference, that is:
-			// 	ptr.field is sugar for (*ptr).field when ptr is a ptr
+			// Handle implicit dereference:
+			//	a.b -> (*a).b
 			lhs_addr = lhs_addr->load(cg).to_addr();
 		}
 
@@ -1029,7 +1061,8 @@ Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			return dst;
 		}
 		if (type->is_pointer()) {
-			// Handle implicit dereference.
+			// Handle implicit dereference:
+			//	a.b -> (*a).b
 			type = type->deref();
 		}
 		if (type->is_tuple()) {
@@ -1058,6 +1091,12 @@ Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		auto addr = m_lhs->gen_addr(cg, want);
 		if (!addr) {
 			return None{};
+		}
+		auto type = addr->type()->deref();
+		if (type->is_pointer()) {
+			// Handle implicit dereference:
+			//	a.b -> (*a).b
+			addr = addr->load(cg).to_addr();
 		}
 		return addr->at(cg, *index);
 	}
@@ -1495,7 +1534,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		break;
 	}
 
-	cg.fatal(range(), "Could not generate value");
+	cg.fatal(range(), "Could not generate value (AstBinExpr)");
 	return None{};
 }
 
@@ -1668,18 +1707,28 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	auto type = m_operand->gen_type(cg, want);
-	if (!type) {
-		return nullptr;
-	}
-	switch (m_op) {
-	case Op::NEG:
-		[[fallthrough]];
-	case Op::NOT:
+	if (m_op == Op::NEG || m_op == Op::NOT) {
+		auto type = m_operand->gen_type(cg, want);
+		if (!type) {
+			return nullptr;
+		}
 		return type;
-	case Op::DEREF:
-		return type->deref();
-	case Op::ADDROF:
+	} else if (m_op == Op::DEREF) {
+		auto type = m_operand->gen_type(cg, nullptr);
+		if (!type) {
+			return nullptr;
+		}
+		if (type->is_pointer()) {
+			return type->deref();
+		} else {
+			cg.error(range(), "Cannot dereference expression of type '%S'", type->to_string(*cg.scratch));
+			return nullptr;
+		}
+	} else if (m_op == Op::ADDROF) {
+		auto type = m_operand->gen_type(cg, nullptr);
+		if (!type) {
+			return nullptr;
+		}
 		return type->addrof(cg);
 	}
 	BIRON_UNREACHABLE();
