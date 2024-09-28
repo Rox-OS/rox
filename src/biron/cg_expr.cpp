@@ -42,6 +42,7 @@ const char* AstExpr::name() const noexcept {
 	case Kind::STR:       return "STR";
 	case Kind::AGG:       return "AGG";
 	case Kind::BIN:       return "BIN";
+	case Kind::LBIN:      return "LBIN";
 	case Kind::UNARY:     return "UNARY";
 	case Kind::INDEX:     return "INDEX";
 	case Kind::EXPLODE:   return "EXPLODE";
@@ -50,6 +51,7 @@ const char* AstExpr::name() const noexcept {
 	case Kind::INFERSIZE: return "INFERSIZE";
 	case Kind::ACCESS:    return "ACCESS";
 	case Kind::CAST:      return "CAST";
+	case Kind::PROP:      return "PROP";
 	}
 	BIRON_UNREACHABLE();
 }
@@ -855,99 +857,6 @@ CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	return m_type->codegen(cg, None{});
 }
 
-Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
-	if (m_op == Op::OF) {
-		if (!m_lhs->is_expr<AstVarExpr>()) {
-			// StringBuilder b{*cg.scratch};
-			// m_lhs->dump(b);
-			// cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator got %S", b.view());
-			return None{};
-		}
-		auto name = static_cast<const AstVarExpr *>(m_lhs)->name();
-		auto rhs = m_rhs->gen_type(cg, nullptr);
-		if (!rhs) {
-			return None{};
-		}
-		auto range = m_lhs->range().include(m_rhs->range());
-		if (name == "size") {
-			return AstConst { range, Uint64(rhs->size()) };
-		} else if (name == "align") {
-			return AstConst { range, Uint64(rhs->align()) };
-		} else if (name == "count") {
-			return AstConst { range, Uint64(rhs->extent()) };
-		} else {
-			cg.error(m_lhs->range(), "Unknown property '%S'", name);
-			return None{};
-		}
-	}
-
-	auto lhs = m_lhs->eval_value(cg);
-	if (!lhs) {
-		// Not a valid compile time constant expression
-		return None{};
-	}
-
-	auto rhs = m_rhs->eval_value(cg);
-	if (!rhs) {
-		return None{};
-	}
-
-	// Operands to binary operator must be the same type
-	if (lhs->kind() != rhs->kind()) {
-		return None{};
-	}
-
-	// Generates 26 functions
-	auto numeric = [&](auto f) noexcept -> Maybe<AstConst> {
-		if (lhs->is_uint()) {
-			return AstConst { range(), lhs->kind(), f(lhs->as_uint(), rhs->as_uint()) };
-		} else if (lhs->is_sint()) {
-			return AstConst { range(), lhs->kind(), f(lhs->as_sint(), rhs->as_sint()) };
-		}
-		return None{};
-	};
-
-	// Generates 8 functions
-	auto boolean = [&](auto f) noexcept -> Maybe<AstConst> {
-		if (lhs->is_bool()) {
-			return AstConst { range(), lhs->kind(), f(lhs->as_bool(), rhs->as_bool()) };
-		}
-		return None{};
-	};
-
-	// Generates 4 functions
-	auto either = [&](auto f) noexcept -> Maybe<AstConst> {
-		if (auto try_numeric = numeric(f)) {
-			return try_numeric;
-		}
-		if (auto try_boolean = boolean(f)) {
-			return try_boolean;
-		}
-		return None{};
-	};
-
-	switch (m_op) {
-	case Op::ADD:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs + rhs; });
-	case Op::SUB:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs - rhs; });
-	case Op::MUL:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs * rhs; });
-	case Op::EQ:     return either([]<typename T>(T lhs, T rhs) -> T { return lhs == rhs; });
-	case Op::NE:     return either([]<typename T>(T lhs, T rhs) -> T { return lhs != rhs; });
-	case Op::GT:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs > rhs; });
-	case Op::GE:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs >= rhs; });
-	case Op::LT:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs < rhs; });
-	case Op::LE:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs <= rhs; });
-	case Op::LOR:    return boolean([]<typename T>(T lhs, T rhs) -> T { return lhs || rhs; });
-	case Op::LAND:   return boolean([]<typename T>(T lhs, T rhs) -> T { return lhs && rhs; });
-	case Op::BOR:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs | rhs; });
-	case Op::BAND:   return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs & rhs; });
-	case Op::LSHIFT: return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs << rhs; });
-	case Op::RSHIFT: return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs >> rhs; });
-	default:
-		return None{};
-	}
-	BIRON_UNREACHABLE();
-}
-
 CgType* AstAccessExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	auto lhs_type = m_lhs->gen_type(cg, nullptr);
 	if (!lhs_type) {
@@ -1107,6 +1016,72 @@ Maybe<CgValue> AstAccessExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	return None{};
 }
 
+Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
+	auto lhs = m_lhs->eval_value(cg);
+	if (!lhs) {
+		// Not a valid compile time constant expression
+		return None{};
+	}
+
+	auto rhs = m_rhs->eval_value(cg);
+	if (!rhs) {
+		return None{};
+	}
+
+	// Operands to binary operator must be the same type
+	if (lhs->kind() != rhs->kind()) {
+		return None{};
+	}
+
+	// Generates 26 functions
+	auto numeric = [&](auto f) noexcept -> Maybe<AstConst> {
+		if (lhs->is_uint()) {
+			return AstConst { range(), lhs->kind(), f(lhs->as_uint(), rhs->as_uint()) };
+		} else if (lhs->is_sint()) {
+			return AstConst { range(), lhs->kind(), f(lhs->as_sint(), rhs->as_sint()) };
+		}
+		return None{};
+	};
+
+	// Generates 2 functions
+	auto boolean = [&](auto f) noexcept -> Maybe<AstConst> {
+		if (lhs->is_bool()) {
+			return AstConst { range(), lhs->kind(), f(lhs->as_bool(), rhs->as_bool()) };
+		}
+		return None{};
+	};
+
+	// Generates 4 functions
+	auto either = [&](auto f) noexcept -> Maybe<AstConst> {
+		if (auto try_numeric = numeric(f)) {
+			return try_numeric;
+		}
+		if (auto try_boolean = boolean(f)) {
+			return try_boolean;
+		}
+		return None{};
+	};
+
+	switch (m_op) {
+	case Op::ADD:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs + rhs; });
+	case Op::SUB:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs - rhs; });
+	case Op::MUL:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs * rhs; });
+	case Op::EQ:     return either([]<typename T>(T lhs, T rhs) -> T { return lhs == rhs; });
+	case Op::NE:     return either([]<typename T>(T lhs, T rhs) -> T { return lhs != rhs; });
+	case Op::GT:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs > rhs; });
+	case Op::GE:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs >= rhs; });
+	case Op::LT:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs < rhs; });
+	case Op::LE:     return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs <= rhs; });
+	case Op::BOR:    return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs | rhs; });
+	case Op::BAND:   return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs & rhs; });
+	case Op::LSHIFT: return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs << rhs; });
+	case Op::RSHIFT: return numeric([]<typename T>(T lhs, T rhs) -> T { return lhs >> rhs; });
+	default:
+		return None{};
+	}
+	BIRON_UNREACHABLE();
+}
+
 Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	using IntPredicate = LLVM::IntPredicate;
 	using RealPredicate = LLVM::RealPredicate;
@@ -1114,89 +1089,55 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	CgType* lhs_type = nullptr;
 	CgType* rhs_type = nullptr;
 
-	if (m_op != Op::LOR && m_op != Op::LAND && m_op != Op::OF) {
-		// Operands to binary operator must be the same type
-		lhs_type = m_lhs->gen_type(cg, want);
-		if (lhs_type) {
-			rhs_type = m_rhs->gen_type(cg, lhs_type);
-		} else {
-			rhs_type = m_rhs->gen_type(cg, want);
-			lhs_type = m_lhs->gen_type(cg, rhs_type);
-		}
-		if (!lhs_type || !rhs_type) {
-			cg.error(range(), "Could not infer types in binary expression");
-			return None{};
-		}
-		if (*lhs_type != *rhs_type) {
-			auto lhs_to_string = lhs_type->to_string(*cg.scratch);
-			auto rhs_to_string = rhs_type->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to binary operator must be the same type: Got '%S' and '%S'",
-			         lhs_to_string,
-			         rhs_to_string);
-			return None{};
-		}
+	// Operands to binary operator must be the same type
+	lhs_type = m_lhs->gen_type(cg, want);
+	if (lhs_type) {
+		rhs_type = m_rhs->gen_type(cg, lhs_type);
+	} else {
+		rhs_type = m_rhs->gen_type(cg, want);
+		lhs_type = m_lhs->gen_type(cg, rhs_type);
+	}
+	if (!lhs_type || !rhs_type) {
+		cg.error(range(), "Could not infer types in binary expression");
+		return None{};
 	}
 
-	if (m_op == Op::OF) {
-		// Special behavior needed for 'of'
-		auto value = eval_value(cg);
-		if (!value) {
-			return None{};
-		}
-		return value->codegen(cg, cg.types.u64());
+	if (*lhs_type != *rhs_type) {
+		auto lhs_to_string = lhs_type->to_string(*cg.scratch);
+		auto rhs_to_string = rhs_type->to_string(*cg.scratch);
+		cg.error(range(),
+		         "Operands to binary operator must be the same type: Got '%S' and '%S'",
+		         lhs_to_string,
+		         rhs_to_string);
+		return None{};
 	}
 
-	Maybe<CgValue> lhs;
-	Maybe<CgValue> rhs;
-	auto gen_values = [&]() -> Bool {
-		lhs = m_lhs->gen_value(cg, lhs_type);
-		rhs = m_rhs->gen_value(cg, rhs_type);
-		return lhs && rhs;
-	};
+	auto lhs = m_lhs->gen_value(cg, lhs_type);
+	auto rhs = m_rhs->gen_value(cg, lhs_type);
+	if (!lhs || !rhs) {
+		return None{};
+	}
 
 	switch (m_op) {
 	case Op::ADD:
-		if (gen_values()) {
-			return cg.emit_add(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_add(*lhs, *rhs, range());
 	case Op::SUB:
-		if (gen_values()) {
-			return cg.emit_sub(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_sub(*lhs, *rhs, range());
 	case Op::MUL:
-		if (gen_values()) {
-			return cg.emit_mul(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_mul(*lhs, *rhs, range());
 	case Op::DIV:
-		if (gen_values()) {
-			return cg.emit_div(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_div(*lhs, *rhs, range());
 	case Op::MIN:
-		if (gen_values()) {
-			return cg.emit_min(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_min(*lhs, *rhs, range());
 	case Op::MAX:
-		if (gen_values()) {
-			return cg.emit_max(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_max(*lhs, *rhs, range());
 	case Op::EQ:
 		if (lhs_type->is_sint() || lhs_type->is_uint() || lhs_type->is_pointer()) {
-			if (gen_values()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::EQ, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			}
+			auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::EQ, lhs->ref(), rhs->ref(), "");
+			return CgValue { cg.types.b32(), value };
 		} else if (lhs_type->is_real()) {
-			if (gen_values()) {
-				auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::OEQ, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			}
+			auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::OEQ, lhs->ref(), rhs->ref(), "");
+			return CgValue { cg.types.b32(), value };
 		} else {
 			auto intrinsic = cg.intrinsic("memory_eq");
 			if (!intrinsic) {
@@ -1221,15 +1162,11 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		break;
 	case Op::NE:
 		if (lhs_type->is_sint() || lhs_type->is_uint() || lhs_type->is_pointer()) {
-			if (gen_values()) {
-				auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::NE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			}
+			auto value = cg.llvm.BuildICmp(cg.builder, IntPredicate::NE, lhs->ref(), rhs->ref(), "");
+			return CgValue { cg.types.b32(), value };
 		} else if (lhs_type->is_real()) {
-			if (gen_values()) {
-				auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::ONE, lhs->ref(), rhs->ref(), "");
-				return CgValue { cg.types.b32(), value };
-			}
+			auto value = cg.llvm.BuildFCmp(cg.builder, RealPredicate::ONE, lhs->ref(), rhs->ref(), "");
+			return CgValue { cg.types.b32(), value };
 		} else {
 			auto intrinsic = cg.intrinsic("memory_ne");
 			if (!intrinsic) {
@@ -1253,25 +1190,92 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		}
 		break;
 	case Op::GT:
-		if (gen_values()){
-			return cg.emit_gt(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_gt(*lhs, *rhs, range());
 	case Op::GE:
-		if (gen_values()) {
-			return cg.emit_ge(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_ge(*lhs, *rhs, range());
 	case Op::LT:
-		if (gen_values()) {
-			return cg.emit_lt(*lhs, *rhs, range());
-		}
-		break;
+		return cg.emit_lt(*lhs, *rhs, range());
 	case Op::LE:
-		if (gen_values()) {
-			return cg.emit_le(*lhs, *rhs, range());
+		return cg.emit_le(*lhs, *rhs, range());
+	case Op::BOR:
+		if (lhs_type->is_integer() || lhs_type->is_bool()) {
+			auto value = cg.llvm.BuildOr(cg.builder, lhs->ref(), rhs->ref(), "");
+			return CgValue { lhs_type, value };
+		} else {
+			auto lhs_type_string = lhs_type->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '|' operator must have integer or boolean type. Got '%S' instead",
+			         lhs_type_string);
+			return None{};
 		}
 		break;
+	case Op::BAND:
+		if (lhs_type->is_integer() || lhs_type->is_bool()) {
+			auto value = cg.llvm.BuildAnd(cg.builder, lhs->ref(), rhs->ref(), "");
+			return CgValue { lhs_type, value };
+		} else {
+			auto lhs_type_string = lhs_type->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '&' operator must have integer or boolean type. Got '%S' instead",
+			         lhs_type_string);
+			return None{};
+		}
+		break;
+	case Op::LSHIFT:
+		if (lhs_type->is_integer()) {
+			auto value = cg.llvm.BuildShl(cg.builder, lhs->ref(), rhs->ref(), "");
+			return CgValue { lhs_type, value };
+		} else {
+			auto lhs_type_string = lhs_type->to_string(*cg.scratch);
+			cg.error(range(),
+			         "Operands to '<<' operator must have integer type. Got '%S' instead",
+			         lhs_type_string);
+			return None{};
+		}
+		break;
+	case Op::RSHIFT:
+		if (lhs_type->is_sint()) {
+			auto value = cg.llvm.BuildAShr(cg.builder, lhs->ref(), rhs->ref(), "");
+			return CgValue { lhs_type, value };
+		} else if (lhs_type->is_uint()) {
+			auto value = cg.llvm.BuildLShr(cg.builder, lhs->ref(), rhs->ref(), "");
+			return CgValue { lhs_type, value };
+		} else {
+			auto lhs_type_string = lhs_type->to_string(*cg.scratch);
+			cg.error(range(),
+								"Operands to '>>' operator must have integer type. Got '%S' instead",
+								lhs_type_string);
+			return None{};
+		}
+	default:
+		break;
+	}
+
+	cg.fatal(range(), "Could not generate value (AstBinExpr)");
+	return None{};
+}
+
+Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto value = gen_value(cg, want ? want->deref() : nullptr);
+	if (!value) {
+		return None{};
+	}
+	auto addr = cg.emit_alloca(value->type());
+	if (!addr || !addr->store(cg, *value)) {
+		return None{};
+	}
+	return addr;
+}
+
+CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	if (auto type = m_lhs->gen_type(cg, want)) {
+		return type;
+	}
+	return m_rhs->gen_type(cg, want);
+}
+
+Maybe<CgValue> AstLBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	switch (m_op) {
 	case Op::LOR:
 		{
 			// CBB
@@ -1298,7 +1302,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
 			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
 	
-			auto lhs = m_lhs->gen_value(cg, cg.types.b32());
+			auto lhs = m_lhs->gen_value(cg, want ? want : cg.types.b32());
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 				cg.error(m_lhs->range(),
@@ -1382,7 +1386,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
 			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
 	
-			auto lhs = m_lhs->gen_value(cg, cg.types.b32());
+			auto lhs = m_lhs->gen_value(cg, want ? want : cg.types.b32());
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
 				cg.error(m_lhs->range(),
@@ -1440,74 +1444,49 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			return CgValue { cg.types.b32(), phi };
 		}
 		break;
-	case Op::BOR:
-		if (lhs_type->is_integer() || lhs_type->is_bool()) {
-			if (gen_values()) {
-				auto value = cg.llvm.BuildOr(cg.builder, lhs->ref(), rhs->ref(), "");
-				return CgValue { lhs_type, value };
-			}
-		} else {
-			auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to '|' operator must have integer or boolean type. Got '%S' instead",
-			         lhs_type_string);
-			return None{};
-		}
-		break;
-	case Op::BAND:
-		if (lhs_type->is_integer() || lhs_type->is_bool()) {
-			if (gen_values()) {
-				auto value = cg.llvm.BuildAnd(cg.builder, lhs->ref(), rhs->ref(), "");
-				return CgValue { lhs_type, value };
-			}
-		} else {
-			auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to '&' operator must have integer or boolean type. Got '%S' instead",
-			         lhs_type_string);
-			return None{};
-		}
-		break;
-	case Op::LSHIFT:
-		if (lhs_type->is_integer()) {
-			if (gen_values()) {
-				auto value = cg.llvm.BuildShl(cg.builder, lhs->ref(), rhs->ref(), "");
-				return CgValue { lhs_type, value };
-			}
-		} else {
-			auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-			cg.error(range(),
-			         "Operands to '<<' operator must have integer type. Got '%S' instead",
-			         lhs_type_string);
-			return None{};
-		}
-		break;
-	case Op::RSHIFT:
-		if (gen_values()) {
-			if (lhs_type->is_sint()) {
-				auto value = cg.llvm.BuildAShr(cg.builder, lhs->ref(), rhs->ref(), "");
-				return CgValue { lhs_type, value };
-			} else if (lhs_type->is_uint()) {
-				auto value = cg.llvm.BuildLShr(cg.builder, lhs->ref(), rhs->ref(), "");
-				return CgValue { lhs_type, value };
-			} else {
-				auto lhs_type_string = lhs_type->to_string(*cg.scratch);
-				cg.error(range(),
-				         "Operands to '>>' operator must have integer type. Got '%S' instead",
-				         lhs_type_string);
-				return None{};
-			}
-		}
-		break;
-	default:
-		break;
 	}
-
-	cg.fatal(range(), "Could not generate value (AstBinExpr)");
+	cg.fatal(range(), "Could not generate value (AstLBinExpr)");
 	return None{};
 }
 
-Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+Maybe<AstConst> AstLBinExpr::eval_value(Cg& cg) const noexcept {
+	auto lhs = m_lhs->eval_value(cg);
+	if (!lhs) {
+		// Not a valid compile-time constant expression
+		return None{};
+	}
+
+	auto rhs = m_rhs->eval_value(cg);
+	if (!rhs) {
+		// Not a valid compile-time constant expression
+		return None{};
+	}
+
+	// Operands to binary operator must be the same type
+	if (lhs->kind() != rhs->kind()) {
+		return None{};
+	}
+
+	// Generates 2 functions
+	auto boolean = [&](auto f) noexcept -> Maybe<AstConst> {
+		if (lhs->is_bool()) {
+			return AstConst { range(), lhs->kind(), f(lhs->as_bool(), rhs->as_bool()) };
+		}
+		return None{};
+	};
+
+	switch (m_op) {
+	case Op::LOR:
+		return boolean([]<typename T>(T lhs, T rhs) -> T { return lhs || rhs; });
+	case Op::LAND:
+		return boolean([]<typename T>(T lhs, T rhs) -> T { return lhs && rhs; });
+	default:
+		return None{};
+	}
+	BIRON_UNREACHABLE();
+}
+
+Maybe<CgAddr> AstLBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	auto value = gen_value(cg, want ? want->deref() : nullptr);
 	if (!value) {
 		return None{};
@@ -1519,80 +1498,8 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	return addr;
 }
 
-CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	switch (m_op) {
-	case Op::ADD:
-		[[fallthrough]];
-	case Op::SUB:
-		[[fallthrough]];
-	case Op::MUL:
-		[[fallthrough]];
-	case Op::DIV:
-		if (auto type = m_lhs->gen_type(cg, want)) {
-			return type;
-		} else {
-			return m_rhs->gen_type(cg, want);
-		}
-		break;
-	case Op::EQ:
-		[[fallthrough]];
-	case Op::NE:
-		[[fallthrough]];
-	case Op::GT:
-		[[fallthrough]];
-	case Op::GE:
-		[[fallthrough]];
-	case Op::LT:
-		[[fallthrough]];
-	case Op::LE:
-		[[fallthrough]];
-	case Op::LOR:
-		[[fallthrough]];
-	case Op::LAND:
-		return cg.types.b32();
-	case Op::MIN:
-		[[fallthrough]];
-	case Op::MAX:
-		return m_lhs->gen_type(cg, want);
-	case Op::BOR:
-		[[fallthrough]];
-	case Op::BAND:
-		[[fallthrough]];
-	case Op::LSHIFT:
-		[[fallthrough]];
-	case Op::RSHIFT:
-		return m_lhs->gen_type(cg, want);
-	case Op::OF:
-		// The OF operator always returns some integer constant expression except
-		// for "type of"
-		if (auto lhs = m_lhs->to_expr<const AstVarExpr>()) {
-			auto name = lhs->name();
-			if (name == "type") {
-				// type  of => type
-				return m_rhs->gen_type(cg, nullptr);
-			} else {
-				// size  of => u64
-				// align of => u64
-				// count of => u64
-				// pad   of => u64
-				return cg.types.u64();
-			}
-		} else if (m_lhs->to_expr<AstTypeExpr>()) {
-			// auto name = lhs->name();
-			// if (name != "type") {
-			// 	cg.error(m_lhs->range(), "Expected type property");
-			// 	return nullptr;
-			// }
-			// type  of => type
-			return m_rhs->gen_type(cg, nullptr);
-		} else {
-			cg.error(m_lhs->range(), "Expected property on left-hand side of 'of' operator");
-			return nullptr;
-		}
-		break;
-	}
-	cg.fatal(range(), "Could not generate type");
-	return nullptr;
+CgType* AstLBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	return want ? want : cg.types.b32();
 }
 
 Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
@@ -1876,7 +1783,62 @@ Maybe<CgValue> AstCastExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstCastExpr::gen_type(Cg& cg, CgType*) const noexcept {
-	return m_type->codegen(cg, None{});
+	if (auto expr = m_type->to_expr<AstTypeExpr>()) {
+		return expr->type()->codegen(cg, None{});
+	}
+	cg.error(m_type->range(), "Expected type on right-hand side of 'as' operator");
+	return nullptr;
+}
+
+Maybe<CgValue> AstPropExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto value = eval_value(cg);
+	if (!value) {
+		return None{};
+	}
+	return value->codegen(cg, want ? want : cg.types.u64());
+}
+
+Maybe<AstConst> AstPropExpr::eval_value(Cg& cg) const noexcept {
+	auto type = m_expr->gen_type(cg, nullptr);
+	if (!type) {
+		return None{};
+	}
+	auto prop = m_prop->to_expr<AstVarExpr>();
+	if (!prop) {
+		cg.error(m_prop->range(), "Expected property on left-hand side of 'of' operator");
+		return None{};
+	}
+	auto name = prop->name();
+	auto range = m_prop->range().include(m_expr->range());
+	if (name == "size") {
+		return AstConst { range, Uint64(type->size()) };
+	} else if (name == "align") {
+		return AstConst { range, Uint64(type->align()) };
+	} else if (name == "count") {
+		return AstConst { range, Uint64(type->extent()) };
+	}
+	cg.error(m_prop->range(), "Unknown property '%S'", name);
+	return None{};
+}
+
+CgType* AstPropExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	// The OF operator always returns some integer constant expression except
+	// for "type of"
+	if (auto prop = m_prop->to_expr<const AstVarExpr>()) {
+		if (prop->name() == "type") {
+			return m_expr->gen_type(cg, want);
+		} else {
+			// size  of => u64
+			// align of => u64
+			// count of => u64
+			// pad   of => u64
+			return want ? want : cg.types.u64();
+		}
+	} else {
+		cg.error(m_prop->range(), "Expected property on left-hand side of 'of' operator");
+		return nullptr;
+	}
+	return want ? want : cg.types.u64();
 }
 
 } // namespace Biron

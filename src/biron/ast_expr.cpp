@@ -120,28 +120,40 @@ void AstAggExpr::dump(StringBuilder& builder) const noexcept {
 void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	builder.append('(');
 	m_lhs->dump(builder);
+	builder.append(' ');
 	switch (m_op) {
-	/****/ case Op::ADD:    builder.append(" + ");
-	break; case Op::SUB:    builder.append(" - ");
-	break; case Op::MUL:    builder.append(" * ");
-	break; case Op::DIV:    builder.append(" / ");
-	break; case Op::EQ:     builder.append(" == ");
-	break; case Op::NE:     builder.append(" != ");
-	break; case Op::GT:     builder.append(" > ");
-	break; case Op::GE:     builder.append(" >= ");
-	break; case Op::MAX:    builder.append(" >? ");
-	break; case Op::LT:     builder.append(" < ");
-	break; case Op::LE:     builder.append(" <= ");
-	break; case Op::MIN:    builder.append(" <? ");
-	break; case Op::OF:     builder.append(" of" );
-	break; case Op::LOR:    builder.append(" || ");
-	break; case Op::LAND:   builder.append(" && ");
-	break; case Op::BOR:    builder.append(" | ");
-	break; case Op::BAND:   builder.append(" & ");
-	break; case Op::LSHIFT: builder.append(" << ");
-	break; case Op::RSHIFT: builder.append(" >> ");
+	/****/ case Op::ADD:    builder.append('+');
+	break; case Op::SUB:    builder.append('-');
+	break; case Op::MUL:    builder.append('*');
+	break; case Op::DIV:    builder.append('/');
+	break; case Op::EQ:     builder.append("==");
+	break; case Op::NE:     builder.append("!=");
+	break; case Op::GT:     builder.append(">");
+	break; case Op::GE:     builder.append(">=");
+	break; case Op::MAX:    builder.append(">?");
+	break; case Op::LT:     builder.append('<');
+	break; case Op::LE:     builder.append("<=");
+	break; case Op::MIN:    builder.append("<?");
+	break; case Op::BOR:    builder.append('|');
+	break; case Op::BAND:   builder.append('&');
+	break; case Op::LSHIFT: builder.append("<<");
+	break; case Op::RSHIFT: builder.append(">>");
 	break;
 	}
+	builder.append(' ');
+	m_rhs->dump(builder);
+	builder.append(')');
+}
+
+void AstLBinExpr::dump(StringBuilder& builder) const noexcept {
+	builder.append('(');
+	m_lhs->dump(builder);
+	builder.append(' ');
+	switch (m_op) {
+	/****/ case Op::LOR:  builder.append("||");
+	break; case Op::LAND: builder.append("&&");
+	}
+	builder.append(' ');
 	m_rhs->dump(builder);
 	builder.append(')');
 }
@@ -191,6 +203,14 @@ void AstCastExpr::dump(StringBuilder& builder) const noexcept {
 	builder.append("as");
 	builder.append(' ');
 	m_type->dump(builder);
+}
+
+void AstPropExpr::dump(StringBuilder& builder) const noexcept {
+	m_prop->dump(builder);
+	builder.append(' ');
+	builder.append("of");
+	builder.append(' ');
+	m_expr->dump(builder);
 }
 
 } // namespace Biron

@@ -28,6 +28,7 @@ struct AstExpr : AstNode {
 		STR,       // String
 		AGG,       // 'new' Type '{' Expr* '}'
 		BIN,       // Expr BinOp Expr
+		LBIN,      // Expr ('&&' | '||') Expr
 		UNARY,     // UnaryOp Expr
 		INDEX,     // Expr '[' Expr ']'
 		EXPLODE,   // Expr '...'
@@ -35,7 +36,8 @@ struct AstExpr : AstNode {
 		SELECTOR,  // '.' Ident
 		INFERSIZE, // '?'
 		ACCESS,    // Expr '.' Expr
-		CAST,      // Expr as Type
+		CAST,      // Expr 'as' Type
+		PROP,      // Ident 'of' Expr
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstExpr(Kind kind, Range range) noexcept
@@ -277,13 +279,34 @@ struct AstBinExpr : AstExpr {
 		ADD, SUB, MUL, DIV,
 		EQ, NE, GT, GE, LT, LE,
 		MIN, MAX,
-		LOR, LAND,
 		BOR, BAND,
 		LSHIFT, RSHIFT,
-		OF
 	};
 	constexpr AstBinExpr(Op op, AstExpr* lhs, AstExpr* rhs, Range range) noexcept
-		: AstExpr{Kind::BIN, range}
+		: AstExpr{KIND, range}
+		, m_op{op}
+		, m_lhs{lhs}
+		, m_rhs{rhs}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval_value(Cg& cg) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
+private:
+	Op       m_op;
+	AstExpr* m_lhs;
+	AstExpr* m_rhs;
+};
+
+struct AstLBinExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::LBIN;
+	enum class Op : Uint8 {
+		LOR, LAND
+	};
+	constexpr AstLBinExpr(Op op, AstExpr* lhs, AstExpr* rhs, Range range) noexcept
+		: AstExpr{KIND, range}
 		, m_op{op}
 		, m_lhs{lhs}
 		, m_rhs{rhs}
@@ -397,7 +420,7 @@ private:
 
 struct AstCastExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::CAST;
-	constexpr AstCastExpr(AstExpr* operand, AstType* type, Range range) noexcept
+	constexpr AstCastExpr(AstExpr* operand, AstExpr* type, Range range) noexcept
 		: AstExpr{KIND, range}
 		, m_operand{operand}
 		, m_type{type}
@@ -409,7 +432,25 @@ struct AstCastExpr : AstExpr {
 	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
 private:
 	AstExpr* m_operand;
-	AstType* m_type;
+	AstExpr* m_type;
+};
+
+// Ident of Expr
+struct AstPropExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::PROP;
+	constexpr AstPropExpr(AstExpr* name, AstExpr* expr, Range range) noexcept
+		: AstExpr{KIND, range}
+		, m_prop{name}
+		, m_expr{expr}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval_value(Cg& cg) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
+private:
+	AstExpr* m_prop;
+	AstExpr* m_expr;
 };
 
 } // namespace Biron

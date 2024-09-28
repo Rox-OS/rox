@@ -62,6 +62,7 @@ AstExpr* Parser::parse_call_expr(AstExpr* operand) noexcept {
 
 AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 	using Op = AstBinExpr::Op;
+	using LOp = AstLBinExpr::Op;
 	for (;;) {
 		auto peek_prec = peek().binary_prec();
 		if (peek_prec < expr_prec) {
@@ -90,8 +91,8 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		auto range = token.range.include(lhs->range())
 		                        .include(rhs->range());
 		switch (kind) {
-		/***/  case Token::Kind::KW_AS:  lhs = new_node<AstCastExpr>(lhs, rhs->to_expr<AstTypeExpr>()->type(), range);
-		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(Op::OF,     lhs, rhs, range);
+		/***/  case Token::Kind::KW_AS:  lhs = new_node<AstCastExpr>(lhs, rhs, range);
+		break; case Token::Kind::KW_OF:  lhs = new_node<AstPropExpr>(lhs, rhs, range);
 		break; case Token::Kind::STAR:   lhs = new_node<AstBinExpr>(Op::MUL,    lhs, rhs, range);
 		break; case Token::Kind::FSLASH: lhs = new_node<AstBinExpr>(Op::DIV,    lhs, rhs, range);
 		break; case Token::Kind::PLUS:   lhs = new_node<AstBinExpr>(Op::ADD,    lhs, rhs, range);
@@ -108,8 +109,8 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		break; case Token::Kind::NEQ:    lhs = new_node<AstBinExpr>(Op::NE,     lhs, rhs, range);
 		break; case Token::Kind::BAND:   lhs = new_node<AstBinExpr>(Op::BAND,   lhs, rhs, range);
 		break; case Token::Kind::BOR:    lhs = new_node<AstBinExpr>(Op::BOR,    lhs, rhs, range);
-		break; case Token::Kind::LAND:   lhs = new_node<AstBinExpr>(Op::LAND,   lhs, rhs, range);
-		break; case Token::Kind::LOR:    lhs = new_node<AstBinExpr>(Op::LOR,    lhs, rhs, range);
+		break; case Token::Kind::LAND:   lhs = new_node<AstLBinExpr>(LOp::LAND, lhs, rhs, range);
+		break; case Token::Kind::LOR:    lhs = new_node<AstLBinExpr>(LOp::LOR,  lhs, rhs, range);
 		break;
 		default:
 			ERROR(token.range, "Unexpected token '%S' while parsing binary expression", token.name());
