@@ -90,7 +90,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		auto range = token.range.include(lhs->range())
 		                        .include(rhs->range());
 		switch (kind) {
-		/***/  case Token::Kind::KW_AS:  lhs = new_node<AstBinExpr>(Op::AS,     lhs, rhs, range);
+		/***/  case Token::Kind::KW_AS:  lhs = new_node<AstCastExpr>(lhs, rhs->to_expr<AstTypeExpr>()->type(), range);
 		break; case Token::Kind::KW_OF:  lhs = new_node<AstBinExpr>(Op::OF,     lhs, rhs, range);
 		break; case Token::Kind::STAR:   lhs = new_node<AstBinExpr>(Op::MUL,    lhs, rhs, range);
 		break; case Token::Kind::FSLASH: lhs = new_node<AstBinExpr>(Op::DIV,    lhs, rhs, range);

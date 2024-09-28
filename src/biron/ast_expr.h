@@ -18,7 +18,24 @@ struct AstConst;
 struct AstExpr : AstNode {
 	static inline constexpr const auto KIND = Kind::EXPR;
 	enum class Kind : Uint8 {
-		TUPLE, CALL, TYPE, VAR, INT, FLT, BOOL, STR, AGG, BIN, UNARY, INDEX, EXPLODE, EFF, SELECTOR, INFERSIZE, ACCESS
+		TUPLE,     // '(' Expr* ')'
+		CALL,      // Expr '(' Expr* ')'
+		TYPE,      // Type
+		VAR,       // Ident
+		INT,       // Int
+		FLT,       // Real
+		BOOL,      // Bool
+		STR,       // String
+		AGG,       // 'new' Type '{' Expr* '}'
+		BIN,       // Expr BinOp Expr
+		UNARY,     // UnaryOp Expr
+		INDEX,     // Expr '[' Expr ']'
+		EXPLODE,   // Expr '...'
+		EFF,       // Ident
+		SELECTOR,  // '.' Ident
+		INFERSIZE, // '?'
+		ACCESS,    // Expr '.' Expr
+		CAST,      // Expr as Type
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstExpr(Kind kind, Range range) noexcept
@@ -263,7 +280,7 @@ struct AstBinExpr : AstExpr {
 		LOR, LAND,
 		BOR, BAND,
 		LSHIFT, RSHIFT,
-		AS, OF
+		OF
 	};
 	constexpr AstBinExpr(Op op, AstExpr* lhs, AstExpr* rhs, Range range) noexcept
 		: AstExpr{Kind::BIN, range}
@@ -376,6 +393,23 @@ struct AstAccessExpr : AstExpr {
 private:
 	AstExpr* m_lhs;
 	AstExpr* m_rhs;
+};
+
+struct AstCastExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::CAST;
+	constexpr AstCastExpr(AstExpr* operand, AstType* type, Range range) noexcept
+		: AstExpr{KIND, range}
+		, m_operand{operand}
+		, m_type{type}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<AstConst> eval_value(Cg& cg) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
+private:
+	AstExpr* m_operand;
+	AstType* m_type;
 };
 
 } // namespace Biron

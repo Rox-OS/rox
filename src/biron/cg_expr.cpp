@@ -49,6 +49,7 @@ const char* AstExpr::name() const noexcept {
 	case Kind::SELECTOR:  return "SELECTOR";
 	case Kind::INFERSIZE: return "INFERSIZE";
 	case Kind::ACCESS:    return "ACCESS";
+	case Kind::CAST:      return "CAST";
 	}
 	BIRON_UNREACHABLE();
 }
@@ -855,15 +856,6 @@ CgType* AstAggExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<AstConst> AstBinExpr::eval_value(Cg& cg) const noexcept {
-	if (m_op == Op::AS) {
-		auto lhs = m_lhs->eval_value(cg);
-		if (!lhs) {
-			return None{};
-		}
-		// TODO(dweiler): constant casting
-		return AstConst { lhs->range(), *lhs->to<Uint64>() };
-	}
-
 	if (m_op == Op::OF) {
 		if (!m_lhs->is_expr<AstVarExpr>()) {
 			// StringBuilder b{*cg.scratch};
@@ -1122,7 +1114,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	CgType* lhs_type = nullptr;
 	CgType* rhs_type = nullptr;
 
-	if (m_op != Op::LOR && m_op != Op::LAND && m_op != Op::AS && m_op != Op::OF) {
+	if (m_op != Op::LOR && m_op != Op::LAND && m_op != Op::OF) {
 		// Operands to binary operator must be the same type
 		lhs_type = m_lhs->gen_type(cg, want);
 		if (lhs_type) {
@@ -1146,30 +1138,7 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		}
 	}
 
-	if (m_op == Op::AS) {
-		// Special behavior needed for 'as'
-		auto lhs = m_lhs->gen_value(cg, want);
-		if (!lhs) {
-			return None{};
-		}
-
-		auto rhs = gen_type(cg, want);
-		if (!rhs) {
-			return None{};
-		}
-
-		auto lhs_is_signed = lhs->type()->is_sint();
-		auto rhs_is_signed = rhs->is_sint();
-
-		auto cast_op =
-			cg.llvm.GetCastOpcode(lhs->ref(),
-			                      lhs_is_signed,
-			                      rhs->ref(),
-			                      rhs_is_signed);
-
-		auto value = cg.llvm.BuildCast(cg.builder, cast_op, lhs->ref(), rhs->ref(), "");
-		return CgValue { rhs, value };
-	} else if (m_op == Op::OF) {
+	if (m_op == Op::OF) {
 		// Special behavior needed for 'of'
 		auto value = eval_value(cg);
 		if (!value) {
@@ -1593,14 +1562,6 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		[[fallthrough]];
 	case Op::RSHIFT:
 		return m_lhs->gen_type(cg, want);
-	case Op::AS:
-		if (auto expr = m_rhs->to_expr<AstTypeExpr>()) {
-			return expr->type()->codegen(cg, None{});
-		} else {
-			cg.error(m_rhs->range(), "Expected type expression on right-hand side of 'as' operator");
-			return nullptr;
-		}
-		break;
 	case Op::OF:
 		// The OF operator always returns some integer constant expression except
 		// for "type of"
@@ -1879,6 +1840,43 @@ CgType* AstEffExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		return nullptr;
 	}
 	return addr->type()->deref();
+}
+
+Maybe<AstConst> AstCastExpr::eval_value(Cg& cg) const noexcept {
+	auto operand = m_operand->eval_value(cg);
+	if (!operand) {
+		return None{};
+	}
+	// TODO(dweiler): constant casting
+	return AstConst { operand->range(), *operand->to<Uint64>() };
+}
+
+Maybe<CgValue> AstCastExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto src = m_operand->gen_value(cg, want);
+	if (!src) {
+		return None{};
+	}
+
+	auto dst = gen_type(cg, want);
+	if (!dst) {
+		return None{};
+	}
+
+	auto src_is_signed = src->type()->is_sint();
+	auto dst_is_signed = dst->is_sint();
+
+	auto cast_op =
+		cg.llvm.GetCastOpcode(src->ref(),
+		                      src_is_signed,
+		                      dst->ref(),
+		                      dst_is_signed);
+
+	auto value = cg.llvm.BuildCast(cg.builder, cast_op, src->ref(), dst->ref(), "");
+	return CgValue { dst, value };
+}
+
+CgType* AstCastExpr::gen_type(Cg& cg, CgType*) const noexcept {
+	return m_type->codegen(cg, None{});
 }
 
 } // namespace Biron

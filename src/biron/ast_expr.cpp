@@ -133,7 +133,6 @@ void AstBinExpr::dump(StringBuilder& builder) const noexcept {
 	break; case Op::LT:     builder.append(" < ");
 	break; case Op::LE:     builder.append(" <= ");
 	break; case Op::MIN:    builder.append(" <? ");
-	break; case Op::AS:     builder.append(" as ");
 	break; case Op::OF:     builder.append(" of" );
 	break; case Op::LOR:    builder.append(" || ");
 	break; case Op::LAND:   builder.append(" && ");
@@ -184,6 +183,14 @@ void AstAccessExpr::dump(StringBuilder& builder) const noexcept {
 	m_lhs->dump(builder);
 	builder.append('.');
 	m_rhs->dump(builder);
+}
+
+void AstCastExpr::dump(StringBuilder& builder) const noexcept {
+	m_operand->dump(builder);
+	builder.append(' ');
+	builder.append("as");
+	builder.append(' ');
+	m_type->dump(builder);
 }
 
 } // namespace Biron
