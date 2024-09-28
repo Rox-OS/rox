@@ -880,21 +880,31 @@ AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 		ERROR("Expected 'fn'");
 		return nullptr;
 	}
+
 	auto beg_token = next(); // Consume 'fn'
-	AstTupleType* tuple0 = parse_tuple_type(None{});
-	if (!tuple0) {
+
+	// This might be the objs or args tuple.
+	AstTupleType* tuple = parse_tuple_type(None{});
+	if (!tuple) {
 		return nullptr;
 	}
-	AstTupleType* tuple1 = nullptr;
+	
+	AstTupleType* objs = nullptr;
+	AstTupleType* args = nullptr;
 	if (peek().kind == Token::Kind::LPAREN) {
-		tuple1 = parse_tuple_type(None{});
-		if (!tuple1) {
+		objs = tuple;
+		args = parse_tuple_type(None{});
+		if (!args) {
 			return nullptr;
 		}
+	} else {
+		// When there are no objs we use the "empty tuple"
+		objs = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
+		if (!objs) {
+			return nullptr;
+		}
+		args = tuple;
 	}
-
-	AstTupleType* objs = tuple0 ? tuple0 : nullptr;
-	AstTupleType* args = tuple1 ? tuple1 : tuple0;
 
 	Array<AstIdentType*> effects{m_arena};
 	if (peek().kind == Token::Kind::LT) {
