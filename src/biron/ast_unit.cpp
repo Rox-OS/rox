@@ -24,7 +24,7 @@ void AstFn::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.append(' ');
 	builder.append("->");
 	builder.append(' ');
-	m_rets->dump(builder);
+	m_ret->dump(builder);
 	m_body->dump(builder, depth);
 }
 

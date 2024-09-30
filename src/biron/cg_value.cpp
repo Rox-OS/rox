@@ -37,11 +37,21 @@ Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
 			return false;
 		}
 		for (Ulen l = dst.length(), i = 0; i < l; i++) {
+			// Do not extract padding fields. We're not interesting in reading them.
+			// These fields will be of type None and will be zeroed below.
+			if (type->is_tuple() && type->at(i)->is_padding()) {
+				continue;
+			}
 			extract[i] = value.at(cg, i);
 		}
 		// Generate a bunch of store of those extractedvalue into the getelementptr.
 		for (Ulen l = dst.length(), i = 0; i < l; i++) {
-			dst[i]->store(cg, *extract[i]);
+			if (extract[i]) {
+				dst[i]->store(cg, *extract[i]);
+			} else {
+				// Just zero the padding field directly.
+				dst[i]->zero(cg);
+			}
 		}
 	} else {
 		// Simple non-aggregate types we can just build a store for.
@@ -113,6 +123,18 @@ CgAddr CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 	// base type of the slice or array and addrof adds the pointer back on that
 	// type. To borrow the example above: [2]Uint32 -> Uint32 -> *Uint32.
 	return CgAddr { type->at(0)->addrof(cg), gep };
+}
+
+CgAddr CgAddr::at_virt(Cg& cg, Ulen v) const noexcept {
+	auto base = m_type->deref();
+	for (Ulen l = m_type->length(), i = 0, k = 0; i < l; i++) {
+		if (auto type = base->at(i); type->is_padding()) {
+			continue;
+		} else if (k++ == v) {
+			return at(cg, i);
+		}
+	}
+	BIRON_UNREACHABLE();
 }
 
 CgAddr::CgAddr(CgType *const type, LLVM::ValueRef ref) noexcept

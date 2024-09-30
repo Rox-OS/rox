@@ -21,7 +21,7 @@ struct Terminal {
 			const auto view = StringView{msg->data(), msg->length()};
 			m_system.term_out(m_system, view);
 		} else {
-			m_system.term_out(m_system, "Out of memory");
+			m_system.term_err(m_system, "Out of memory while formatting message");
 		}
 	}
 
@@ -33,7 +33,7 @@ struct Terminal {
 			const auto view = StringView{msg->data(), msg->length()};
 			m_system.term_err(m_system, view);
 		} else {
-			m_system.term_err(m_system, "Out of memory");
+			m_system.term_err(m_system, "Out of memory while formatting message");
 		}
 	}
 

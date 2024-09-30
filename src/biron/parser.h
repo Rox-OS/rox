@@ -99,12 +99,25 @@ struct Parser {
 
 private:
 	template<typename... Ts>
-	void error(Range range, StringView message, Ts&&... args) noexcept {
+	void error(Range range, StringView message, Ts&&... args) const noexcept {
 		m_diagnostic.error(range, message, forward<Ts>(args)...);
 	}
 	template<typename... Ts>
-	void error(StringView message, Ts&&... args) noexcept {
+	void fatal(Range range, StringView message, Ts&&... args) const noexcept {
+		m_diagnostic.fatal(range, message, forward<Ts>(args)...);
+	}
+	template<typename... Ts>
+	void error(StringView message, Ts&&... args) const noexcept {
 		error(m_this_token.range, message, forward<Ts>(args)...);
+	}
+	template<typename... Ts>
+	void fatal(StringView message, Ts&&... args) const noexcept {
+		fatal(m_this_token.range, message, forward<Ts>(args)...);
+	}
+
+	None oom() const noexcept {
+		fatal("Out of memory while parsing");
+		return None{};
 	}
 
 	[[nodiscard]] AstExpr* parse_primary_expr() noexcept;
@@ -147,12 +160,12 @@ private:
 			if (auto node = cache.make<T>(forward<Ts>(args)...)) {
 				return node;
 			} else {
-				error("Out of memory");
+				error("Out of memory in cache");
 				return nullptr;
 			}
 		}
 		if (!m_caches.emplace_back(m_arena, sizeof(T), Ulen(1024))) {
-			error("Out of memory");
+			error("Out of memory in caches");
 			return nullptr;
 		}
 		return new_node<T>(forward<Ts>(args)...);

@@ -30,6 +30,13 @@ Maybe<AstConst> AstExpr::eval_value(Cg&) const noexcept {
 	return None{};
 }
 
+static AstExpr* detuple(AstExpr* expr) noexcept {
+	if (auto tuple = expr->to_expr<AstTupleExpr>(); tuple && tuple->length() == 1) {
+		return tuple->at(0);
+	}
+	return expr;
+}
+
 const char* AstExpr::name() const noexcept {
 	switch (m_kind) {
 	case Kind::TUPLE:     return "TUPLE";
@@ -74,11 +81,6 @@ Maybe<AstConst> AstTupleExpr::eval_value(Cg& cg) const noexcept {
 		}
 	}
 
-	// Detuple single element tuples.
-	if (values.length() == 1) {
-		return values[0].copy();
-	}
-
 	// Should we infer the type for ConstTuple here? A compile-time constant tuple
 	// cannot have fields and cannot be indexed any other way than with integers,
 	// for which a type is not needed. However, it might be useful to have a type
@@ -90,19 +92,6 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	auto type = gen_type(cg, want ? want->deref() : nullptr);
 	if (!type) {
 		return None{};
-	}
-
-	// Detuple single element tuples.
-	if (length() == 1) {
-		auto value = at(0)->gen_value(cg, type);
-		if (!value) {
-			return None{};
-		}
-		auto dst = cg.emit_alloca(type);
-		if (!dst || !dst->store(cg, *value)) {
-			return cg.oom();
-		}
-		return dst;
 	}
 
 	// Otherwise we actually construct a tuple and emit stores for all the values.
@@ -128,15 +117,14 @@ Maybe<CgAddr> AstTupleExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 	Ulen j = 0;
 	for (Ulen l = type->length(), i = 0; i < l; i++) {
 		auto dst_type = type->at(i);
+		auto dst = addr->at(cg, i);
 		if (dst_type->is_padding()) {
 			// Emit zeroinitializer for padding.
-			auto padding_addr = addr->at(cg, i);
-			if (!padding_addr.zero(cg)) {
+			if (!dst.zero(cg)) {
 				return cg.oom();
 			}
 		} else {
 			// We use j++ to index as values contains non-padding fields.
-			auto dst = addr->at(cg, i);
 			if (!dst.store(cg, values[j++])) {
 				return cg.oom();
 			}
@@ -161,11 +149,8 @@ CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	switch (length()) {
 	case 0:
 		return cg.types.unit();
-	case 1:
-		// Detuple single element tuples.
-		return at(0)->gen_type(cg, want);
 	}
-	// [2, n)
+	// [1, n)
 	Array<CgType*> types{*cg.scratch};
 	if (!types.reserve(length())) {
 		cg.oom();
@@ -187,7 +172,8 @@ CgType* AstTupleExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	}
 	for (Ulen l = length(), i = 0; i < l; i++) {
 		auto infer = expect ? expect->at(i) : nullptr;
-		auto type = at(i)->gen_type(cg, infer);
+		auto elem = at(i);
+		auto type = elem->gen_type(cg, infer);
 		if (!type) {
 			return nullptr;
 		}
@@ -240,10 +226,12 @@ CgType* AstCallExpr::gen_type(Cg& cg, CgType*) const noexcept {
 		return nullptr;
 	}
 
-	auto rets = type->at(3);
+	return type->at(3);
+}
 
-	// Detuple single element tuples.
-	return rets->length() == 1 ? rets->at(0) : rets;
+Maybe<CgAddr> AstCallExpr::gen_addr(Cg&, CgType*) const noexcept {
+	// Unsupported
+	return None{};
 }
 
 Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
@@ -276,12 +264,12 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	// 0 = objs
 	// 1 = args
 	// 2 = effects
-	// 3 = rets
+	// 3 = ret
 
 	auto objs = type->at(0);
 	auto expected = type->at(1);
 	auto effects = type->at(2);
-	auto rets = type->at(3);
+	auto ret = type->at(3);
 
 	Array<LLVM::ValueRef> values{*cg.scratch};
 	auto reserve = objs->length() + expected->length() + effects->length();
@@ -311,8 +299,16 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 			return None{};
 		}
 		// Populate the effects tuple with all our effects.
+		Array<CgAddr> dsts{*cg.scratch};
+		if (!dsts.reserve(usings.length())) {
+			return cg.oom();
+		}
 		for (Ulen l = usings.length(), i = 0; i < l; i++) {
-			dst->at(cg, i).store(cg, usings[i].addr().load(cg));
+			// Use virtual indices since usings array is in terms of virtual indices.
+			(void)dsts.emplace_back(dst->at_virt(cg, i));
+		}
+		for (Ulen l = usings.length(), i = 0; i < l; i++) {
+			dsts[i].store(cg, usings[i].addr().load(cg));
 		}
 		// Then pass that tuple by address as the first argument to the function.
 		if (!values.push_back(dst->ref())) {
@@ -419,11 +415,19 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	                                values.length(),
 	                                "");
 
-	return CgValue {
-		// Detuple single element tuples.
-		rets->length() == 1 ? rets->at(0) : rets,
-		value
-	};
+	// When the function is marked as returning a single-element tuple
+	// we need to retuple the result because we detuple the generation of the
+	// function but the caller still expects to have a single-element tuple
+	// as a result.
+	if (ret->is_tuple() && ret->length() == 1) {
+		// TODO(dweiler): We need to do this in a much better way.
+		auto dst = cg.emit_alloca(ret);
+		auto at = dst->at(cg, 0);
+		at.store(cg, CgValue { at.type()->deref(), value });
+		return dst->load(cg);
+	}
+
+	return CgValue { ret, value };
 }
 
 Maybe<AstConst> AstVarExpr::eval_value(Cg& cg) const noexcept {
@@ -583,8 +587,12 @@ CgType* AstIntExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	case Kind::S32: return cg.types.s32();
 	case Kind::S64: return cg.types.s64();
 	case Kind::UNTYPED:
-		if (want && want->is_integer()) {
-			return want;
+		if (want) {
+			if (want->is_integer()) {
+				return want;
+			} else if (want->is_real()) {
+				cg.error(range(), "Expected integer literal. Got '%S' instead", want->to_string(*cg.scratch));
+			}
 		}
 		break;
 	}
@@ -636,8 +644,12 @@ CgType* AstFltExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 	case Kind::F64:
 		return cg.types.f64();
 	case Kind::UNTYPED:
-		if (want && want->is_real()) {
-			return want;
+		if (want) {
+			if (want->is_real()) {
+				return want;
+			} else if (want->is_integer()) {
+				cg.error(range(), "Expected floating-point literal. Got '%S' instead", want->to_string(*cg.scratch));
+			}
 		}
 		break;
 	}
@@ -904,7 +916,7 @@ CgType* AstAccessExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 		if (!u64) {
 			return nullptr;
 		}
-		return lhs_type->at(*u64);
+		return lhs_type->at_virt(*u64);
 	}
 	return nullptr;
 }
@@ -999,7 +1011,7 @@ Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			//	a.b -> (*a).b
 			addr = addr->load(cg).to_addr();
 		}
-		return addr->at(cg, *index);
+		return addr->at_virt(cg, *index);
 	}
 	cg.error(m_rhs->range(), "Unknown expression for access");
 	return None{};
@@ -1089,13 +1101,16 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	CgType* lhs_type = nullptr;
 	CgType* rhs_type = nullptr;
 
+	auto lhs_expr = detuple(m_lhs);
+	auto rhs_expr = detuple(m_rhs);
+
 	// Operands to binary operator must be the same type
-	lhs_type = m_lhs->gen_type(cg, want);
+	lhs_type = lhs_expr->gen_type(cg, want);
 	if (lhs_type) {
-		rhs_type = m_rhs->gen_type(cg, lhs_type);
+		rhs_type = rhs_expr->gen_type(cg, lhs_type);
 	} else {
-		rhs_type = m_rhs->gen_type(cg, want);
-		lhs_type = m_lhs->gen_type(cg, rhs_type);
+		rhs_type = rhs_expr->gen_type(cg, want);
+		lhs_type = lhs_expr->gen_type(cg, rhs_type);
 	}
 	if (!lhs_type || !rhs_type) {
 		cg.error(range(), "Could not infer types in binary expression");
@@ -1112,8 +1127,8 @@ Maybe<CgValue> AstBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		return None{};
 	}
 
-	auto lhs = m_lhs->gen_value(cg, lhs_type);
-	auto rhs = m_rhs->gen_value(cg, lhs_type);
+	auto lhs = lhs_expr->gen_value(cg, lhs_type);
+	auto rhs = rhs_expr->gen_value(cg, lhs_type);
 	if (!lhs || !rhs) {
 		return None{};
 	}
@@ -1268,10 +1283,15 @@ Maybe<CgAddr> AstBinExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	if (auto type = m_lhs->gen_type(cg, want)) {
+	auto lhs_expr = detuple(m_lhs);
+	if (auto type = lhs_expr->gen_type(cg, want)) {
 		return type;
 	}
-	return m_rhs->gen_type(cg, want);
+	auto rhs_expr = detuple(m_rhs);
+	if (auto type = rhs_expr->gen_type(cg, want)) {
+		return type;
+	}
+	return nullptr;
 }
 
 Maybe<CgValue> AstLBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
@@ -1750,16 +1770,18 @@ CgType* AstEffExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<AstConst> AstCastExpr::eval_value(Cg& cg) const noexcept {
-	auto operand = m_operand->eval_value(cg);
-	if (!operand) {
+	auto operand = detuple(m_operand);
+	auto value = operand->eval_value(cg);
+	if (!value) {
 		return None{};
 	}
 	// TODO(dweiler): constant casting
-	return AstConst { operand->range(), *operand->to<Uint64>() };
+	return AstConst { value->range(), *value->to<Uint64>() };
 }
 
 Maybe<CgValue> AstCastExpr::gen_value(Cg& cg, CgType* want) const noexcept {
-	auto src = m_operand->gen_value(cg, want);
+	auto operand = detuple(m_operand);
+	auto src = operand->gen_value(cg, nullptr);
 	if (!src) {
 		return None{};
 	}

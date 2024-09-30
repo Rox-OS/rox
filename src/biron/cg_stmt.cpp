@@ -48,7 +48,15 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 	}
 
 	if (value) {
-		cg.llvm.BuildRet(cg.builder, value->ref());
+		auto type = value->type();
+		if (type->is_tuple() && type->length() == 1) {
+			// When a function returns a single-element tuple we actually compile it
+			// to a function which returns that element directly. So here we need to
+			// return the element and not the tuple.
+			cg.llvm.BuildRet(cg.builder, value->at(cg, 0)->ref());
+		} else {
+			cg.llvm.BuildRet(cg.builder, value->ref());
+		}
 	} else {
 		cg.llvm.BuildRetVoid(cg.builder);
 	}
@@ -182,7 +190,7 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 		if (!addr) {
 			return false;
 		}
-		if (false && (type->is_tuple() || type->is_array())) {
+		if (type->is_tuple() || type->is_array()) {
 			auto src = m_init->gen_addr(cg, nullptr);
 			if (src) {
 				cg.llvm.BuildMemCpy(cg.builder,

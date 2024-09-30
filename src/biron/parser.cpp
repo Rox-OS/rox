@@ -389,7 +389,7 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 	}
 	builder.append('\0');
 	if (!builder.valid()) {
-		ERROR("Out of memory");
+		oom();
 		return nullptr;
 	}
 
@@ -490,7 +490,7 @@ AstFltExpr* Parser::parse_flt_expr() noexcept {
 	}
 	builder.append('\0');
 	if (!builder.valid()) {
-		ERROR("Out of memory");
+		oom();
 		return nullptr;
 	}
 	char* end = nullptr;
@@ -554,7 +554,7 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 			return nullptr;
 		}
 		if (!exprs.push_back(expr)) {
-			ERROR("Out of memory");
+			oom();
 			return nullptr;
 		}
 		if (peek().kind == Token::Kind::COMMA) {
@@ -687,7 +687,7 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 				return nullptr;
 			}
 			if (!elems.emplace_back(None{}, nested)) {
-				ERROR("Out of memory while parsing tuple type");
+				oom();
 				return nullptr;
 			}
 			if (peek().kind == Token::Kind::COMMA) {
@@ -711,7 +711,7 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 			}
 			auto name = m_lexer.string(token->range);
 			if (!elems.emplace_back(name, type)) {
-				ERROR("Out of memory");
+				oom();
 				return nullptr;
 			}
 		} else {
@@ -720,7 +720,7 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 				auto name = m_lexer.string(token->range);
 				type = new_node<AstIdentType>(name, m_arena, token->range);
 				if (!type) {
-					ERROR("Out of memory");
+					oom();
 					return nullptr;
 				}
 			} else {
@@ -730,7 +730,7 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 				}
 			}
 			if (!elems.emplace_back(None{}, type)) {
-				ERROR("Out of memory");
+				oom();
 				return nullptr;
 			}
 		}
@@ -928,38 +928,26 @@ AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
 		next(); // Consume '>'
 	}
 
-	AstTupleType* rets = nullptr;
+	AstType* ret = nullptr;
 	if (peek().kind == Token::Kind::ARROW) {
 		next(); // Consume '->'
-		auto type = parse_type();
-		if (!type) {
+		ret = parse_type();
+		if (!ret) {
 			return nullptr;
-		}
-		if (auto tuple = type->to_type<AstTupleType>()) {
-			rets = tuple;
-		} else {
-			// The parser treats a single return type as-if it was a single element
-			// tuple with that type.
-			Array<AstTupleType::Elem> elems{m_arena};
-			if (!elems.emplace_back(None{}, type)) {
-				ERROR("Out of memory");
-				return nullptr;
-			}
-			rets = new_node<AstTupleType>(move(elems), m_arena, type->range());
 		}
 	} else {
 		// When there are no return types we return the "empty tuple"
-		rets = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
+		ret = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
 	}
 
-	if (!rets) {
-		ERROR("Out of memory");
+	if (!ret) {
+		oom();
 		return nullptr;
 	}
 
-	auto range = beg_token.range.include(rets->range());
+	auto range = beg_token.range.include(ret->range());
 
-	return new_node<AstFnType>(objs, args, move(effects), rets, move(attrs), range);
+	return new_node<AstFnType>(objs, args, move(effects), ret, move(attrs), range);
 }
 
 // Stmt
@@ -1026,7 +1014,7 @@ AstBlockStmt* Parser::parse_block_stmt() noexcept {
 			return nullptr;
 		}
 		if (!stmts.push_back(stmt)) {
-			ERROR("Out of memory");
+			oom();
 			return nullptr;
 		}
 	}
@@ -1449,7 +1437,7 @@ AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 		return nullptr;
 	}
 
-	AstType* rets = nullptr;
+	AstType* ret = nullptr;
 	Array<AstIdentType*> effects{m_arena};
 	if (peek().kind == Token::Kind::LT) {
 		next(); // Consume '<'
@@ -1473,25 +1461,14 @@ AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 
 	if (peek().kind == Token::Kind::ARROW) {
 		next(); // Consume '->'
-		rets = parse_type();
+		ret = parse_type();
 	} else {
 		// When there are no return types we return the "empty tuple"
-		rets = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
+		ret = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
 	}
-	if (!rets) {
+	if (!ret) {
 		ERROR("Could not parse returns");
 		return nullptr;
-	}
-
-	if (!rets->is_type<AstTupleType>()) {
-		// The parser treats a single return type as-if it was a single element
-		// tuple with that type.
-		Array<AstTupleType::Elem> elems{m_arena};
-		if (!elems.emplace_back(None{}, rets)) {
-			ERROR("Out of memory");
-			return nullptr;
-		}
-		rets = new_node<AstTupleType>(move(elems), m_arena, rets->range());
 	}
 
 	AstBlockStmt* body = parse_block_stmt();
@@ -1499,9 +1476,9 @@ AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 		return nullptr;
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstFn>(name, objs, args, move(effects), static_cast<AstTupleType*>(rets), body, move(attrs), range);
+	auto node = new_node<AstFn>(name, objs, args, move(effects), ret, body, move(attrs), range);
 	if (!node) {
-		ERROR("Out of memory");
+		oom();
 		return nullptr;
 	}
 
@@ -1611,7 +1588,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 	case Token::Kind::KW_FN:
 		if (auto fn = parse_fn(move(attrs))) {
 			if (!unit.add_fn(fn)) {
-				ERROR("Out of memory");
+				oom();
 				return None{};
 			}
 		} else {
@@ -1621,7 +1598,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 	case Token::Kind::KW_TYPE:
 		if (auto type = parse_typedef(move(attrs))) {
 			if (!unit.add_typedef(type)) {
-				ERROR("Out of memory");
+				oom();
 				return None{};
 			}
 		} else {
@@ -1632,7 +1609,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		// We allow top-level constant declarations
 		if (auto let = parse_let_stmt(move(attrs))) {
 			if (!unit.add_let(let)) {
-				ERROR("Out of memory");
+				oom();
 				return None{};
 			}
 		} else {
@@ -1662,7 +1639,7 @@ Maybe<AstUnit> Parser::parse() noexcept {
 	case Token::Kind::KW_EFFECT:
 		if (auto effect = parse_effect()) {
 			if (!unit.add_effect(effect)) {
-				ERROR("Out of memory");
+				oom();
 				return None{};
 			}
 		} else {

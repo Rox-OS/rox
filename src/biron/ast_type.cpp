@@ -57,7 +57,7 @@ void AstFnType::dump(StringBuilder& builder) const noexcept {
 	builder.append("fn");
 	m_args->dump(builder);
 	builder.append(" -> ");
-	m_rets->dump(builder);
+	m_ret->dump(builder);
 }
 
 void AstAtomType::dump(StringBuilder& builder) const noexcept {

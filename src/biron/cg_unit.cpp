@@ -49,12 +49,12 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto rets = m_rets->codegen(cg, None{});
-	if (!rets) {
+	auto ret = m_ret->codegen(cg, None{});
+	if (!ret) {
 		return false;
 	}
 
-	auto fn_t = cg.types.make(CgType::FnInfo { objs, args, effects, rets });
+	auto fn_t = cg.types.make(CgType::FnInfo { objs, args, effects, ret });
 	if (!fn_t) {
 		return false;
 	}
@@ -156,7 +156,7 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 
 	auto type = addr->type()->deref();
 	auto effects = type->at(2);
-	auto rets = type->at(3);
+	auto ret = type->at(3);
 
 	// Construct the entry basic-block, append it to the function and position
 	// the IR builder at the end of the basic-block.
@@ -270,23 +270,22 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 
 	// When the block doesn't contain a terminator we will need to emit a return.
 	if (!cg.llvm.GetBasicBlockTerminator(resume_bb)) {
-		switch (rets->length()) {
-		case 0:
-			// The empty tuple () is our void type. We can emit RetVoid.
+		if (ret->is_tuple() && ret->length() == 0) {
+			// The zero-element tuple is our void type
 			cg.llvm.BuildRetVoid(cg.builder);
-			break;
-		case 1:
-			// Detuple single element tuples.
-			if (auto value = CgValue::zero(rets->at(0), cg)) {
+		} else if (ret->is_tuple() && ret->length() == 1) {
+			// We detuple single element tuples
+			if (auto value = CgValue::zero(ret->at(0), cg)) {
 				cg.llvm.BuildRet(cg.builder, value->ref());
+			} else {
+				return false;
 			}
-			break;
-		default:
-			if (auto value = CgValue::zero(rets, cg)) {
-				// Otherwise we return a zeroed tuple which matches the return type.
+		} else {
+			if (auto value = CgValue::zero(ret, cg)) {
 				cg.llvm.BuildRet(cg.builder, value->ref());
+			} else {
+				return false;
 			}
-			break;
 		}
 	}
 
@@ -382,11 +381,11 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 		auto args_t = cg.types.make(CgType::TupleInfo { move(args), None{}, None{} });
-		auto rets_t = cg.types.make(CgType::TupleInfo { move(rets), None{}, None{} });
-		if (!args_t || !rets_t) {
+		auto ret_t = cg.types.f32();
+		if (!args_t || !ret_t) {
 			return false;
 		}
-		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, cg.types.unit(), rets_t });
+		auto fn_t = cg.types.make(CgType::FnInfo { cg.types.unit(), args_t, cg.types.unit(), ret_t });
 		if (!fn_t) {
 			return false;
 		}

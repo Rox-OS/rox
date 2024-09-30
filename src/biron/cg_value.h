@@ -16,6 +16,7 @@ struct CgAddr {
 	CgAddr(CgType *const type, LLVM::ValueRef ref) noexcept;
 
 	CgAddr at(Cg& cg, Ulen index) const noexcept;
+	CgAddr at_virt(Cg& cg, Ulen v) const noexcept;
 	CgAddr at(Cg& cg, const CgValue& index) const noexcept;
 
 	CgValue load(Cg& cg) const noexcept;

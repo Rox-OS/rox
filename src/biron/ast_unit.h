@@ -40,13 +40,13 @@ private:
 
 struct AstFn : AstNode {
 	static inline constexpr auto KIND = Kind::FN;
-	constexpr AstFn(StringView name, AstTupleType* objs, AstTupleType* args, Array<AstIdentType*>&& effects, AstTupleType* rets, AstStmt* body, Array<AstAttr*>&& attrs, Range range) noexcept
+	constexpr AstFn(StringView name, AstTupleType* objs, AstTupleType* args, Array<AstIdentType*>&& effects, AstType* ret, AstStmt* body, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_name{name}
 		, m_objs{objs}
 		, m_args{args}
 		, m_effects{move(effects)}
-		, m_rets{rets}
+		, m_ret{ret}
 		, m_body{body}
 		, m_attrs{move(attrs)}
 	{
@@ -61,7 +61,7 @@ private:
 	AstTupleType*        m_objs;
 	AstTupleType*        m_args;
 	Array<AstIdentType*> m_effects;
-	AstTupleType*        m_rets;
+	AstType*             m_ret;
 	AstStmt*             m_body;
 	Array<AstAttr*>      m_attrs;
 };

@@ -120,16 +120,23 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 	case Kind::TUPLE:
 		{
 			builder.append('(');
+			// Do not print the .Pad fields since this is used for user-facing
+			// printing of types.
+			Bool f = true;
 			for (Ulen l = length(), i = 0; i < l; i++) {
-				at(i)->dump(builder);
-				if (i != l - 1) {
-					builder.append(", ");
+				auto elem = at(i);
+				if (!elem->is_padding()) {
+					if (!f) builder.append(", ");
+					elem->dump(builder);
 				}
+				f = false;
 			}
 			builder.append(')');
 		}
 		break;
 	case Kind::UNION:
+		// TODO(dweiler): Revisit. This currently prints the internal structure
+		// of the union which is not wanted.
 		for (Ulen l = length(), i = 0; i < l; i++) {
 			at(i)->dump(builder);
 			if (i != l - 1) {
@@ -375,12 +382,12 @@ CgType* AstFnType::codegen(Cg& cg, Maybe<StringView>) const noexcept {
 		return nullptr;
 	}
 
-	auto rets = m_rets->codegen(cg, None{});
-	if (!rets) {
+	auto ret = m_ret->codegen(cg, None{});
+	if (!ret) {
 		return nullptr;
 	}
 
-	auto fn = cg.types.make(CgType::FnInfo { objs, args, effects, rets });
+	auto fn = cg.types.make(CgType::FnInfo { objs, args, effects, ret });
 	if (!fn) {
 		return nullptr;
 	}
@@ -831,7 +838,8 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	types[0] = info.objs;
 	types[1] = info.args;
 	types[2] = info.effects;
-	types[3] = info.rets;
+	types[3] = info.ret;
+
 	ScratchAllocator scratch{m_cache.allocator()};
 	Array<LLVM::TypeRef> args{scratch};
 	Bool has_va = false;
@@ -870,7 +878,11 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 		}
 	}
 
-	auto rets = info.rets;
+	auto rets = info.ret;
+
+	// When a function returns a single-element tuple we actually compile it to a
+	// function which returns that element directly. So here we need to specify
+	// the type of the element and not the tuple.
 	if (rets->length() == 1) {
 		rets = rets->at(0);
 	}
@@ -879,9 +891,7 @@ CgType* CgTypeCache::make(CgType::FnInfo info) noexcept {
 	                               args.data(),
 	                               args.length(),
 	                               has_va);
-	if (!ref) {
-		return nullptr;
-	}
+
 	return m_cache.make<CgType>(
 		CgType::Kind::FN,
 		CgType::Layout { 8_ulen, 8_ulen },

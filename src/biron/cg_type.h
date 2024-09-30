@@ -43,6 +43,19 @@ struct CgType {
 	[[nodiscard]] CgType* deref() const noexcept { return at(0); }
 	[[nodiscard]] CgType* at(Ulen i) const noexcept { return types()[i]; }
 
+	// This function is the same as 'at', except you give it virtual indices as
+	// opposed to physical indices.
+	[[nodiscard]] CgType* at_virt(Ulen v) const noexcept {
+		for (Ulen l = length(), i = 0, k = 0; i < l; i++) {
+			if (auto type = at(i); type->is_padding()) {
+				continue;
+			} else if (k++ == v) {
+				return type;
+			}
+		}
+		return nullptr;
+	}
+
 	[[nodiscard]] constexpr const Array<CgType*>& types() const noexcept {
 		BIRON_ASSERT(m_types && "No nested types");
 		return (*m_types);
@@ -195,7 +208,7 @@ struct CgType {
 		CgType* objs;
 		CgType* args;
 		CgType* effects;
-		CgType* rets;
+		CgType* ret;
 	};
 
 	struct VaInfo { };

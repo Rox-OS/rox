@@ -121,7 +121,7 @@ struct Cg {
 	}
 
 	None oom() const noexcept {
-		fatal(Range{0, 0}, "Out of memory");
+		fatal(Range{0, 0}, "Out of memory while generating code");
 		return None{};
 	}
 
