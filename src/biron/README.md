@@ -1,31 +1,38 @@
 # Biron
 
-Biron is an experimental toy systems programming language built for Rox.
-
-## TODO
-* Finish union types
-* Finish modules
-* Implement enum types
-* Implement match keyword
-* Implement parametric polymorphics (at AST level!)
-* Intrinsics
-* Type inference for return value
+Biron is an experimental toy [systems programming language](https://en.wikipedia.org/wiki/System_programming_language) built for Rox.
 
 ## Features
+* [Procedrual programming](https://en.wikipedia.org/wiki/Procedural_programming)
+  * Named and anonymous functions
+* [Absence-based Object Oriented programming](https://en.wikipedia.org/wiki/Object-oriented_programming#Absence)
+  * Functions have an optional reciever argument list
+    * Completely free-form.
+    * Similar to Go's [Method sets](https://go.dev/wiki/MethodSets)
+    * Alows for [Mixins](https://en.wikipedia.org/wiki/Mixin)
+* [Structured programming](https://en.wikipedia.org/wiki/Structured_programming)
+  * `if` `else` `for` `break` `continue` `defer` `return` `yield`
+* [Modular programming with modules](https://en.wikipedia.org/wiki/Modular_programming)
+  * `module` declarations and `import`.
 * [Bi-directional type inference](https://en.wikipedia.org/wiki/Type_inference)
+  * Recursively infers from both unknown and known types
 * [Static structual type system](https://en.wikipedia.org/wiki/Structural_type_system)
   * Aggregate types of the same layout are the same type.
-  * Optional [nominal typing](https://en.wikipedia.org/wiki/Nominal_type_system) made available with `type` definitions.
+  * Strongly typed: No implicit type conversions of any kind except for untyped integer and floating-point literals.
 * [Polymorphic effect system](https://en.wikipedia.org/wiki/Effect_system)
-  * Nominally typed effects required for all side effects.
-* [Structured programming](https://en.wikipedia.org/wiki/Structured_programming)
-  * `if` `else` `for` `break` `continue` `defer` `return`
-* [Array programming](https://en.wikipedia.org/wiki/Array_programming)
-* [Static multiple dispatch](https://en.wikipedia.org/wiki/Multiple_dispatch)
-* Few keywords
-  * `true false fn if as let for else type defer break using return effect module import continue`
+  * [Nominally typed](https://en.wikipedia.org/wiki/Nominal_type_system) effects required for all side effects.
+  * Some builtin effects
+    * `MemoryOrder` - Atomic operation memory order
+    * `Read`        - Reads global memory
+    * `Write`       - Writes global memory
+  * Effects are established with `using` statement.
 * [Algebaic data types](https://en.wikipedia.org/wiki/Algebraic_data_type)
   * Sum types with [flow-sensitive typing](https://en.wikipedia.org/wiki/Flow-sensitive_typing)
+    * Test an expresison's type with `is` operator.
+* [Array programming](https://en.wikipedia.org/wiki/Array_programming)
+  * Recursive and implicitly vectorized.
+* [Static multiple dispatch](https://en.wikipedia.org/wiki/Multiple_dispatch)
+  * Absense-based object oriented function calls.
 * Consistent set of builtin types
   * Sized integer types: `(S|U)int{8,16,32,64}`
   * Sized floating-point types: `Real{32,64}`
@@ -36,21 +43,22 @@ Biron is an experimental toy systems programming language built for Rox.
   * Tuples: `(T1, ... Tn)`
   * Unions: `T1 | ... | Tn`
   * Atomics: `@T`
-    * Works with any type that is `<= size of Address * 2`
-  * Memory addressing type: `Address`
+  * Addressing: `Address`
     * Similar to `uintptr_t` but for working with memory addresses and can be casted to any pointer type.
   * Non-NUL-terminated and immutable UTF-8 string: `String`
 * Designed to run on baremetal
 * Small
-  * ~12k lines of freestanding C++ with no build dependencies
+  * ~12k lines of freestanding C++ with no build dependencies.
+    * Does not require the C++ standard library or C++ runtime support library.
   * Robust error handling
   * Embeddable
     * Custom allocators for limiting memory usage
     * Can be used directly to make a LSP for instance
-  * Modular: The lexer, parser, and code generator are all separate components
-  * Loads `libLLVM` dynamically at runtime if present.
-    * Requires LLVM-17 or LLVM-18.
-  * Does not require C++ standard library or C++ runtime support library.
+  * Sandboxable
+    * All interation with the system is done through the system interface which is replacable.
+  * Modular: The lexer, parser, and code generator are all separate components which do not depend on each other.
+  * Loads `libLLVM` dynamically at runtime if present. Not linked during build so can easily be built and deployed anywhere.
+    * Requires LLVM-17, LLVM-18, or LLVM-19 to be present at runtime.
 
 ## Building
 
@@ -66,232 +74,8 @@ On Windows you can build with
 $ cl.exe /I..\ /std:c++20 Zc:__cplusplus unity.cxx
 ```
 
-## Reference
-
-The following is a mostly incomplete reference of the language
-
-### Lexical elements and literals
-#### Comments
-Comments can be anywhere outside of a string or character literal.
-  
-Single line comments begin with `//`
-```rust
-// This is a line comment
-
-let x = 0_u32; // Document this variable
-```
-
-Block comments begin with `/*` and end with `*/` like C. Unlike C however, block comments can be nested.
-```rust
-/* You can put anything inside here including code
-  /* And other block comments */
-  // And other line comments
-*/
-```
-
-Comments are lexed as actual tokens.
-
-#### String literals
-String literals are enclosed in double quotes `"Like this"`. Special characters can be escaped with the backslash `\` character.
-```rust
-"Hello, World"
-"\n" // This is a newline character
-```
-> To encode the backslash chracter literally you escape it as well `\\`.
-
-#### Character literals
-Character literals are enclosed in single quotes. Special characters can be escaped with the backslash `\` character like string literals.
-```rust
-'A'
-'\n'
-```
-
-#### Integer literals
-Integer literals come in two variants in Biron: typed and untyped. Single quotes are allowed in integer literals for better readability.
-```rust
-1'000'000'000'000 // One billion as an untyped integer
-```
-
-Literals can be explicitly typed with a type suffix
-```rust
-1'000'000'000'000_u64 // One billion as a Uint64
-```
-
-* When an integer literal begins with `0x` it's treated as a base-16 literal
-* When an integer literal begins with `0b` it's treated as a base-2 literal
-
-> There are no base-8 (octal) literals.
-
-There are sixteen explicit type suffixes for integer literals
-| Suffix | Type    |
-|--------|---------|
-| `_u8`  | Uint8   |
-| `_s8`  | Sint8   |
-| `_u16` | Uint16  |
-| `_s16` | Sint16  |
-| `_u32` | Uint32  |
-| `_s32` | Sint32  |
-| `_u64` | Uint64  |
-| `_s64` | Sint64  |
-
-#### Floating-point Literals
-Floating-point literals come in two variants in Biron: typed and untyped. Single quotes are allowed in floating-point literals for better readability just like integer literals.
-```rust
-100'000.0
-```
-
-Literals can be explicitly typed with a type suffix
-```rust
-100'000.0_f64
-```
-
-There are two explicit type suffixes for floating-point literals
-| Suffix | Type   |
-|--------|--------|
-| `_f32` | Real32 |
-| `_f64` | Real64 |
-
-### Let statement
-A `let` statement declares a new variable in the current scope.
-```rust
-let x = 10_u32;
-```
-
-There is no way to specify a type on a `let` statement. It's always inferred from the expression on the right-hand side.
-
-The declaration of a variable must be unique within a scope
-```rust
-let x = 10_u32;
-let x = 20_u32; // Not allowed since 'x' is already declared
-```
-
-### Assignment statements
-The assignment statement assigns a new value to a variable.
-```rust
-let x = 123_u32;
-x = 637_u32; // Assigns a new value to 'x'
-```
-
-### Control flow statements
-#### The `if` statement
-The `if` statement has the following syntax:
-```rust
-if <LetStmt>? <Expr> {
-  // ...
-} else {
-  // The else case
-}
-```
-Where `<LetStmt>?` here denotes an optional `let` statement which is accessible only to the scope of the `if` and `else` bodies.
-
-You can also chain `if` `else` with `if else` like C.
-
-#### The `for` statement
-The `for` statement has the following syntax:
-
-```rust
-for <LetStmt>? <Expr>;? <UnterminatedStmt>? {
-  // ...
-}
-```
-* `<LetStmt>?` here denotes an optional `let` statement.
-* `<Expr>;?` here donates an optional loop condition,
-* `<UnterminatedStmt>?` here donates an optional post statement which does not end in a semicolon `;` like other statements.
-
-For example, the following is an infinite loop.
-```rust
-for {
-  // Infinite loop
-}
-```
-
-Something like the following is equivalent to C's `while` loop.
-```rust
-for expr {
-
-}
-```
-
-Then of course you have the tried and true C style `for` loop.
-```rust
-for let i = 0; i < 10; i = i + 1 {
-  // Runs for 10 iterations
-}
-```
-
-You may also terminate the loop early with the `break` keyword. Likewise, you can skip the remainder of the iteration and execute the next iteration with the `continue` keyword.
-
-Loops in Biron also have an optional `else` clause like [Python 3](https://book.pythontips.com/en/latest/for_-_else.html). The `else` clause executes only when the for loop completes normally. Where normally here means when the loop expression no longer evaluates true as opposed to being terminated early by a `break`. This lets you write code like the following
-```rust
-for let n = 2; n < 10; n = n + 1 {
-  for let x = 2; x < n; x = x + 1 {
-    if n % x == 0 {
-      printf("%d equals %d * %d\n", n, x, n/x);
-    }
-  } else {
-    printf("%s is not a prime number\n", n);
-  }
-}
-```
-
-#### The `defer` statement
-The `defer` statement defers execution of a statement until the end of the scope it is in.
-
-```rust
-fn main() {
-  let x = 123_u32;
-  defer printf("%d\n", x);
-  {
-    defer x = 4_u32;
-    x = 2_u32;
-  }
-  printf("%d\n", x);
-  x = 234_u32;
-}
-```
-
-> This should print `4` then `234`.
-
-An entire block can be deferred as well
-```rust
-{
-  defer {
-    foo();
-    bar();
-  }
-  defer if cond {
-    bar();
-  }
-}
-```
-
-> The execution order should be `bar`, `foo`, `bar`
-
-This is because defer statements are executed in the reverse order they were declared.
-```rust
-defer printf("1");
-defer printf("2");
-defer printf("3");
-```
-
-> Should print `321`
-
-The real world use case for `defer` might look something like the following
-```rust
-{
-  mtx.lock();
-  defer mtx.unlock();
-  this();
-  if !is() {
-    return;
-  }
-  a();
-  critical();
-  section();
-}
-```
-
-Where you cannot forget to call `unlock` which could happen in the case of `if !is()` return here.
-
-> You cannot `return` inside a `defer` scope.
-
+## TODO
+* Finish modules
+* Implement pattern matching
+* Implement parametric polymorphism (for generics)
+* Implement intrinsic effects
