@@ -58,6 +58,7 @@ const char* AstExpr::name() const noexcept {
 	case Kind::INFERSIZE: return "INFERSIZE";
 	case Kind::ACCESS:    return "ACCESS";
 	case Kind::CAST:      return "CAST";
+	case Kind::TEST:      return "TEST";
 	case Kind::PROP:      return "PROP";
 	}
 	BIRON_UNREACHABLE();
@@ -320,12 +321,10 @@ Maybe<CgValue> AstCallExpr::gen_value(Cg& cg, CgType*) const noexcept {
 	if (objs != cg.types.unit()) {
 		auto packet = callee->at(cg, 1).load(cg).to_addr();
 
-		// The packet will have type *(...) or *T due to single element tuple
+		// The packet will have type *(...)
 		// detupling semantics.
 		auto type = packet.type()->deref();
 		// When we get here we will have *(T) or *NamedT
-		// TODO(dweiler): Try not to strip () on single element tuples if we can
-		// since this is ambigious!
 		if (type->is_tuple() && !type->name()) {
 			for (Ulen l = type->length(), i = 0; i < l; i++) {
 				auto value = packet.at(cg, i).load(cg);
@@ -784,6 +783,26 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		if (!value) {
 			return None{};
 		}
+
+		auto src_type = value->type();
+		auto dst_type = addr->type()->deref();
+
+		// When the destination is a union type look for a compatible inner type.
+		if (dst_type->is_union()) {
+			const auto& types = dst_type->types();
+			for (Ulen l = types.length(), i = 0; i < l; i++) {
+				auto type = types[i];
+				if (*type == *src_type) {
+					dst_type = type;
+					break;
+				}
+			}
+		}
+	
+		if (*src_type != *dst_type) {
+			cg.error(m_exprs[0]->range(), "Expression with incompatible type in aggregate");
+			return None{};
+		}
 		if (!addr->store(cg, *value)) {
 			return cg.oom();
 		}
@@ -816,6 +835,7 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 				return None{};
 			}
 			if (*value->type() != *dst_type) {
+				cg.error(m_exprs[0]->range(), "Expression with incompatible type in aggregate");
 				return None{};
 			}
 			if (!dst.store(cg, *value)) {
@@ -1523,6 +1543,8 @@ CgType* AstLBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto operand = detuple(m_operand);
+
 	switch (m_op) {
 	case Op::NEG:
 		cg.error(range(), "Cannot take the address of an rvalue");
@@ -1537,15 +1559,15 @@ Maybe<CgAddr> AstUnaryExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 		// The LHS dereference does not actually load or dereference anything, it's
 		// used in combination with an AssignStmt to allow storing results through
 		// the pointer.
-		if (auto operand = m_operand->gen_value(cg, want ? want->deref() : nullptr)) {
-			if (!operand->type()->is_pointer()) {
-				auto operand_type_string = operand->type()->to_string(*cg.scratch);
+		if (auto value = operand->gen_value(cg, want ? want->deref() : nullptr)) {
+			if (!value->type()->is_pointer()) {
+				auto operand_type_string = value->type()->to_string(*cg.scratch);
 				cg.error(m_operand->range(),
 				         "Operand to '*' must have pointer type. Got '%S' instead",
 				         operand_type_string);
 				return None{};
 			}
-			return operand->to_addr();
+			return value->to_addr();
 		}
 		break;
 	case Op::ADDROF:
@@ -1561,19 +1583,20 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 		return None{};
 	}
 
+	auto operand = detuple(m_operand);
 	switch (m_op) {
 	case Op::NEG:
-		if (auto operand = m_operand->gen_value(cg, type)) {
-			if (operand->type()->is_real()) {
-				return CgValue { operand->type(), cg.llvm.BuildFNeg(cg.builder, operand->ref(), "") };
+		if (auto value = operand->gen_value(cg, type)) {
+			if (value->type()->is_real()) {
+				return CgValue { value->type(), cg.llvm.BuildFNeg(cg.builder, value->ref(), "") };
 			} else {
-				return CgValue { operand->type(), cg.llvm.BuildNeg(cg.builder, operand->ref(), "") };
+				return CgValue { value->type(), cg.llvm.BuildNeg(cg.builder, value->ref(), "") };
 			}
 		}
 		break;
 	case Op::NOT:
-		if (auto operand = m_operand->gen_value(cg, type)) {
-			return CgValue { operand->type(), cg.llvm.BuildNot(cg.builder, operand->ref(), "") };
+		if (auto value = operand->gen_value(cg, type)) {
+			return CgValue { value->type(), cg.llvm.BuildNot(cg.builder, value->ref(), "") };
 		}
 		break;
 	case Op::DEREF:
@@ -1585,8 +1608,8 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	case Op::ADDROF:
 		// When taking the address we just gen_addr and turn it into a CgValue which
 		// gives us an R-value of the address.
-		if (auto operand = m_operand->gen_addr(cg, type->addrof(cg))) {
-			return operand->to_value();
+		if (auto addr = operand->gen_addr(cg, type->addrof(cg))) {
+			return addr->to_value();
 		}
 		break;
 	}
@@ -1595,14 +1618,15 @@ Maybe<CgValue> AstUnaryExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
+	auto operand = detuple(m_operand);
 	if (m_op == Op::NEG || m_op == Op::NOT) {
-		auto type = m_operand->gen_type(cg, want);
+		auto type = operand->gen_type(cg, want);
 		if (!type) {
 			return nullptr;
 		}
 		return type;
 	} else if (m_op == Op::DEREF) {
-		auto type = m_operand->gen_type(cg, nullptr);
+		auto type = operand->gen_type(cg, nullptr);
 		if (!type) {
 			return nullptr;
 		}
@@ -1613,7 +1637,7 @@ CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 			return nullptr;
 		}
 	} else if (m_op == Op::ADDROF) {
-		auto type = m_operand->gen_type(cg, nullptr);
+		auto type = operand->gen_type(cg, nullptr);
 		if (!type) {
 			return nullptr;
 		}
@@ -1623,7 +1647,7 @@ CgType* AstUnaryExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
-	auto operand = m_operand->gen_addr(cg, nullptr);
+	auto operand = detuple(m_operand)->gen_addr(cg, nullptr);
 	if (!operand) {
 		return None{};
 	}
@@ -1665,6 +1689,7 @@ Maybe<CgAddr> AstIndexExpr::gen_addr(Cg& cg, CgType*) const noexcept {
 Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	auto type = gen_type(cg, want);
 	if (!type) {
+		cg.fatal(range(), "Could not generate type");
 		return None{};
 	}
 
@@ -1681,19 +1706,25 @@ Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			if (!operand) {
 				return None{};
 			}
-			return operand->at(cg, *index);
+			auto result = operand->at(cg, *index);
+			if (!result) {
+				cg.fatal(range(), "Could not generate result '%S'", type->to_string(*cg.scratch));
+				return None{};
+			}
+			return result;
 		}
 	}
 
 	auto addr = gen_addr(cg, type->addrof(cg));
 	if (!addr) {
+		cg.fatal(range(), "Could not generate address");
 		return None{};
 	}
 	return addr->load(cg);
 }
 
 CgType* AstIndexExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	auto type = m_operand->gen_type(cg, want);
+	auto type = detuple(m_operand)->gen_type(cg, want);
 	if (!type) {
 		return nullptr;
 	}
@@ -1707,7 +1738,7 @@ CgType* AstIndexExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<AstConst> AstIndexExpr::eval_value(Cg& cg) const noexcept {
-	auto operand = m_operand->eval_value(cg);
+	auto operand = detuple(m_operand)->eval_value(cg);
 	if (!operand) {
 		return None{};
 	}
@@ -1779,6 +1810,26 @@ Maybe<AstConst> AstCastExpr::eval_value(Cg& cg) const noexcept {
 	return AstConst { value->range(), *value->to<Uint64>() };
 }
 
+Maybe<CgAddr> AstCastExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	auto value = gen_value(cg, want ? want->deref() : nullptr);
+	if (!value) {
+		return None{};
+	}
+	if (value->type()->is_pointer()) {
+		auto dst = cg.emit_alloca(value->type());
+		if (!dst) {
+			return None{};
+		}
+		if (!dst->store(cg, *value)) {
+			return None{};
+		}
+		return dst;
+	}
+	auto type_string = value->type()->to_string(*cg.scratch);
+	cg.error(range(), "Cannot cast expression with type '%S' to pointer type", type_string);
+	return None{};
+}
+
 Maybe<CgValue> AstCastExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	auto operand = detuple(m_operand);
 	auto src = operand->gen_value(cg, nullptr);
@@ -1812,6 +1863,55 @@ CgType* AstCastExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	return nullptr;
 }
 
+Maybe<CgValue> AstTestExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto type = gen_type(cg, want);
+	if (!type) {
+		return None{};
+	}
+	auto operand = detuple(m_operand);
+	auto expr = operand->gen_addr(cg, nullptr);
+	if (!expr) {
+		return None{};
+	}
+	auto expr_type = expr->type()->deref();
+	if (expr_type->is_union()) {
+		const auto& types = expr_type->types();
+		for (Ulen l = types.length(), i = 0; i < l; i++) {
+			if (*type != *types[i]) {
+				continue;
+			}
+			auto want = cg.llvm.ConstInt(cg.types.u8()->ref(), i, false);
+			auto have = expr->load(cg).at(cg, 1)->ref();
+			auto test = cg.llvm.BuildICmp(cg.builder, LLVM::IntPredicate::EQ, have, want, "");
+
+			// We also emit the flow-sensitive alias if the operand was an AstVarExpr
+			if (auto var = operand->to_expr<AstVarExpr>()) {
+				auto addr = CgAddr { type->addrof(cg), expr->at(cg, 0).ref() };
+				if (!cg.scopes.last().tests.emplace_back(this, var->name(), move(addr))) {
+					return None{};
+				}
+			}
+
+			return CgValue { cg.types.b32(), test };
+		}
+		auto want_type = type->to_string(*cg.scratch);
+		auto union_type = expr_type->to_string(*cg.scratch);
+		cg.error(m_type->range(), "The type '%S' is not a variant of '%S'", want_type, union_type);
+		return None{};
+	}
+	auto type_string = expr_type->to_string(*cg.scratch);
+	cg.error(m_operand->range(), "Expected expression of union type on left-hand side of 'is' operator, got '%S' instead", type_string);
+	return None{};
+}
+
+CgType* AstTestExpr::gen_type(Cg& cg, CgType*) const noexcept {
+	if (auto type = m_type->to_expr<AstTypeExpr>()) {
+		return type->type()->codegen(cg, None{});
+	}
+	cg.error(m_type->range(), "Expected type on left-hand side of 'is' operator");
+	return nullptr;
+}
+
 Maybe<CgValue> AstPropExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	auto value = eval_value(cg);
 	if (!value) {
@@ -1821,7 +1921,13 @@ Maybe<CgValue> AstPropExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<AstConst> AstPropExpr::eval_value(Cg& cg) const noexcept {
-	auto type = m_expr->gen_type(cg, nullptr);
+	CgType* type = nullptr;
+	// Convert the AstVarExpr to AstIdentType to allow `prop of T`
+	if (auto expr = m_expr->to_expr<AstVarExpr>()) {
+		type = AstIdentType{expr->name(), *cg.scratch, m_expr->range()}.codegen(cg, None{});
+	} else {
+		type = m_expr->gen_type(cg, nullptr);
+	}
 	if (!type) {
 		return None{};
 	}

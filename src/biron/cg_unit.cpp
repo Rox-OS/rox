@@ -137,9 +137,6 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 Bool AstFn::codegen(Cg& cg) const noexcept {
 	// When starting a new function we expect cg.scopes is empty
 	BIRON_ASSERT(cg.scopes.empty());
-	if (!cg.scopes.emplace_back(cg.allocator)) {
-		return false;
-	}
 
 	// Search for the function by node
 	Maybe<CgAddr> addr;
@@ -153,6 +150,12 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 	if (!addr) {
 		return false;
 	}
+
+	if (!cg.scopes.emplace_back(cg.allocator)) {
+		return false;
+	}
+
+	cg.fn = this;
 
 	auto type = addr->type()->deref();
 	auto effects = type->at(2);
@@ -315,7 +318,7 @@ Bool AstEffect::codegen(Cg& cg) const noexcept {
 	if (!type) {
 		return false;
 	}
-	if (!cg.typedefs.emplace_back(m_name, type)) {
+	if (!cg.effects.emplace_back(m_name, type)) {
 		return false;
 	}
 	m_generated = true;
@@ -342,6 +345,7 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
+	// Somewhat frustrating this is needed until we add a dependency sort.
 	cg.unit = this;
 	
 	// Register a "printf" function for debugging purposes

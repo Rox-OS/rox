@@ -56,6 +56,7 @@ struct AstFn : AstNode {
 	[[nodiscard]] Bool prepass(Cg& cg) const noexcept;
 	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
 	[[nodiscard]] constexpr const AstTupleType* args() const noexcept { return m_args; }
+	[[nodiscard]] constexpr const AstType* ret() const noexcept { return m_ret; }
 private:
 	StringView           m_name;
 	AstTupleType*        m_objs;

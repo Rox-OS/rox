@@ -25,6 +25,7 @@ struct Token {
 		// 0 is reserved
 		// 1 will be used for '::'
 		case Kind::KW_OF:    return 4;  // Query
+		case Kind::KW_IS:    return 4;  // Type test           (LTR)
 		case Kind::KW_AS:    return 4;  // Cast                (LTR)
 		case Kind::STAR:     return 5;  // Multiplication      (LTR)
 		case Kind::FSLASH:   return 5;  // Division            (LTR)

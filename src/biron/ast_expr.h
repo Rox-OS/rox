@@ -37,6 +37,7 @@ struct AstExpr : AstNode {
 		INFERSIZE, // '?'
 		ACCESS,    // Expr '.' Expr
 		CAST,      // Expr 'as' Type
+		TEST,      // Expr 'is' Type
 		PROP,      // Ident 'of' Expr
 	};
 	[[nodiscard]] const char *name() const noexcept;
@@ -419,6 +420,7 @@ private:
 	AstExpr* m_rhs;
 };
 
+// Operand of Type
 struct AstCastExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::CAST;
 	constexpr AstCastExpr(AstExpr* operand, AstExpr* type, Range range) noexcept
@@ -428,6 +430,7 @@ struct AstCastExpr : AstExpr {
 	{
 	}
 	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgAddr> gen_addr(Cg& cg, CgType* want) const noexcept override;
 	[[nodiscard]] virtual Maybe<AstConst> eval_value(Cg& cg) const noexcept override;
 	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
 	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
@@ -436,7 +439,25 @@ private:
 	AstExpr* m_type;
 };
 
-// Ident of Expr
+// Operand is Type
+struct AstTestExpr : AstExpr {
+	static inline constexpr const auto KIND = Kind::TEST;
+	constexpr AstTestExpr(AstExpr* operand, AstExpr* type, Range range) noexcept
+		: AstExpr{KIND, range}
+		, m_operand{operand}
+		, m_type{type}
+	{
+	}
+	virtual void dump(StringBuilder& builder) const noexcept override;
+	[[nodiscard]] virtual Maybe<CgValue> gen_value(Cg& cg, CgType* want) const noexcept override;
+	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
+private:
+	AstExpr* m_operand;
+	AstExpr* m_type;
+};
+
+
+// Prop of Expr
 struct AstPropExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::PROP;
 	constexpr AstPropExpr(AstExpr* name, AstExpr* expr, Range range) noexcept

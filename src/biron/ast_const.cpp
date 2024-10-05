@@ -89,8 +89,10 @@ Maybe<AstConst> AstConst::copy() const noexcept {
 				ConstArray { m_as_array.type, move(*elems) }
 			};
 		}
-	case Kind::UNTYPED_INT:  return AstConst { range(), AstConst::UntypedInt { m_as_uint } };
-	case Kind::UNTYPED_REAL: return AstConst { range(), AstConst::UntypedReal { m_as_f64 } };
+	case Kind::UNTYPED_INT:
+		return AstConst { range(), AstConst::UntypedInt { m_as_uint } };
+	case Kind::UNTYPED_REAL:
+		return AstConst { range(), AstConst::UntypedReal { m_as_f64 } };
 	}
 	return None{};
 }

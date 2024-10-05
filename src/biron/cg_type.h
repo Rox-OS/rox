@@ -112,6 +112,7 @@ struct CgType {
 	[[nodiscard]] constexpr Bool is_array() const noexcept { return m_kind == Kind::ARRAY; }
 	[[nodiscard]] constexpr Bool is_padding() const noexcept { return m_kind == Kind::PADDING; }
 	[[nodiscard]] constexpr Bool is_tuple() const noexcept { return m_kind == Kind::TUPLE; }
+	[[nodiscard]] constexpr Bool is_union() const noexcept { return m_kind == Kind::UNION; }
 	[[nodiscard]] constexpr Bool is_fn() const noexcept { return m_kind == Kind::FN; }
 	[[nodiscard]] constexpr Bool is_va() const noexcept { return m_kind == Kind::VA; }
 	[[nodiscard]] constexpr Bool is_atomic() const noexcept { return m_kind == Kind::ATOMIC; }

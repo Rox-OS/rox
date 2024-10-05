@@ -128,7 +128,7 @@ FN(ValueRef,              BuildMemSet,                   BuilderRef, ValueRef, V
 FN(ValueRef,              BuildAlloca,                   BuilderRef, TypeRef, const char*)
 FN(ValueRef,              BuildLoad2,                    BuilderRef, TypeRef, ValueRef, const char*)
 FN(ValueRef,              BuildStore,                    BuilderRef, ValueRef, ValueRef)
-FN(ValueRef,              BuildGEP2,                     BuilderRef, TypeRef, ValueRef, ValueRef*, unsigned, const char*)
+FN(ValueRef,              BuildInBoundsGEP2,             BuilderRef, TypeRef, ValueRef, ValueRef*, unsigned, const char*)
 FN(ValueRef,              BuildGlobalString,             BuilderRef, const char*, const char*)
 /// Casts
 FN(ValueRef,              BuildCast,                     BuilderRef, Opcode, ValueRef, TypeRef, const char*)

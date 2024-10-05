@@ -30,10 +30,22 @@ Bool AstBlockStmt::codegen(Cg& cg) const noexcept {
 }
 
 Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
-	// TODO(dweiler): Work out function return type and specify it here for want
+	CgType* return_type = nullptr;
+	for (auto fn : cg.fns) {
+		if (fn.node() == cg.fn) {
+			return_type = fn.addr().type()->deref()->at(3);
+			break;
+		}
+	}
+
+	if (!return_type) {
+		cg.error(range(), "Could not infer return type");
+		return false;
+	}
+
 	Maybe<CgValue> value;
 	if (m_expr) {
-		value = m_expr->gen_value(cg, nullptr);
+		value = m_expr->gen_value(cg, return_type);
 		if (!value) {
 			return false;
 		}
@@ -48,8 +60,17 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 	}
 
 	if (value) {
-		auto type = value->type();
-		if (type->is_tuple() && type->length() == 1) {
+		// When the destination type is a union and our value type is not we need
+		// to construct a union on the stack and assign to it our value. This stack
+		// copy will then be returned from the function.
+		if (return_type->is_union()) {
+			auto result = cg.emit_alloca(return_type);
+			if (!result) {
+				return false;
+			}
+			result->store(cg, *value);
+			cg.llvm.BuildRet(cg.builder, result->load(cg).ref());
+		} else if (return_type->is_tuple() && return_type->length() == 1) {
 			// When a function returns a single-element tuple we actually compile it
 			// to a function which returns that element directly. So here we need to
 			// return the element and not the tuple.
@@ -148,6 +169,9 @@ Bool AstIfStmt::codegen(Cg& cg) const noexcept {
 	if (!cg.llvm.GetBasicBlockTerminator(then_bb)) {
 		cg.llvm.BuildBr(cg.builder, join_bb);
 	}
+
+	// We clear the current scope tests before the 'else'
+	cg.scopes.last().tests.clear();
 
 	if (m_elif) {
 		cg.llvm.AppendExistingBasicBlock(this_fn, else_bb);
@@ -313,22 +337,15 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 }
 
 Bool AstUsingStmt::codegen(Cg& cg) const noexcept {
-	// Search 'name' for effect
-	auto& effects = cg.unit->m_effects;
-	const AstType* ast_type = nullptr;
-	for (const auto& effect : effects) {
-		if (effect->name() == m_name) {
-			ast_type = effect->type();
+	CgType* type = nullptr;
+	for (const auto& effect : cg.effects) {
+		if (effect.name() == m_name) {
+			type = effect.type();
 			break;
 		}
 	}
-	if (!ast_type) {
-		cg.error(range(), "Undeclared effect '%S'", m_name);
-		return false;
-	}
-
-	auto type = ast_type->codegen(cg, None{});
 	if (!type) {
+		cg.error(range(), "Undeclared effect '%S'", m_name);
 		return false;
 	}
 
@@ -365,23 +382,36 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 		return false;
 	}
 
-	auto src = m_src->gen_value(cg, dst->type()->deref());
+	auto dst_type = dst->type()->deref();
+
+	auto src = m_src->gen_value(cg, dst_type);
 	if (!src) {
 		return false;
 	}
 
 	auto src_type = src->type();
-	auto dst_type = dst->type()->deref();
 	if (dst_type->is_atomic()) {
 		cg.error(range(), "Cannot assign to atomic type");
 		return false;
+	}
+
+	// When the destination is a union type look for a compatible inner type.
+	if (dst_type->is_union()) {
+		const auto& types = dst_type->types();
+		for (Ulen l = types.length(), i = 0; i < l; i++) {
+			auto type = types[i];
+			if (*type == *src_type) {
+				dst_type = type;
+				break;
+			}
+		}
 	}
 
 	if (*dst_type != *src_type) {
 		auto dst_type_string = dst_type->to_string(*cg.scratch);
 		auto src_type_string = src_type->to_string(*cg.scratch);
 		cg.error(range(),
-		         "Cannot assign an rvalue of type '%S' to an lvalue of type '%S'",
+		         "Cannot assign an lvalue of type '%S' to an rvalue of type '%S'",
 		         src_type_string,
 		         dst_type_string);
 		return false;

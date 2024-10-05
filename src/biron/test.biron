@@ -1,10 +1,19 @@
 module test;
 
-let E = new [?]Uint32 { 0, 1 };
+fn div(x: Sint32, y: Sint32) -> Sint32 | String {
+  if y == 0 {
+    return "Divide by zero";
+  } else {
+    return x / y;
+  }
+}
 
 @(export(true))
-fn main() {
-  for let x = 0_u64; x < count of E; x += 1 {
-    printf("%d\n", E[x]);
+fn main(argc: Sint32, argv: **Uint8) {
+  let z = div(10, argc - 1);
+  if z is String {
+    printf("We have a String: %s\n", z);
+  } else if z is Sint32 {
+    printf("We have a Sint32: %d\n", z);
   }
 }

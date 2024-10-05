@@ -215,6 +215,7 @@ Token Lexer::read() noexcept {
 				else if (ident == "if")       return {Kind::KW_IF,       {n, 2}};
 				else if (ident == "as")       return {Kind::KW_AS,       {n, 2}};
 				else if (ident == "of")       return {Kind::KW_OF,       {n, 2}};
+				else if (ident == "is")       return {Kind::KW_IS,       {n, 2}};
 				break;
 			case 3:
 				/**/ if (ident == "let")      return {Kind::KW_LET,      {n, 3}};

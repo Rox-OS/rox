@@ -205,6 +205,14 @@ void AstCastExpr::dump(StringBuilder& builder) const noexcept {
 	m_type->dump(builder);
 }
 
+void AstTestExpr::dump(StringBuilder& builder) const noexcept {
+	m_operand->dump(builder);
+	builder.append(' ');
+	builder.append("is");
+	builder.append(' ');
+	m_type->dump(builder);
+}
+
 void AstPropExpr::dump(StringBuilder& builder) const noexcept {
 	m_prop->dump(builder);
 	builder.append(' ');

@@ -726,12 +726,21 @@ CgType* CgTypeCache::make(CgType::UnionInfo info) noexcept {
 	                                      types.data(),
 	                                      types.length(),
 	                                      true);
-	
+
+	// We don't store 'padded' in the CgType nested types list. It's only used for
+	// the representation during codegen. We still store the list of variants in
+	// the nested type list so we can lookup types and so dump / to_string prints
+	// the sum type correctly.
+	auto copy = info.types.copy();
+	if (!copy) {
+		return nullptr;
+	}
+
 	return m_cache.make<CgType>(
 		CgType::Kind::UNION,
-		CgType::Layout { size, align },
+		CgType::Layout { offset, align },
 		0_ulen,
-		move(padded),
+		move(copy),
 		None{},
 		info.named,
 		ref

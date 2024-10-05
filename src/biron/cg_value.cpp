@@ -54,7 +54,30 @@ Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
 			}
 		}
 	} else {
-		// Simple non-aggregate types we can just build a store for.
+		// When generating a store to a union we need to emit two stores.
+		if (auto dst_type = m_type->deref(); dst_type->is_union()) {
+			// Search the union to find the matching inner type.
+			const auto& variants = dst_type->types();
+			for (Ulen l = variants.length(), i = 0; i < l; i++) {
+				auto variant = variants[i];
+				if (*variant != *type) {
+					continue;
+				}
+				auto tag = CgValue {
+					cg.types.u8(),
+					cg.llvm.ConstInt(cg.types.u8()->ref(), i, false)
+				};
+				CgAddr elements[2] = {
+					at(cg, 0),
+					at(cg, 1)
+				};
+				// We write both the value and the type tag.
+				elements[0].store(cg, value);
+				elements[1].store(cg, tag);
+				return true;
+			}
+		}
+		// Regular store for all other types.
 		auto store = cg.llvm.BuildStore(cg.builder, value.ref(), m_ref);
 		cg.llvm.SetAlignment(store, value.type()->align());
 	}
@@ -112,12 +135,12 @@ CgAddr CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 	// pointer we actually have to load the pointer.
 
 	auto is_ptr = type->is_pointer();
-	auto gep = cg.llvm.BuildGEP2(cg.builder,
-	                             is_ptr ? type->deref()->ref() : type->ref(),
-	                             is_ptr ? load(cg).ref() : ref(),
-	                             indices + is_ptr,
-	                             countof(indices) - is_ptr,
-	                             "at");
+	auto gep = cg.llvm.BuildInBoundsGEP2(cg.builder,
+	                                     is_ptr ? type->deref()->ref() : type->ref(),
+	                                     is_ptr ? load(cg).ref() : ref(),
+	                                     indices + is_ptr,
+	                                     countof(indices) - is_ptr,
+	                                     "at");
 
 	// Since we're working with slices or arrays here: type->at(0) produces the
 	// base type of the slice or array and addrof adds the pointer back on that
@@ -154,16 +177,16 @@ CgAddr CgAddr::at(Cg& cg, Ulen i) const noexcept {
 	};
 
 	auto is_ptr = type->is_pointer();
-	auto gep = cg.llvm.BuildGEP2(cg.builder,
-	                             is_ptr ? type->deref()->ref() : type->ref(),
-	                             is_ptr ? load(cg).ref() : ref(),
-	                             indices + is_ptr,
-	                             countof(indices) - is_ptr,
-	                             "");
+	auto gep = cg.llvm.BuildInBoundsGEP2(cg.builder,
+	                                     is_ptr ? type->deref()->ref() : type->ref(),
+	                                     is_ptr ? load(cg).ref() : ref(),
+	                                     indices + is_ptr,
+	                                     countof(indices) - is_ptr,
+	                                     "");
 
 	// When working with arrays the base type is in 0 and no other indices are
 	// actually valid.
-	auto k = type->is_array() ? 0 : i;
+	auto k = (type->is_array() || type->is_pointer()) ? 0 : i;
 	return CgAddr { type->at(k)->addrof(cg), gep };
 }
 
@@ -171,7 +194,7 @@ Maybe<CgValue> CgValue::at(Cg& cg, Ulen i) const noexcept {
 	if (m_type->is_array() || m_type->is_string()) {
 		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
 		return CgValue { m_type->deref(), value };
-	} else if (m_type->is_tuple()) {
+	} else if (m_type->is_tuple() || m_type->is_union()) {
 		auto value = cg.llvm.BuildExtractValue(cg.builder, m_ref, i, "");
 		return CgValue { m_type->at(i), value };
 	}

@@ -16,6 +16,7 @@ struct Diagnostic;
 
 struct AstUnit;
 struct AstStmt;
+struct AstFn;
 
 // We keep track of the loop post and exit BBs for "continue" and "break"
 struct Loop {
@@ -25,13 +26,20 @@ struct Loop {
 
 struct CgScope {
 	constexpr CgScope(Allocator& allocator) noexcept
-		: vars{allocator}, defers{allocator}, usings{allocator}
+		: vars{allocator}, tests{allocator}, defers{allocator}, usings{allocator}
 	{
 	}
 
 	Bool emit_defers(Cg& cg) const noexcept;
 
 	Maybe<CgVar> lookup_let(StringView name) const noexcept {
+		// Search the flow-sensitive type aliases list first.
+		for (Ulen l = tests.length(), i = l - 1; i < l; i--) {
+			const auto& test = tests[i];
+			if (test.name() == name) {
+				return test;
+			}
+		}
 		for (Ulen l = vars.length(), i = l - 1; i < l; i--) {
 			const auto& var = vars[i];
 			if (var.name() == name) {
@@ -52,6 +60,7 @@ struct CgScope {
 	}
 
 	Array<CgVar>    vars;
+	Array<CgVar>    tests;
 	Array<AstStmt*> defers;
 	Array<CgVar>    usings;
 	Maybe<Loop>     loop;
@@ -164,7 +173,8 @@ struct Cg {
 	Array<CgTypeDef>    typedefs;
 	Array<CgTypeDef>    effects;
 	Array<CgVar>        intrinsics;
-	const AstUnit*      unit;
+	const AstUnit*      unit; // Current unit
+	const AstFn*        fn;   // Current function
 	LLVM::BasicBlockRef entry;
 	StringView          prefix;
 
@@ -182,8 +192,9 @@ struct Cg {
 		, typedefs{move(other.typedefs)}
 		, effects{move(other.effects)}
 		, intrinsics{move(other.intrinsics)}
-		, unit{nullptr}
-		, entry{nullptr}
+		, unit{exchange(other.unit, nullptr)}
+		, fn{exchange(other.fn, nullptr)}
+		, entry{exchange(other.entry, nullptr)}
 		, prefix{move(other.prefix)}
 		, m_terminal{other.m_terminal}
 		, m_diagnostic{other.m_diagnostic}
@@ -216,6 +227,7 @@ private:
 		, effects{allocator}
 		, intrinsics{allocator}
 		, unit{nullptr}
+		, fn{nullptr}
 		, entry{nullptr}
 		, prefix{}
 		, m_terminal{terminal}

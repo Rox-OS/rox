@@ -71,7 +71,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		auto token = next();
 		auto kind = token.kind; // Eat Op
 		AstExpr* rhs = nullptr;
-		if (kind == Token::Kind::KW_AS) {
+		if (kind == Token::Kind::KW_AS || kind == Token::Kind::KW_IS) {
 			rhs = parse_type_expr();
 		} else {
 			rhs = parse_unary_expr();
@@ -92,6 +92,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		                        .include(rhs->range());
 		switch (kind) {
 		/***/  case Token::Kind::KW_AS:  lhs = new_node<AstCastExpr>(lhs, rhs, range);
+		break; case Token::Kind::KW_IS:  lhs = new_node<AstTestExpr>(lhs, rhs, range);
 		break; case Token::Kind::KW_OF:  lhs = new_node<AstPropExpr>(lhs, rhs, range);
 		break; case Token::Kind::STAR:   lhs = new_node<AstBinExpr>(Op::MUL,    lhs, rhs, range);
 		break; case Token::Kind::FSLASH: lhs = new_node<AstBinExpr>(Op::DIV,    lhs, rhs, range);
@@ -680,66 +681,31 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 	auto beg_token = next(); // Consume '('
 	Array<AstTupleType::Elem> elems{m_arena};
 	while (peek().kind != Token::Kind::RPAREN) {
-		// When we have LPAREN we have a nested tuple.
-		if (peek().kind == Token::Kind::LPAREN) {
-			auto nested = parse_tuple_type(None{});
-			if (!nested) {
-				return nullptr;
-			}
-			if (!elems.emplace_back(None{}, nested)) {
-				oom();
-				return nullptr;
-			}
-			if (peek().kind == Token::Kind::COMMA) {
-				next(); // Consume ','
-			}
-			continue;
-		}
-		Maybe<Token> token;
-		if (peek().kind == Token::Kind::IDENT) {
-			token = next(); // Consume ident
+		auto type = parse_type();
+		if (!type) {
+			return nullptr;
 		}
 		if (peek().kind == Token::Kind::COLON) {
-			if (!token) {
-				ERROR("Expected identifier");
-				return nullptr;
-			}
-			next(); // Consume ':'
-			auto type = parse_type();
-			if (!type) {
-				return nullptr;
-			}
-			auto name = m_lexer.string(token->range);
-			if (!elems.emplace_back(name, type)) {
-				oom();
-				return nullptr;
-			}
-		} else {
-			AstType* type = nullptr;
-			if (token) {
-				auto name = m_lexer.string(token->range);
-				type = new_node<AstIdentType>(name, m_arena, token->range);
+			if (auto ident = type->to_type<AstIdentType>(); ident) {
+				next(); // Consume ':'
+				auto type = parse_type();
 				if (!type) {
+					return nullptr;
+				}
+				if (!elems.emplace_back(ident->name(), type)) {
 					oom();
 					return nullptr;
 				}
 			} else {
-				type = parse_type();
-				if (!type) {
-					return nullptr;
-				}
-			}
-			if (!elems.emplace_back(None{}, type)) {
-				oom();
+				error(type->range(), "Expected identifier");
 				return nullptr;
 			}
+		} else if (!elems.emplace_back(None{}, type)) {
+			oom();
+			return nullptr;
 		}
 		if (peek().kind == Token::Kind::COMMA) {
 			next(); // Consume ','
-			if (peek().kind == Token::Kind::RPAREN) {
-				ERROR("Expected element");
-				return nullptr;
-			}
 		} else {
 			break;
 		}

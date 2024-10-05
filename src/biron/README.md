@@ -24,6 +24,8 @@ Biron is an experimental toy systems programming language built for Rox.
 * [Static multiple dispatch](https://en.wikipedia.org/wiki/Multiple_dispatch)
 * Few keywords
   * `true false fn if as let for else type defer break using return effect module import continue`
+* [Algebaic data types](https://en.wikipedia.org/wiki/Algebraic_data_type)
+  * Sum types with [flow-sensitive typing](https://en.wikipedia.org/wiki/Flow-sensitive_typing)
 * Consistent set of builtin types
   * Sized integer types: `(S|U)int{8,16,32,64}`
   * Sized floating-point types: `Real{32,64}`
