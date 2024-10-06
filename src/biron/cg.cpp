@@ -169,16 +169,13 @@ Bool Cg::emit(CgMachine& machine, StringView name) noexcept {
 	return true;
 }
 
-Maybe<CgAddr> Cg::emit_alloca(CgType* type) noexcept {
+CgAddr Cg::emit_alloca(CgType* type) noexcept {
 	// Emit the alloca at the end of the entry basic block.
 	auto block = llvm.GetInsertBlock(builder);
 	llvm.PositionBuilderAtEnd(builder, entry);
 	auto value = llvm.BuildAlloca(builder, type->ref(), "");
 	// Restore the builder to the current block.
 	llvm.PositionBuilderAtEnd(builder, block);
-	if (!value) {
-		return None{};
-	}
 	// We may have a higher alignment requirement than what Alloca will pick.
 	llvm.SetAlignment(value, type->align());
 	return CgAddr { type->addrof(*this), value };
@@ -194,13 +191,11 @@ Maybe<CgValue> Cg::emit_lt(const CgValue& lhs, const CgValue& rhs, Range range) 
 	} else if (lhs.type()->is_real()) {
 		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OLT, lhs.ref(), rhs.ref(), "");
 		return CgValue { types.b32(), value };
-	} else {
-		auto lhs_type_string = lhs.type()->to_string(*scratch);
-		error(range,
-		      "Operands to '<' operator must have numeric type. Got '%S' instead",
-		      lhs_type_string);
-		return None{};
 	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	return error(range,
+	             "Operands to '<' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_le(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -213,13 +208,11 @@ Maybe<CgValue> Cg::emit_le(const CgValue& lhs, const CgValue& rhs, Range range) 
 	} else if (lhs.type()->is_real()) {
 		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OLE, lhs.ref(), rhs.ref(), "");
 		return CgValue { types.b32(), value };
-	} else {
-		auto lhs_type_string = lhs.type()->to_string(*scratch);
-		error(range,
-		      "Operands to '<=' operator must have numeric type. Got '%S' instead",
-		      lhs_type_string);
-		return None{};
 	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	return error(range,
+	             "Operands to '<=' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_gt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -232,13 +225,11 @@ Maybe<CgValue> Cg::emit_gt(const CgValue& lhs, const CgValue& rhs, Range range) 
 	} else if (lhs.type()->is_real()) {
 		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OGT, lhs.ref(), rhs.ref(), "");
 		return CgValue { types.b32(), value };
-	} else {
-		auto lhs_type_string = lhs.type()->to_string(*scratch);
-		error(range,
-		      "Operands to '>' operator must have numeric type. Got '%S' instead",
-		      lhs_type_string);
-		return None{};
 	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	return error(range,
+	             "Operands to '>' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_ge(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -251,13 +242,11 @@ Maybe<CgValue> Cg::emit_ge(const CgValue& lhs, const CgValue& rhs, Range range) 
 	} else if (lhs.type()->is_real()) {
 		auto value = llvm.BuildFCmp(builder, LLVM::RealPredicate::OGE, lhs.ref(), rhs.ref(), "");
 		return CgValue { types.b32(), value };
-	} else {
-		auto lhs_type_string = lhs.type()->to_string(*scratch);
-		error(range,
-		      "Operands to '>=' operator must have numeric type. Got '%S' instead",
-		      lhs_type_string);
-		return None{};
 	}
+	auto lhs_type_string = lhs.type()->to_string(*scratch);
+	return error(range,
+	             "Operands to '>=' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_add(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -269,10 +258,9 @@ Maybe<CgValue> Cg::emit_add(const CgValue& lhs, const CgValue& rhs, Range range)
 		return emit_for_array(lhs, rhs, range, &Cg::emit_add);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
-	error(range,
-	      "Operands to '+' operator must have numeric type. Got '%S' instead",
-	      lhs_type_string);
-	return None{};
+	return error(range,
+	             "Operands to '+' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_sub(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -284,10 +272,9 @@ Maybe<CgValue> Cg::emit_sub(const CgValue& lhs, const CgValue& rhs, Range range)
 		return emit_for_array(lhs, rhs, range, &Cg::emit_sub);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
-	error(range,
-	      "Operands to '-' operator must have numeric type. Got '%S' instead",
-	      lhs_type_string);
-	return None{};
+	return error(range,
+	             "Operands to '-' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_mul(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -299,10 +286,9 @@ Maybe<CgValue> Cg::emit_mul(const CgValue& lhs, const CgValue& rhs, Range range)
 		return emit_for_array(lhs, rhs, range, &Cg::emit_mul);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
-	error(range,
-	      "Operands to '*' operator must have numeric type. Got '%S' instead",
-	      lhs_type_string);
-	return None{};
+	return error(range,
+	             "Operands to '*' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_div(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -316,10 +302,9 @@ Maybe<CgValue> Cg::emit_div(const CgValue& lhs, const CgValue& rhs, Range range)
 		return emit_for_array(lhs, rhs, range, &Cg::emit_div);
 	}
 	auto lhs_type_string = lhs.type()->to_string(*scratch);
-	error(range,
-	      "Operands to '/' operator must have numeric type. Got '%S' instead",
-	      lhs_type_string);
-	return None{};
+	return error(range,
+	             "Operands to '/' operator must have numeric type. Got '%S' instead",
+	             lhs_type_string);
 }
 
 Maybe<CgValue> Cg::emit_min(const CgValue& lhs, const CgValue& rhs, Range range) noexcept {
@@ -346,6 +331,9 @@ Maybe<CgValue> Cg::emit_for_array(const CgValue& lhs,
                                                              Range))
 {
 	Array<CgValue> values{*scratch};
+	if (!values.reserve(lhs.type()->extent())) {
+		return oom();
+	}
 	for (Ulen l = lhs.type()->extent(), i = 0; i < l; i++) {
 		auto lhs_n = lhs.at(*this, i);
 		auto rhs_n = rhs.at(*this, i);
@@ -356,16 +344,14 @@ Maybe<CgValue> Cg::emit_for_array(const CgValue& lhs,
 		if (!value) {
 			return None{};
 		}
-		if (!values.push_back(*value)) {
-			return oom();
-		}
+		(void)values.push_back(*value);
 	}
 	auto dst = emit_alloca(lhs.type());
 	Ulen i = 0;
 	for (auto value : values) {
-		dst->at(*this, i++).store(*this, value);
+		dst.at(*this, i++).store(*this, value);
 	}
-	return dst->load(*this);
+	return dst.load(*this);
 }
 
 const char* Cg::nameof(StringView name) const noexcept {

@@ -67,15 +67,13 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		if (attr->name() == "export") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_bool()) {
-				cg.error(eval->range(), "Expected boolean constant expression for attribute");
-				return false;
+				return cg.error(eval->range(), "Expected boolean constant expression for attribute");
 			}
 			auto value = eval->to<Bool>();
 			if (value) {
 				name = m_name.terminated(*cg.scratch);
 				if (!name) {
-					cg.oom();
-					return false;
+					return cg.oom();
 				}
 				exported = true;
 			}
@@ -105,8 +103,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		if (attr->name() == "redzone") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_bool()) {
-				cg.error(eval->range(), "Expected boolean constant expression for attribute");
-				return false;
+				return cg.error(eval->range(), "Expected boolean constant expression for attribute");
 			}
 			auto value = eval->to<Bool>();
 			if (value) continue;
@@ -117,8 +114,7 @@ Bool AstFn::prepass(Cg& cg) const noexcept {
 		} else if (attr->name() == "alignstack") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_integral()) {
-				cg.error(eval->range(), "Expected integer constant expression for attribute");
-				return false;
+				return cg.error(eval->range(), "Expected integer constant expression for attribute");
 			}
 			const StringView name = "alignstack";
 			auto kind = cg.llvm.GetEnumAttributeKindForName(name.data(), name.length());
@@ -189,10 +185,10 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 				return false;
 			}
 			auto dst = cg.emit_alloca(type);
-			if (!dst || !args.emplace_back(*dst, i)) {
+			if (!args.emplace_back(dst, i)) {
 				return false;
 			}
-			if (!cg.scopes.last().vars.emplace_back(this, *name, move(*dst))) {
+			if (!cg.scopes.last().vars.emplace_back(this, *name, move(dst))) {
 				return false;
 			}
 		}
@@ -206,10 +202,10 @@ Bool AstFn::codegen(Cg& cg) const noexcept {
 				return false;
 			}
 			auto dst = cg.emit_alloca(type);
-			if (!dst || !args.emplace_back(*dst, i)) {
+			if (!args.emplace_back(dst, i)) {
 				return false;
 			}
-			if (!cg.scopes.last().vars.emplace_back(this, *name, move(*dst))) {
+			if (!cg.scopes.last().vars.emplace_back(this, *name, move(dst))) {
 				return false;
 			}
 		}
@@ -327,18 +323,15 @@ Bool AstEffect::codegen(Cg& cg) const noexcept {
 
 Bool AstModule::codegen(Cg& cg) const noexcept {
 	if (m_name == "intrinsics") {
-		cg.error(range(), "Module cannot be named 'intrinsics'");
-		return false;
+		return cg.error(range(), "Module cannot be named 'intrinsics'");
 	}
 	cg.prefix = m_name;
 	return true;
 }
 
-
 Bool AstUnit::codegen(Cg& cg) const noexcept {
 	if (!m_module) {
-		cg.error(Range{0, 0}, "Missing 'module'");
-		return false;
+		return cg.error(Range{0, 0}, "Missing 'module'");
 	}
 
 	if (!m_module->codegen(cg)) {

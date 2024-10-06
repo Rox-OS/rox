@@ -177,14 +177,12 @@ Maybe<CgValue> AstConst::codegen(Cg& cg, CgType* type) const noexcept {
 		if (type && type->is_integer()) {
 			return CgValue { type, cg.llvm.ConstInt(type->ref(), m_as_uint, type->is_sint()) };
 		}
-		cg.error(range(), "Untyped integer value must be typed");
-		break;
+		return cg.error(range(), "Untyped integer value must be typed");
 	case Kind::UNTYPED_REAL:
 		if (type && type->is_real()) {
 			return CgValue { type, cg.llvm.ConstReal(type->ref(), m_as_f64) };
 		}
-		cg.error(range(), "Untyped floating-point value must be typed");
-		break;
+		return cg.error(range(), "Untyped floating-point value must be typed");
 	}
 	return None{};
 }

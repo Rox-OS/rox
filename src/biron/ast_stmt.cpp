@@ -26,8 +26,7 @@ const char* AstStmt::name() const noexcept {
 }
 
 Bool AstStmt::codegen(Cg& cg) const noexcept {
-	cg.error(range(), "Unsupported codegen for %s", name());
-	return true;
+	return cg.error(range(), "Unsupported codegen for %s", name());
 }
 
 void AstBlockStmt::dump(StringBuilder& builder, int depth) const noexcept {

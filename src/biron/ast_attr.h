@@ -20,7 +20,7 @@ struct AstAttr : AstNode {
 	virtual ~AstAttr() noexcept = default;
 	void dump(StringBuilder& builder) const noexcept;
 	Maybe<AstConst> eval(Cg& cg) const noexcept;
-	StringView name() const noexcept { return m_name; }
+	constexpr StringView name() const noexcept { return m_name; }
 private:
 	StringView m_name;
 	AstExpr*   m_expr;

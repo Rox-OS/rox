@@ -39,8 +39,7 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 	}
 
 	if (!return_type) {
-		cg.error(range(), "Could not infer return type");
-		return false;
+		return cg.error(range(), "Could not infer return type");
 	}
 
 	Maybe<CgValue> value;
@@ -65,11 +64,8 @@ Bool AstReturnStmt::codegen(Cg& cg) const noexcept {
 		// copy will then be returned from the function.
 		if (return_type->is_union()) {
 			auto result = cg.emit_alloca(return_type);
-			if (!result) {
-				return false;
-			}
-			result->store(cg, *value);
-			cg.llvm.BuildRet(cg.builder, result->load(cg).ref());
+			result.store(cg, *value);
+			cg.llvm.BuildRet(cg.builder, result.load(cg).ref());
 		} else if (return_type->is_tuple() && return_type->length() == 1) {
 			// When a function returns a single-element tuple we actually compile it
 			// to a function which returns that element directly. So here we need to
@@ -94,8 +90,7 @@ Bool AstBreakStmt::codegen(Cg& cg) const noexcept {
 		cg.llvm.BuildBr(cg.builder, loop->exit);
 		return true;
 	}
-	cg.error(range(), "Cannot 'break' from outside a loop");
-	return false;
+	return cg.error(range(), "Cannot 'break' from outside a loop");
 }
 
 Bool AstContinueStmt::codegen(Cg& cg) const noexcept {
@@ -103,8 +98,7 @@ Bool AstContinueStmt::codegen(Cg& cg) const noexcept {
 		cg.llvm.BuildBr(cg.builder, loop->post);
 		return true;
 	}
-	cg.error(range(), "Cannot 'continue' from outside a loop");
-	return false;
+	return cg.error(range(), "Cannot 'continue' from outside a loop");
 }
 
 Bool AstIfStmt::codegen(Cg& cg) const noexcept {
@@ -211,9 +205,6 @@ Bool AstLetStmt::codegen(Cg& cg) const noexcept {
 			return false;
 		}
 		addr = cg.emit_alloca(type);
-		if (!addr) {
-			return false;
-		}
 		if (type->is_tuple() || type->is_array()) {
 			auto src = m_init->gen_addr(cg, nullptr);
 			if (src) {
@@ -242,13 +233,11 @@ L_value:
 	}
 	for (const auto& attr : m_attrs) {
 		if (attr->name() != "align") {
-			cg.error(range(), "Unknown attribute '%S' for 'let'", attr->name());
-			return false;
+			return cg.error(range(), "Unknown attribute '%S' for 'let'", attr->name());
 		}
 		auto eval = attr->eval(cg);
 		if (!eval || !eval->is_integral()) {
-			cg.error(eval->range(), "Expected integer constant expression in attribute");
-			return false;
+			return cg.error(eval->range(), "Expected integer constant expression in attribute");
 		}
 		cg.llvm.SetAlignment(addr->ref(), *eval->to<Uint64>());
 		break;
@@ -262,8 +251,7 @@ L_value:
 Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 	auto eval = m_init->eval_value(cg);
 	if (!eval) {
-		cg.error(m_init->range(), "Expected constant expression");
-		return false;
+		return cg.error(m_init->range(), "Expected constant expression");
 	}
 
 	auto type = m_init->gen_type(cg, nullptr);
@@ -280,8 +268,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 
 	auto addr = CgAddr { src->type()->addrof(cg), dst };
 	if (!cg.globals.emplace_back(CgVar { this, m_name, move(addr) }, move(*eval))) {
-		cg.oom();
-		return false;
+		return cg.oom();
 	}
 
 	cg.llvm.SetInitializer(dst, src->ref());
@@ -290,8 +277,7 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 		if (attr->name() == "section") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_string()) {
-				cg.error(eval->range(), "Expected string constant expression in attribute");
-				return false;
+				return cg.error(eval->range(), "Expected string constant expression in attribute");
 			}
 			auto value = eval->to<StringView>();
 			auto name = value->terminated(*cg.scratch);
@@ -299,38 +285,33 @@ Bool AstLetStmt::codegen_global(Cg& cg) const noexcept {
 				cg.llvm.SetSection(dst, name);
 				continue;
 			} else {
-				cg.oom();
-				return false;
+				return cg.oom();
 			}
 		} else if (attr->name() == "align") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_integral()) {
-				cg.error(eval->range(), "Expected integer constant expression in attribute");
-				return false;
+				return cg.error(eval->range(), "Expected integer constant expression in attribute");
 			}
 			cg.llvm.SetAlignment(dst, *eval->to<Uint64>());
 			continue;
 		} else if (attr->name() == "used") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_bool()) {
-				cg.error(eval->range(), "Expected boolean constant expression in attribute");
-				return false;
+				return cg.error(eval->range(), "Expected boolean constant expression in attribute");
 			}
 			// TODO(dweiler): Figure out how to mark 'dst' as used.
 			continue;
 		} else if (attr->name() == "export") {
 			auto eval = attr->eval(cg);
 			if (!eval || !eval->is_bool()) {
-				cg.error(eval->range(), "Expected boolean constant expression in attribute");
-				return false;
+				return cg.error(eval->range(), "Expected boolean constant expression in attribute");
 			}
 			if (eval->as_bool()) {
 				cg.llvm.SetLinkage(dst, LLVM::Linkage::External);
 			}
 			continue;
 		}
-		cg.error(attr->range(), "Unknown attribute");
-		return false;
+		return cg.error(attr->range(), "Unknown attribute");
 	}
 
 	return true;
@@ -345,19 +326,15 @@ Bool AstUsingStmt::codegen(Cg& cg) const noexcept {
 		}
 	}
 	if (!type) {
-		cg.error(range(), "Undeclared effect '%S'", m_name);
-		return false;
+		return cg.error(range(), "Undeclared effect '%S'", m_name);
 	}
 
 	auto addr = cg.emit_alloca(type);
-	if (!addr) {
-		return false;
-	}
 	auto value = m_init->gen_value(cg, type);
-	if (!value || !addr->store(cg, *value)) {
+	if (!addr.store(cg, *value)) {
 		return false;
 	}
-	if (!cg.scopes.last().usings.emplace_back(this, m_name, move(*addr))) {
+	if (!cg.scopes.last().usings.emplace_back(this, m_name, move(addr))) {
 		return false;
 	}
 	return true;
@@ -391,30 +368,23 @@ Bool AstAssignStmt::codegen(Cg& cg) const noexcept {
 
 	auto src_type = src->type();
 	if (dst_type->is_atomic()) {
-		cg.error(range(), "Cannot assign to atomic type");
-		return false;
+		return cg.error(range(), "Cannot assign to atomic type");
 	}
 
 	// When the destination is a union type look for a compatible inner type.
 	if (dst_type->is_union()) {
-		const auto& types = dst_type->types();
-		for (Ulen l = types.length(), i = 0; i < l; i++) {
-			auto type = types[i];
-			if (*type == *src_type) {
-				dst_type = type;
-				break;
-			}
+		if (auto find = dst_type->contains(src_type)) {
+			dst_type = find;
 		}
 	}
 
 	if (*dst_type != *src_type) {
 		auto dst_type_string = dst_type->to_string(*cg.scratch);
 		auto src_type_string = src_type->to_string(*cg.scratch);
-		cg.error(range(),
-		         "Cannot assign an lvalue of type '%S' to an rvalue of type '%S'",
-		         src_type_string,
-		         dst_type_string);
-		return false;
+		return cg.error(range(),
+		                "Cannot assign an lvalue of type '%S' to an rvalue of type '%S'",
+		                src_type_string,
+		                dst_type_string);
 	}
 
 	switch (m_op) {

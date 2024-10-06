@@ -26,14 +26,12 @@ struct CgType {
 		SLICE,             // []T
 		ARRAY,             // [N]T
 		PADDING,           // [N]u8 // Special meta-type for tuple padding
-		TUPLE,             // (T1, ..., Tn)
+		TUPLE,             // {T1, ..., Tn}
 		UNION,             // T1 | ... | Tn
-		ENUM,              // {E1, ... En}
-		FN,                // fn (T1, ..., Tn) -> (R1, ..., Rn)
+		ENUM,              // [E1, ... En]
+		FN,                // fn (T1, ..., Tn) (T1, ..., Tn) <E1, ... En> -> (R1, ..., Rn)
 		VA,                // ...
 	};
-
-	// using Field = Maybe<StringView>;
 
 	void dump(StringBuilder& builder) const noexcept;
 	StringView to_string(Allocator& allocator) const noexcept;
@@ -63,6 +61,15 @@ struct CgType {
 	[[nodiscard]] constexpr const Array<ConstField>& fields() const noexcept {
 		BIRON_ASSERT(m_fields && "No nested fields");
 		return (*m_fields);
+	}
+
+	[[nodiscard]] CgType* contains(CgType* find) const noexcept {
+		for (const auto& type : *m_types) {
+			if (*type == *find) {
+				return type;
+			}
+		}
+		return nullptr;
 	}
 
 	// Custom make tags for the type cache
@@ -122,38 +129,7 @@ struct CgType {
 
 	constexpr const Maybe<StringView>& name() const noexcept { return m_name; }
 
-	[[nodiscard]] Bool operator!=(const CgType& other) const noexcept {
-		if (other.m_kind != m_kind) {
-			return true;
-		}
-		if (other.m_layout != m_layout) {
-			return true;
-		}
-		if (other.m_extent != m_extent) {
-			return true;
-		}
-		if (other.m_types) { 
-			if (!m_types) {
-				// Other has types but we do not.
-				return true;
-			}
-			const auto& lhs = *other.m_types;
-			const auto& rhs = *m_types;
-			if (lhs.length() != rhs.length()) {
-				// The type lists are not the same length.
-				return true;
-			}
-			for (Ulen l = lhs.length(), i = 0; i < l; i++) {
-				if (*lhs[i] != *rhs[i]) {
-					// The types are not the same.
-					return true;
-				}
-			}
-		}
-		// We do not compare m_ref
-		return false;
-	}
-
+	[[nodiscard]] Bool operator!=(const CgType& other) const noexcept;
 	[[nodiscard]] Bool operator==(const CgType& other) const noexcept {
 		return !operator!=(other);
 	}
@@ -297,29 +273,12 @@ struct CgTypeCache {
 	CgType* make(CgType::AtomicInfo info) noexcept;
 	CgType* make(CgType::EnumInfo info) noexcept;
 
-	~CgTypeCache() noexcept {
-		for (const auto& type : m_cache) {
-			static_cast<CgType*>(type)->~CgType();
-		}
-	}
+	~CgTypeCache() noexcept;
 
 	constexpr CgTypeCache(CgTypeCache&&) noexcept = default;
 
 private:
-	CgType* ensure_padding(Ulen padding) noexcept {
-		if (auto find = m_padding_cache.at(padding); find && *find) {
-			return *find;
-		}
-		if (!m_padding_cache.resize(padding + 1)) {
-			return nullptr;
-		}
-		auto pad = make(CgType::PaddingInfo { padding });
-		if (!pad) {
-			return nullptr;
-		}
-		m_padding_cache[padding] = pad;
-		return pad;
-	};
+	CgType* ensure_padding(Ulen padding) noexcept;
 
 	constexpr CgTypeCache(Cache&& cache, LLVM& llvm, LLVM::ContextRef context) noexcept
 		: m_cache{move(cache)}

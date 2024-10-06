@@ -38,10 +38,11 @@ Biron is an experimental toy [systems programming language](https://en.wikipedia
   * Sized floating-point types: `Real{32,64}`
   * Sized boolean types: `Bool{8,16,32,64}`
   * Pointers: `*T`
-  * Slices: `[]T`
+  * Slices: `[]T` and `[*]T`
   * Arrays: `[N]T`
-  * Tuples: `(T1, ... Tn)`
+  * Tuples: `{T1, ... Tn}`
   * Unions: `T1 | ... | Tn`
+  * Enums: `[ E1, .... En ]`
   * Atomics: `@T`
   * Addressing: `Address`
     * Similar to `uintptr_t` but for working with memory addresses and can be casted to any pointer type.

@@ -41,6 +41,12 @@ Maybe<CgTypeCache> CgTypeCache::make(Allocator& allocator, LLVM& llvm, LLVM::Con
 	return move(bootstrap);
 }
 
+CgTypeCache::~CgTypeCache() noexcept {
+	for (const auto& type : m_cache) {
+		static_cast<CgType*>(type)->~CgType();
+	}
+}
+
 void CgType::dump(StringBuilder& builder) const noexcept {
 	if (m_name) {
 		builder.append(*m_name);
@@ -226,6 +232,38 @@ CgType* CgType::addrof(Cg& cg) noexcept {
 	return cg.types.make(CgType::PtrInfo { { 8, 8 }, this, None{} });
 }
 
+Bool CgType::operator!=(const CgType& other) const noexcept {
+	if (other.m_kind != m_kind) {
+		return true;
+	}
+	if (other.m_layout != m_layout) {
+		return true;
+	}
+	if (other.m_extent != m_extent) {
+		return true;
+	}
+	if (other.m_types) { 
+		if (!m_types) {
+			// Other has types but we do not.
+			return true;
+		}
+		const auto& lhs = *other.m_types;
+		const auto& rhs = *m_types;
+		if (lhs.length() != rhs.length()) {
+			// The type lists are not the same length.
+			return true;
+		}
+		for (Ulen l = lhs.length(), i = 0; i < l; i++) {
+			if (*lhs[i] != *rhs[i]) {
+				// The types are not the same.
+				return true;
+			}
+		}
+	}
+	// We do not compare m_ref
+	return false;
+}
+
 CgType* AstTupleType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 	if (m_elems.empty()) {
 		return cg.types.unit();
@@ -245,12 +283,10 @@ CgType* AstTupleType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 			return nullptr;
 		}
 		if (!types.push_back(type)) {
-			cg.oom();
-			return nullptr;
+			return cg.oom();
 		}
 		if (!fields.emplace_back(elem.name(), None{})) {
-			cg.oom();
-			return nullptr;
+			return cg.oom();
 		}
 	}
 	return cg.types.make(CgType::TupleInfo { move(types), move(fields), move(name) });
@@ -275,12 +311,10 @@ CgType* AstArgsType::codegen(Cg& cg, Maybe<StringView>) const noexcept {
 			return nullptr;
 		}
 		if (!types.push_back(type)) {
-			cg.oom();
-			return nullptr;
+			return cg.oom();
 		}
 		if (!fields.emplace_back(elem.name(), None{})) {
-			cg.oom();
-			return nullptr;
+			return cg.oom();
 		}
 	}
 	return cg.types.make(CgType::TupleInfo { move(types), move(fields), None{} });
@@ -301,8 +335,7 @@ CgType* AstUnionType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 			return nullptr;
 		}
 		if (!types.push_back(type)) {
-			cg.oom();
-			return nullptr;
+			return cg.oom();
 		}
 	}
 	return cg.types.make(CgType::UnionInfo { move(types), name });
@@ -356,8 +389,7 @@ CgType* AstIdentType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 		}
 	}
 
-	cg.error(range(), "Undeclared entity '%S'", m_ident, range().length);
-	return nullptr;
+	return cg.error(range(), "Undeclared entity '%S'", m_ident, range().length);
 }
 
 CgType* AstVarArgsType::codegen(Cg&, Maybe<StringView>) const noexcept {
@@ -380,8 +412,7 @@ CgType* AstArrayType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 	}
 	auto value = m_extent->eval_value(cg);
 	if (!value || !value->is_integral()) {
-		cg.error(m_extent->range(), "Expected integer constant expression for array extent");
-		return nullptr;
+		return cg.error(m_extent->range(), "Expected integer constant expression for array extent");
 	}
 	auto extent = value->to<Uint64>();
 	if (!extent) {
@@ -452,18 +483,15 @@ CgType* AstAtomType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 		return nullptr;
 	}
 	if (!base->is_integer() && !base->is_pointer()) {
-		StringBuilder b{*cg.scratch};
-		base->dump(b);
-		cg.error(m_base->range(), "Cannot have an atomic of type '%S'", b.view());
-		return nullptr;
+		auto type_string = base->to_string(*cg.scratch);
+		return cg.error(m_base->range(), "Cannot have an atomic of type '%S'", type_string);
 	}
 	return cg.types.make(CgType::AtomicInfo { base, name });
 }
 
 CgType* AstEnumType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 	if (m_enums.empty()) {
-		cg.error(range(), "Cannot have an empty enum type");
-		return nullptr;
+		return cg.error(range(), "Cannot have an empty enum type");
 	}
 
 	CgType* type = cg.types.u64();
@@ -474,22 +502,19 @@ CgType* AstEnumType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 		if (auto& init = enumerator.init) {
 			auto infer = init->gen_type(cg, type);
 			if (!infer) {
-				cg.error(init->range(), "Cannot infer type for enumerator");
-				return nullptr;
+				return cg.error(init->range(), "Cannot infer type for enumerator");
 			}
 			if (!type) {
 				type = infer;
 			}
 			auto value = init->eval_value(cg);
 			if (!value) {
-				cg.error(init->range(), "Expected constant expression for enumerator");
-				return nullptr;
+				return cg.error(init->range(), "Expected constant expression for enumerator");
 			}
 			offset = *value->to<Sint128>();
 		}
 		if (!fields.emplace_back(enumerator.name, AstConst { range(), Sint64(offset) })) {
-			cg.oom();
-			return nullptr;
+			return cg.oom();
 		}
 		offset++;
 	}
@@ -1012,5 +1037,20 @@ CgType* CgTypeCache::make(CgType::EnumInfo info) noexcept {
 		info.base->ref()
 	);
 }
+
+CgType* CgTypeCache::ensure_padding(Ulen padding) noexcept {
+	if (auto find = m_padding_cache.at(padding); find && *find) {
+		return *find;
+	}
+	if (!m_padding_cache.resize(padding + 1)) {
+		return nullptr;
+	}
+	auto pad = make(CgType::PaddingInfo { padding });
+	if (!pad) {
+		return nullptr;
+	}
+	m_padding_cache[padding] = pad;
+	return pad;
+};
 
 } // namespace Biron

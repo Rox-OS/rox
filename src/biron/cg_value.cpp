@@ -24,8 +24,7 @@ Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
 		// Generate a bunch of getelementptr
 		Array<Maybe<CgAddr>> dst{*cg.scratch};
 		if (!dst.resize(type->is_tuple() ? type->length() : type->extent())) {
-			cg.oom();
-			return false;
+			return cg.oom();
 		}
 		for (Ulen l = dst.length(), i = 0; i < l; i++) {
 			dst[i] = at(cg, i);
@@ -33,8 +32,7 @@ Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
 		// Generate a bunch of extractvalue
 		Array<Maybe<CgValue>> extract{*cg.scratch};
 		if (!extract.resize(dst.length())) {
-			cg.oom();
-			return false;
+			return cg.oom();
 		}
 		for (Ulen l = dst.length(), i = 0; i < l; i++) {
 			// Do not extract padding fields. We're not interesting in reading them.
@@ -56,7 +54,8 @@ Bool CgAddr::store(Cg& cg, const CgValue& value) const noexcept {
 	} else {
 		// When generating a store to a union we need to emit two stores.
 		if (auto dst_type = m_type->deref(); dst_type->is_union()) {
-			// Search the union to find the matching inner type.
+			// Search the union to find the matching inner type. We don't use
+			// dst_type->contains since we need an index to set the tag value.
 			const auto& variants = dst_type->types();
 			for (Ulen l = variants.length(), i = 0; i < l; i++) {
 				auto variant = variants[i];

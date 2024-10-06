@@ -6,6 +6,7 @@
 #include <biron/diagnostic.h>
 
 #include <biron/util/string.h>
+#include <biron/util/error.inl>
 
 namespace Biron {
 
@@ -120,23 +121,24 @@ struct Cg {
 	}
 
 	template<typename... Ts>
-	void error(Range range, StringView fmt, Ts&&... args) const noexcept {
+	Error error(Range range, StringView fmt, Ts&&... args) const noexcept {
 		m_diagnostic.error(range, fmt, forward<Ts>(args)...);
+		return {};
 	}
 
 	template<typename... Ts>
-	void fatal(Range range, StringView fmt, Ts&&... args) const noexcept {
+	Error fatal(Range range, StringView fmt, Ts&&... args) const noexcept {
 		m_diagnostic.fatal(range, fmt, forward<Ts>(args)...);
+		return {};
 	}
 
-	None oom() const noexcept {
-		fatal(Range{0, 0}, "Out of memory while generating code");
-		return None{};
+	Error oom() const noexcept {
+		return fatal(Range{0, 0}, "Out of memory while generating code");
 	}
 
 	Maybe<CgAddr> intrinsic(StringView name) const noexcept;
 
-	Maybe<CgAddr> emit_alloca(CgType* type) noexcept;
+	CgAddr emit_alloca(CgType* type) noexcept;
 	Maybe<CgValue> emit_lt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_le(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
 	Maybe<CgValue> emit_gt(const CgValue& lhs, const CgValue& rhs, Range range) noexcept;
