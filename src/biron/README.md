@@ -60,6 +60,14 @@ Biron is an experimental toy [systems programming language](https://en.wikipedia
   * Loads `libLLVM` dynamically at runtime if present. Not linked during build so can easily be built and deployed anywhere.
     * Requires LLVM-17, LLVM-18, or LLVM-19 to be present at runtime.
 
+## TODO
+* Finish modules
+* Implement pattern matching
+* Implement optional types `?T` with flow-sensitive typing of optionals
+* Implement parametric polymorphism (for generics)
+  * `fn[T]` syntax for `fn` ?
+* Implement intrinsic effects
+
 ## Building
 
 ### Linux
@@ -225,9 +233,3 @@ type M = @Uint32;            // atomic Uint32
   * `&a` - address of
 * Suffix
   * `a!` - effect
-
-## TODO
-* Finish modules
-* Implement pattern matching
-* Implement parametric polymorphism (for generics)
-* Implement intrinsic effects
