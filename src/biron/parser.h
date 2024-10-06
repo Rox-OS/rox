@@ -21,8 +21,9 @@ struct AstStrExpr;
 struct AstBoolExpr;
 
 struct AstType;
-struct AstBoolType;
 struct AstTupleType;
+struct AstArgsType;
+struct AstGroupType;
 struct AstIdentType;
 struct AstVarArgsType;
 struct AstPtrType;
@@ -66,6 +67,8 @@ struct Parser {
 	// Types
 	[[nodiscard]] AstType*         parse_type() noexcept;
 	[[nodiscard]] AstTupleType*    parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstArgsType*     parse_args_type() noexcept;
+	[[nodiscard]] AstGroupType*    parse_group_type() noexcept;
 	[[nodiscard]] AstIdentType*    parse_ident_type(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstVarArgsType*  parse_varargs_type(Array<AstAttr*>&& attrs) noexcept;
 	[[nodiscard]] AstPtrType*      parse_ptr_type(Array<AstAttr*>&& attrs) noexcept;

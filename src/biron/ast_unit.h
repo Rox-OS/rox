@@ -7,6 +7,7 @@ namespace Biron {
 
 struct AstType;
 struct AstTupleType;
+struct AstArgsType;
 struct AstIdentType;
 
 struct AstStmt;
@@ -40,7 +41,7 @@ private:
 
 struct AstFn : AstNode {
 	static inline constexpr auto KIND = Kind::FN;
-	constexpr AstFn(StringView name, AstTupleType* objs, AstTupleType* args, Array<AstIdentType*>&& effects, AstType* ret, AstStmt* body, Array<AstAttr*>&& attrs, Range range) noexcept
+	constexpr AstFn(StringView name, AstArgsType* objs, AstArgsType* args, Array<AstIdentType*>&& effects, AstType* ret, AstStmt* body, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstNode{KIND, range}
 		, m_name{name}
 		, m_objs{objs}
@@ -55,12 +56,12 @@ struct AstFn : AstNode {
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 	[[nodiscard]] Bool prepass(Cg& cg) const noexcept;
 	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
-	[[nodiscard]] constexpr const AstTupleType* args() const noexcept { return m_args; }
+	[[nodiscard]] constexpr const AstArgsType* args() const noexcept { return m_args; }
 	[[nodiscard]] constexpr const AstType* ret() const noexcept { return m_ret; }
 private:
 	StringView           m_name;
-	AstTupleType*        m_objs;
-	AstTupleType*        m_args;
+	AstArgsType*         m_objs;
+	AstArgsType*         m_args;
 	Array<AstIdentType*> m_effects;
 	AstType*             m_ret;
 	AstStmt*             m_body;

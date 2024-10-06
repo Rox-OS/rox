@@ -96,7 +96,15 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 	case Kind::POINTER:
 		builder.append('*');
 		if (m_types && m_types->length()) {
-			at(0)->dump(builder);
+			const auto type = at(0);
+			const auto group = type->is_union() && !type->name();
+			if (group) {
+				builder.append('(');
+			}
+			type->dump(builder);
+			if (group) {
+				builder.append(')');
+			}
 		}
 		break;
 	case Kind::ATOMIC:
@@ -135,8 +143,6 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		}
 		break;
 	case Kind::UNION:
-		// TODO(dweiler): Revisit. This currently prints the internal structure
-		// of the union which is not wanted.
 		for (Ulen l = length(), i = 0; i < l; i++) {
 			at(i)->dump(builder);
 			if (i != l - 1) {
@@ -145,9 +151,18 @@ void CgType::dump(StringBuilder& builder) const noexcept {
 		}
 		break;
 	case Kind::ENUM:
-		builder.append('{');
-		// TODO
-		builder.append('}');
+		{
+			builder.append('[');
+			Bool f = true;
+			for (Ulen l = (*m_fields).length(), i = 0; i < l; i++) {
+				const auto& field = (*m_fields)[i];
+				if (!f) builder.append(", ");
+				builder.append('.');
+				builder.append(*field.name);
+				f = false;
+			}
+			builder.append(']');
+		}
 		break;
 	case Kind::FN:
 		{
@@ -239,6 +254,40 @@ CgType* AstTupleType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 		}
 	}
 	return cg.types.make(CgType::TupleInfo { move(types), move(fields), move(name) });
+}
+
+CgType* AstArgsType::codegen(Cg& cg, Maybe<StringView>) const noexcept {
+	if (m_elems.empty()) {
+		return cg.types.unit();
+	}
+
+	Array<CgType*> types{cg.allocator};
+	if (!types.reserve(m_elems.length())) {
+		return nullptr;
+	}
+	Array<ConstField> fields{cg.allocator};
+	if (!fields.reserve(m_elems.length())) {
+		return nullptr;
+	}
+	for (auto& elem : m_elems) {
+		auto type = elem.type()->codegen(cg, None{});
+		if (!type) {
+			return nullptr;
+		}
+		if (!types.push_back(type)) {
+			cg.oom();
+			return nullptr;
+		}
+		if (!fields.emplace_back(elem.name(), None{})) {
+			cg.oom();
+			return nullptr;
+		}
+	}
+	return cg.types.make(CgType::TupleInfo { move(types), move(fields), None{} });
+}
+
+CgType* AstGroupType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
+	return m_type->codegen(cg, name);
 }
 
 CgType* AstUnionType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {

@@ -487,7 +487,32 @@ CgType* AstVarExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstSelectorExpr::gen_type(Cg& cg, CgType* want) const noexcept {
-	if (want && want->is_enum()) {
+	if (want && want->is_union()) {
+		// Search the union for an enum which contains the selector.
+		CgType* found = nullptr;
+		for (const auto& type : want->types()) {
+			if (!type->is_enum()) {
+				// Skip non-enum types in the union.
+				continue;
+			}
+			for (const auto& field : type->fields()) {
+				if (field.name != m_name) {
+					// Skip fields of the enum which do not match our selector.
+					continue;
+				}
+				if (found) {
+					// We already found one matching our name so this would be ambigious.
+					cg.error(range(), "Selector '.%S' is ambigious in this context", m_name);
+					return nullptr;
+				}
+				// We found a matching enum type for our selector.
+				found = type;
+			}
+		}
+		if (found) {
+			return found;
+		}
+	} else if (want && want->is_enum()) {
 		return want;
 	}
 	cg.error(range(), "Cannot infer type from implicit selector expression");
@@ -834,6 +859,19 @@ Maybe<CgAddr> AstAggExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
 			if (!value) {
 				return None{};
 			}
+
+			// When the destination is a union type look for a compatible inner type.
+			if (dst_type->is_union()) {
+				const auto& types = dst_type->types();
+				for (Ulen l = types.length(), i = 0; i < l; i++) {
+					auto type = types[i];
+					if (*type == *value->type()) {
+						dst_type = type;
+						break;
+					}
+				}
+			}
+
 			if (*value->type() != *dst_type) {
 				cg.error(m_exprs[0]->range(), "Expression with incompatible type in aggregate");
 				return None{};

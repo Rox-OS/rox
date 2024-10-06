@@ -108,12 +108,14 @@ void AstAggExpr::dump(StringBuilder& builder) const noexcept {
 	m_type->dump(builder);
 	builder.append(' ');
 	builder.append('{');
+	builder.append(' ');
 	Bool f = true;
 	for (const auto &expr : m_exprs) {
 		if (!f) builder.append(", ");
 		expr->dump(builder);
 		f = false;
 	}
+	builder.append(' ');
 	builder.append('}');
 }
 

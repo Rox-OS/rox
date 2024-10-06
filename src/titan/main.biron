@@ -1,51 +1,51 @@
 module titan;
 
-type LimineFramebuffer = (
+type LimineFramebuffer = {
   address:    *Uint32,
-  dimensions: (Uint64, Uint64),
+  dimensions: { Uint64, Uint64 },
   pitch:      Uint64,
   bpp:        Uint16,
   mem_model:  Uint8,
-  r_mask:     (size: Uint8, shift: Uint8),
-  g_mask:     (size: Uint8, shift: Uint8),
-  b_mask:     (size: Uint8, shift: Uint8),
+  r_mask:     { size: Uint8, shift: Uint8 },
+  g_mask:     { size: Uint8, shift: Uint8 },
+  b_mask:     { size: Uint8, shift: Uint8 },
               Uint8,
-  edid:       (size: Uint64, data: Address),
-  modes:      (Uint64, Address)
-);
+  edid:       { size: Uint64, data: Address },
+  modes:      { Uint64, Address }
+};
 
-type LimineFramebufferRequest = (
+type LimineFramebufferRequest = {
   id:       [4]Uint64,
   revision: Uint64,
   response: *LimineFramebufferResponse
-);
+};
 
-type LimineFramebufferResponse = (
+type LimineFramebufferResponse = {
   revision:     Uint64,
-  framebuffers: (Uint64, **LimineFramebuffer)
-);
+  framebuffers: { Uint64, **LimineFramebuffer }
+};
 
-type LimineHHDMRequest = (
+type LimineHHDMRequest = {
   id:       [4]Uint64,
   revision: Uint64,
   response: *LimineHHDMResponse
-);
+};
 
-type LimineHHDMResponse = (
+type LimineHHDMResponse = {
   revision: Uint64,
   offset:   Uint64
-);
+};
 
-type LimineStackSizeRequest = (
+type LimineStackSizeRequest = {
   id:       [4]Uint64,
   revision: Uint64,
   response: *LimineStackSizeResponse,
   size:     Uint64
-);
+};
 
-type LimineStackSizeResponse = (
+type LimineStackSizeResponse = {
   revision: Uint64
-);
+};
 
 @(export(true), section(".requests"))
 let LIMINE_BASE_VERSION = new [3]Uint64 {
@@ -336,18 +336,18 @@ let STIFFNESS    = 1.75_f32;
 let RESTITUTION  = 0.05_f32;
 let PARTICLES    = 48_u64;
 
-type Sim = (
+type Sim = {
   particles:          [PARTICLES * PARTICLES]Particle,
   boundary_particles: [2 * 128 + 2 * 128 + 2 * 2][2]Real32,
   world_size:         [2]Real32
-);
+};
 
-type Particle = (
+type Particle = {
   initial_position: [2]Real32,
   position:         [2]Real32,
   velocity:         [2]Real32,
   density:          Real32
-);
+};
 
 fn sph_kernel(r: Real32) -> Real32 {
   let result = 0.45472841_f32; // 40 / (7 * pi * h^2)

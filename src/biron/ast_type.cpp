@@ -4,6 +4,22 @@
 namespace Biron {
 
 void AstTupleType::dump(StringBuilder& builder) const noexcept {
+	builder.append('{');
+	Bool f = true;
+	for (const auto& elem : m_elems) {
+		if (!f) builder.append(", ");
+		if (elem.name()) {
+			builder.append(*elem.name());
+			builder.append(':');
+			builder.append(' ');
+		}
+		elem.type()->dump(builder);
+		f = false;
+	}
+	builder.append('}');
+}
+
+void AstArgsType::dump(StringBuilder& builder) const noexcept {
 	builder.append('(');
 	Bool f = true;
 	for (const auto& elem : m_elems) {
@@ -16,6 +32,12 @@ void AstTupleType::dump(StringBuilder& builder) const noexcept {
 		elem.type()->dump(builder);
 		f = false;
 	}
+	builder.append(')');
+}
+
+void AstGroupType::dump(StringBuilder& builder) const noexcept {
+	builder.append('(');
+	m_type->dump(builder);
 	builder.append(')');
 }
 
@@ -66,11 +88,13 @@ void AstAtomType::dump(StringBuilder& builder) const noexcept {
 }
 
 void AstEnumType::dump(StringBuilder& builder) const noexcept {
-	builder.append('{');
+	builder.append('[');
+	builder.append(' ');
 	Bool f = true;
 	for (const auto& enumerator : m_enums) {
 		if (!f) builder.append(", ");
 		f = false;
+		builder.append('.');
 		builder.append(enumerator.name);
 		if (enumerator.init) {
 			builder.append(' ');
@@ -79,7 +103,8 @@ void AstEnumType::dump(StringBuilder& builder) const noexcept {
 			enumerator.init->dump(builder);
 		}
 	}
-	builder.append('}');
+	builder.append(' ');
+	builder.append(']');
 }
 
 } // namespace Biron

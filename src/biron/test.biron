@@ -1,11 +1,17 @@
 module test;
 
-fn div(x: Sint32, y: Sint32) -> Sint32 | String {
+type P = Uint32 | Real32;
+type X = { P, Real32 };
+type E = [ .A ];
+
+fn div(x: Sint32, y: Sint32) -> Sint32 | String | [ .A = 0_u32, .B ] {
+  let p = new X { 0_u32, 1.0_f32 };
   if y == 0 {
     return "Divide by zero";
   } else {
     return x / y;
   }
+  return .A;
 }
 
 @(export(true))
