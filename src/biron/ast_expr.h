@@ -389,7 +389,7 @@ struct AstEffExpr : AstExpr {
 	[[nodiscard]] virtual CgType* gen_type(Cg& cg, CgType* want) const noexcept override;
 private:
 	[[nodiscard]] const AstVarExpr* expression() const noexcept {
-		return to_expr<const AstVarExpr>();
+		return m_operand->to_expr<const AstVarExpr>();
 	}
 	AstExpr* m_operand;
 };

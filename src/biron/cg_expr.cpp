@@ -944,6 +944,10 @@ CgType* AstAccessExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<CgAddr> AstAccessExpr::gen_addr(Cg& cg, CgType* want) const noexcept {
+	if (!gen_type(cg, want ? want->deref() : nullptr)) {
+		return None{};
+	}
+
 	if (const auto expr = m_rhs->to_expr<const AstVarExpr>()) {
 		auto lhs_addr = m_lhs->gen_addr(cg, want);
 		if (!lhs_addr) {
@@ -1302,6 +1306,9 @@ CgType* AstBinExpr::gen_type(Cg& cg, CgType* want) const noexcept {
 }
 
 Maybe<CgValue> AstLBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
+	auto lhs_expr = detuple(m_lhs);
+	auto rhs_expr = detuple(m_rhs);
+
 	switch (m_op) {
 	case Op::LOR:
 		{
@@ -1329,10 +1336,10 @@ Maybe<CgValue> AstLBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
 			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
 	
-			auto lhs = m_lhs->gen_value(cg, want ? want : cg.types.b32());
+			auto lhs = lhs_expr->gen_value(cg, want ? want : cg.types.b32());
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
-				return cg.error(m_lhs->range(),
+				return cg.error(lhs_expr->range(),
 				                "Operands to '||' operator must have boolean type. Got '%S' instead",
 				                lhs_type_string);
 			}
@@ -1347,7 +1354,7 @@ Maybe<CgValue> AstLBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			// on_lhs_false
 			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_false);
 			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_false);
-			auto rhs = m_rhs->gen_value(cg, cg.types.b32());
+			auto rhs = rhs_expr->gen_value(cg, cg.types.b32());
 			if (!rhs || !rhs->type()->is_bool()) {
 				return None{};
 			}
@@ -1412,10 +1419,10 @@ Maybe<CgValue> AstLBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			auto on_rhs_false = cg.llvm.CreateBasicBlockInContext(cg.context, "on_rhs_false");
 			auto on_exit      = cg.llvm.CreateBasicBlockInContext(cg.context, "on_exit");
 	
-			auto lhs = m_lhs->gen_value(cg, want ? want : cg.types.b32());
+			auto lhs = lhs_expr->gen_value(cg, want ? want : cg.types.b32());
 			if (!lhs || !lhs->type()->is_bool()) {
 				auto lhs_type_string = lhs->type()->to_string(*cg.scratch);
-				return cg.error(m_lhs->range(),
+				return cg.error(lhs_expr->range(),
 				                "Operands to '&&' operator must have boolean type. Got '%S' instead",
 				                lhs_type_string);
 			}
@@ -1425,7 +1432,7 @@ Maybe<CgValue> AstLBinExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			// on_lhs_true
 			cg.llvm.AppendExistingBasicBlock(this_fn, on_lhs_true);
 			cg.llvm.PositionBuilderAtEnd(cg.builder, on_lhs_true);
-			auto rhs = m_rhs->gen_value(cg, cg.types.b32());
+			auto rhs = rhs_expr->gen_value(cg, cg.types.b32());
 			if (!rhs || !rhs->type()->is_bool()) {
 				return None{};
 			}
@@ -1669,7 +1676,8 @@ Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 	}
 
 	// Cannot use CgValue::at when working with something that requires a load.
-	if (!type->is_pointer() && !type->is_slice() && !type->is_string()) {
+	// TODO(dweiler): reenable when I work out chained pointer dereference typing
+	if (false && !type->is_pointer() && !type->is_slice() && !type->is_string()) {
 		// Optimization when the index is a constant expression.
 		if (auto eval = m_index->eval_value(cg)) {
 			if (!eval->is_integral()) {
@@ -1682,7 +1690,7 @@ Maybe<CgValue> AstIndexExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 			}
 			auto result = operand->at(cg, *index);
 			if (!result) {
-				return cg.fatal(range(), "Could not generate result '%S'", type->to_string(*cg.scratch));
+				return cg.fatal(range(), "Could not generate result '%S'", operand->type()->to_string(*cg.scratch));
 			}
 			return result;
 		}
@@ -1827,10 +1835,15 @@ CgType* AstCastExpr::gen_type(Cg& cg, CgType*) const noexcept {
 	return cg.error(m_type->range(), "Expected type on right-hand side of 'as' operator");
 }
 
-Maybe<CgValue> AstTestExpr::gen_value(Cg& cg, CgType* want) const noexcept {
-	auto type = gen_type(cg, want);
-	if (!type) {
-		return None{};
+Maybe<CgValue> AstTestExpr::gen_value(Cg& cg, CgType*) const noexcept {
+	CgType* type = nullptr;
+	if (auto expr = m_type->to_expr<AstTypeExpr>()) {
+		type = expr->type()->codegen(cg, None{});
+		if (!type) {
+			return None{};
+		}
+	} else {
+		return cg.error(m_type->range(), "Expected type on left-hand side of 'is' operator");
 	}
 	auto operand = detuple(m_operand);
 	auto expr = operand->gen_addr(cg, nullptr);
@@ -1867,10 +1880,10 @@ Maybe<CgValue> AstTestExpr::gen_value(Cg& cg, CgType* want) const noexcept {
 }
 
 CgType* AstTestExpr::gen_type(Cg& cg, CgType*) const noexcept {
-	if (auto type = m_type->to_expr<AstTypeExpr>()) {
-		return type->type()->codegen(cg, None{});
+	if (m_type->is_expr<AstTypeExpr>()) {
+		return cg.types.b32();
 	}
-	return cg.error(m_type->range(), "Expected type on left-hand side of 'is' operator");
+	return nullptr;
 }
 
 Maybe<CgValue> AstPropExpr::gen_value(Cg& cg, CgType* want) const noexcept {

@@ -1,25 +1,11 @@
-module test;
+module main;
 
-type P = Uint32 | Real32;
-type X = { P, Real32 };
-type E = [ .A ];
-
-fn div(x: Sint32, y: Sint32) -> Sint32 | String | [ .A = 0_u32, .B ] {
-  let p = new X { 0_u32, 1.0_f32 };
-  if y == 0 {
-    return "Divide by zero";
-  } else {
-    return x / y;
-  }
-  return .A;
-}
+effect Print = fn(msg: String);
 
 @(export(true))
 fn main(argc: Sint32, argv: **Uint8) {
-  let z = div(10, argc - 1);
-  if z is String {
-    printf("We have a String: %s\n", z);
-  } else if z is Sint32 {
-    printf("We have a Sint32: %d\n", z);
+  for let p = 0_u32; p < 10; p += 1 {
   }
+
+  foo("hello", 10, "");
 }
