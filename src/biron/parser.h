@@ -47,7 +47,7 @@ struct Parser {
 		: m_arena{allocator}
 		, m_lexer{lexer}
 		, m_in_defer{false}
-		, m_ast{allocator}
+		, m_ast{m_arena}
 		, m_diagnostic{diagnostic}
 	{
 	}
