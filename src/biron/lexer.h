@@ -99,6 +99,9 @@ struct Lexer {
 	constexpr StringView name() const noexcept {
 		return m_name;
 	}
+	constexpr StringView data() const noexcept {
+		return m_data;
+	}
 private:
 	Token read() noexcept;
 	Ulen fwd() noexcept { return m_offset++; }

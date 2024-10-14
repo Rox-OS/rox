@@ -4,7 +4,7 @@
 #include <biron/util/types.inl>
 
 // Cannot disable this C++ runtime when ASAN is used as ASAN depends on it.
-#if !__has_feature(address_sanitizer)
+#if !__has_feature(address_sanitizer) && !defined(__AFL_COMPILER)
 
 // These need to be in namespace std because the compiler generates mangled
 // names assuming so.

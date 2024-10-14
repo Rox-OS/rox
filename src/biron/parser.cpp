@@ -15,16 +15,223 @@
 
 namespace Biron {
 
-// IndexExpr
-//	::= '[' Expr ']'
-AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
+// Type
+//	::= IdentType
+//	  | TupleType
+//	  | PtrType
+//	  | AtomType
+//	  | ArrayType
+//	  | SliceType
+//	  | FnType
+//	  | ArgsType
+//	  | GroupType
+//	  | UnionType
+//	  | VarArgsType
+// UnionType
+//	::= <Type> ('|' <Type>)+
+AstType* Parser::parse_type() noexcept {
+	Array<AstType*> types{m_arena};
+	Array<AstAttr*> attrs{m_arena};
+	for (;;) {
+		AstType* type = nullptr;
+		switch (peek().kind) {
+		case Token::Kind::IDENT:
+			type = parse_ident_type(move(attrs));
+			break;
+		case Token::Kind::LBRACE:
+			type = parse_tuple_type(move(attrs));
+			break;
+		case Token::Kind::STAR:
+			type = parse_ptr_type(move(attrs));
+			break;
+		case Token::Kind::AT:
+			next(); // Consume '@'
+			if (peek().kind == Token::Kind::LPAREN) {
+				if (auto at = parse_attrs()) {
+					attrs = move(*at);
+				} else {
+					return nullptr;
+				}
+				continue;
+			} else {
+				type = parse_atom_type(move(attrs));
+			}
+			break;
+		case Token::Kind::LBRACKET:
+			type = parse_bracket_type(move(attrs));
+			break;
+		case Token::Kind::KW_FN:
+			type = parse_fn_type(move(attrs));
+			break;
+		case Token::Kind::LPAREN:
+			type = parse_group_type();
+			break;
+		case Token::Kind::ELLIPSIS:
+			type = parse_varargs_type(move(attrs));
+			break;
+		default:
+			return ERROR("Unexpected token '%S' while parsing type", peek().name());
+		}
+		if (!type) {
+			return nullptr;
+		}
+		if (!types.push_back(type)) {
+			return oom();
+		}
+		if (peek().kind == Token::Kind::BOR) {
+			next(); // Consume '|'
+		} else {
+			break;
+		}
+	}
+	if (types.length() == 1) {
+		return types[0];
+	} else {
+		auto range = types[0]->range();
+		for (auto type : types) {
+			range = range.include(type->range());
+		}
+		return new_node<AstUnionType>(move(types), move(attrs), range);
+	}
+	BIRON_UNREACHABLE();
+}
+
+// IdentType
+//	::= <Ident>
+AstIdentType* Parser::parse_ident_type(Array<AstAttr*>&& attrs) noexcept {
+	if (peek().kind != Token::Kind::IDENT) {
+		return ERROR("Expected identifier");
+	}
+	auto token = next(); // consume Ident
+	auto name = m_lexer.string(token.range);
+	return new_node<AstIdentType>(name, move(attrs), token.range);
+}
+
+// TupleType
+//	::= '{' (<TupleElem> (',' <TupleElem>)*)? '}'
+// TupleElem
+//	::= (<Ident> ':')? <Type>
+AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+	if (peek().kind != Token::Kind::LBRACE) {
+		return ERROR("Expected '{'");
+	}
+	auto beg_token = next(); // Consume '('
+	Array<AstTupleType::Elem> elems{m_arena};
+	while (peek().kind != Token::Kind::RBRACE) {
+		auto type = parse_type();
+		if (!type) {
+			return nullptr;
+		}
+		if (peek().kind == Token::Kind::COLON) {
+			if (auto ident = type->to_type<AstIdentType>()) {
+				next(); // Consume ':'
+				auto type = parse_type();
+				if (!type) {
+					return nullptr;
+				}
+				if (!elems.emplace_back(ident->name(), type)) {
+					return oom();
+				}
+			} else {
+				return error(type->range(), "Expected identifier");
+			}
+		} else if (!elems.emplace_back(None{}, type)) {
+			return oom();
+		}
+		if (peek().kind == Token::Kind::COMMA) {
+			next(); // Consume ','
+		} else {
+			break;
+		}
+	}
+	if (peek().kind != Token::Kind::RBRACE) {
+		return ERROR("Expected '}' to terminate tuple type");
+	}
+	auto end_token = next(); // Consume '}'
+	return new_node<AstTupleType>(move(elems),
+	                              attrs ? move(*attrs) : AttrArray{ m_arena },
+	                              beg_token.range.include(end_token.range));
+}
+
+// PtrType
+//	::= '*' <Type>
+AstPtrType* Parser::parse_ptr_type(Array<AstAttr*>&& attrs) noexcept {
+	if (peek().kind != Token::Kind::STAR) {
+		return ERROR("Expected '*'");
+	}
+	auto token = next(); // Consume '*'
+	auto type = parse_type();
+	if (!type) {
+		return nullptr;
+	}
+	return new_node<AstPtrType>(type, move(attrs), token.range.include(type->range()));
+}
+
+// AtomType
+//	::= '@' <Type>
+AstAtomType* Parser::parse_atom_type(Array<AstAttr*>&& attrs) noexcept {
+	// The '@' is consumed by the caller.
+	auto type = parse_type();
+	if (!type) {
+		return nullptr;
+	}
+	return new_node<AstAtomType>(type, move(attrs), type->range());
+}
+
+// BracketType
+//	::= EnumType
+//	  | ArrayType
+//	  | SliceType
+// ArrayType
+//	::= '[' (<Expr> | '?') ']' <Type>
+// SliceType
+//	::= '[' ']' <Type>
+// EnumType
+//	::= '[' <Enum> (',' <Enum>)* ']'
+// Enum
+//	::= '.' <Ident> ('=' <Expr>)?
+AstType* Parser::parse_bracket_type(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::LBRACKET) {
 		return ERROR("Expected '['");
 	}
-	auto beg_token = peek();
-	next(); // Consume '['
-	auto index = parse_expr();
-	if (!index) {
+	auto beg_token = next(); // Consume '['
+	Array<AstEnumType::Enumerator> enums{m_arena};
+	AstExpr* expr = nullptr;
+	if (peek().kind == Token::Kind::DOT) {
+		while (peek().kind != Token::Kind::RBRACKET) {
+			if (peek().kind != Token::Kind::DOT) {
+				return ERROR("Expected '.' prefix in enumerator");
+			}
+			next(); // Consume '.'
+			if (peek().kind != Token::Kind::IDENT) {
+				return ERROR("Expected identifier");
+			}
+			auto name_token = next(); // Consume Ident
+			AstExpr* init = nullptr;
+			if (peek().kind == Token::Kind::EQ) {
+				next(); // Consume '='
+				init = parse_expr(0);
+				if (!init) {
+					return nullptr;
+				}
+			}
+			auto name = m_lexer.string(name_token.range);
+			if (!enums.emplace_back(name, init)) {
+				return oom();
+			}
+			if (peek().kind == Token::Kind::COMMA) {
+				next(); // Consume ','
+			} else {
+				break;
+			}
+		}
+	} else if (peek().kind == Token::Kind::QUESTION) {
+		auto token = next(); // Consume '?'
+		expr = new_node<AstInferSizeExpr>(token.range);
+	} else {
+		expr = parse_expr(0);
+	}
+	if (enums.empty() && !expr) {
 		return nullptr;
 	}
 	if (peek().kind != Token::Kind::RBRACKET) {
@@ -32,25 +239,173 @@ AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {
 	}
 	auto end_token = next(); // Consume ']'
 	auto range = beg_token.range.include(end_token.range);
-	return new_node<AstIndexExpr>(operand, index, range);
+	if (enums.empty()) {
+		auto type = parse_type();
+		if (!type) {
+			return nullptr;
+		}
+		range = range.include(type->range());
+		if (expr) {
+			return new_node<AstArrayType>(type, expr, move(attrs), range);
+		} else {
+			return new_node<AstSliceType>(type, move(attrs), range);
+		}
+	}
+	return new_node<AstEnumType>(move(enums), move(attrs), range);
 }
 
-// CallExpr
-//	::= Expr TupleExpr
-AstExpr* Parser::parse_call_expr(AstExpr* operand) noexcept {
-	auto args = parse_tuple_expr();
-	if (!args) {
+// FnType
+//	::= 'fn' <ArgsType> <ArgsType>? <Effects>? ('->' <Type>)? <BlockStmt>
+// Effects
+//	::= '<' <Ident> (',' <Ident>)* '>'
+AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
+	if (peek().kind != Token::Kind::KW_FN) {
+		return ERROR("Expected 'fn'");
+	}
+
+	auto beg_token = next(); // Consume 'fn'
+
+	// This might be the objs or args list.
+	AstArgsType* tuple = parse_args_type();
+	if (!tuple) {
 		return nullptr;
 	}
-	auto range = operand->range().include(args->range());
-	Bool is_c = false;
-	if (operand->is_expr<AstVarExpr>()) {
-		is_c = static_cast<const AstVarExpr*>(operand)->name() == "printf";
+	
+	AstArgsType* objs = nullptr;
+	AstArgsType* args = nullptr;
+	if (peek().kind == Token::Kind::LPAREN) {
+		objs = tuple;
+		args = parse_args_type();
+		if (!args) {
+			return nullptr;
+		}
+	} else {
+		// When there are no objs we use an empty args.
+		objs = new_node<AstArgsType>(m_arena, Range{0, 0});
+		if (!objs) {
+			return nullptr;
+		}
+		args = tuple;
 	}
-	return new_node<AstCallExpr>(operand, args, is_c, range);
+
+	Array<AstIdentType*> effects{m_arena};
+	if (peek().kind == Token::Kind::LT) {
+		next(); // Consume '<'
+		while (peek().kind != Token::Kind::GT) {
+			auto type = parse_ident_type({m_arena});
+			if (!type) {
+				return nullptr;
+			}
+			if (!effects.push_back(type)) {
+				return oom();
+			}
+			if (peek().kind == Token::Kind::COMMA) {
+				next(); // Consume ','
+			} else {
+				break;
+			}
+		}
+		if (peek().kind != Token::Kind::GT) {
+			return ERROR("Expected '>'");
+		}
+		next(); // Consume '>'
+	}
+
+	AstType* ret = nullptr;
+	if (peek().kind == Token::Kind::ARROW) {
+		next(); // Consume '->'
+		ret = parse_type();
+		if (!ret) {
+			return nullptr;
+		}
+	} else {
+		// When there are no return types we return the "empty tuple"
+		ret = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
+		if (!ret) {
+			return oom();
+		}
+	}
+
+	auto range = beg_token.range.include(ret->range());
+
+	return new_node<AstFnType>(objs, args, move(effects), ret, move(attrs), range);
 }
 
-AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
+// ArgsType
+//	::= '(' (<ArgsElem> (',' <ArgsElem>)*)? ')'
+// ArgsElem
+//	::= (<Ident> ':')? <Type>
+AstArgsType* Parser::parse_args_type() noexcept {
+	if (peek().kind != Token::Kind::LPAREN) {
+		return ERROR("Expected '('");
+	}
+	auto beg_token = next(); // Consume '('
+	Array<AstArgsType::Elem> elems{m_arena};
+	while (peek().kind != Token::Kind::RPAREN) {
+		auto type = parse_type();
+		if (!type) {
+			return nullptr;
+		}
+		if (peek().kind == Token::Kind::COLON) {
+			if (auto ident = type->to_type<AstIdentType>()) {
+				next(); // Consume ':'
+				auto type = parse_type();
+				if (!type) {
+					return nullptr;
+				}
+				if (!elems.emplace_back(ident->name(), type)) {
+					return oom();
+				}
+			} else {
+				return error(type->range(), "Expected identifier");
+			}
+		} else if (!elems.emplace_back(None{}, type)) {
+			return oom();
+		}
+		if (peek().kind == Token::Kind::COMMA) {
+			next(); // Consume ','
+		} else {
+			break;
+		}
+	}
+	if (peek().kind != Token::Kind::RPAREN) {
+		return ERROR("Expected ')' to terminate arguments");
+	}
+	auto end_token = next(); // Consume ')'
+	auto range = beg_token.range.include(end_token.range);
+	return new_node<AstArgsType>(move(elems), range);
+}
+
+// GroupType
+//	::= '(' <Type>+ ')'
+AstGroupType* Parser::parse_group_type() noexcept {
+	if (peek().kind != Token::Kind::LPAREN) {
+		return ERROR("Expected '('");
+	}
+	auto beg_token = next(); // Consume '('
+	auto type = parse_type();
+	if (!type) {
+		return nullptr;
+	}
+	if (peek().kind != Token::Kind::RPAREN) {
+		return ERROR("Expected ')'");
+	}
+	auto end_token = next(); // Consume ')'
+	auto range = beg_token.range.include(end_token.range);
+	return new_node<AstGroupType>(type, range);
+}
+
+// VarArgsType
+//	::= '...'
+AstVarArgsType* Parser::parse_varargs_type(Array<AstAttr*>&& attrs) noexcept {
+	if (peek().kind != Token::Kind::ELLIPSIS) {
+		return ERROR("Expected '...'");
+	}
+	auto token = next(); // Consume '...'
+	return new_node<AstVarArgsType>(move(attrs), token.range);
+}
+
+AstExpr* Parser::parse_binop_rhs(Ulen depth, int expr_prec, AstExpr* lhs) noexcept {
 	using Op = AstBinExpr::Op;
 	using LOp = AstLBinExpr::Op;
 	for (;;) {
@@ -64,7 +419,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		if (kind == Token::Kind::KW_AS || kind == Token::Kind::KW_IS) {
 			rhs = parse_type_expr();
 		} else {
-			rhs = parse_unary_expr();
+			rhs = parse_unary_expr(depth + 1);
 		}
 		if (!rhs) {
 			return nullptr;
@@ -72,7 +427,7 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 		// Handle less-tight binding for non-unary
 		auto next_prec = peek().binary_prec();
 		if (peek_prec < next_prec) {
-			rhs = parse_binop_rhs(peek_prec + 1, rhs);
+			rhs = parse_binop_rhs(depth + 1, peek_prec + 1, rhs);
 			if (!rhs) {
 				return nullptr;
 			}
@@ -109,14 +464,78 @@ AstExpr* Parser::parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept {
 	}
 }
 
+// Expr
+//	::= <UnaryExpr> <BinOpRHS>
+AstExpr* Parser::parse_expr(Ulen call_depth) noexcept {
+	if (call_depth >= 64) {
+		return error("Stack overflow while parsing expression");
+	}
+	auto lhs = parse_unary_expr(call_depth + 1);
+	if (!lhs) {
+		return nullptr;
+	}
+	return parse_binop_rhs(call_depth + 1, 0, lhs);
+}
+
+// UnaryExpr
+//	::= '!' <UnaryExpr>
+//	  | '-' <UnaryExpr>
+//	  | '+' <UnaryExpr>
+//	  | '*' <UnaryExpr>
+//	  | '&' <UnaryExpr>
+//	  | '...' <UnaryExpr>
+//	  | <PostfixExpr>
+AstExpr* Parser::parse_unary_expr(Ulen depth) noexcept {
+	using Op = AstUnaryExpr::Op;
+	AstExpr* operand = nullptr;
+	auto token = peek();
+	switch (token.kind) {
+	case Token::Kind::NOT:
+		next(); // Consume '!'
+		if (!(operand = parse_unary_expr(depth + 1))) {
+			return nullptr;
+		}
+		return new_node<AstUnaryExpr>(Op::NOT, operand, token.range.include(operand->range()));
+	case Token::Kind::MINUS:
+		next(); // Consume '-'
+		if (!(operand = parse_unary_expr(depth + 1))) {
+			return nullptr;
+		}
+		return new_node<AstUnaryExpr>(Op::NEG, operand, token.range.include(operand->range()));
+	case Token::Kind::PLUS:
+		next(); // Consume '+'
+		return parse_unary_expr(depth + 1);
+	case Token::Kind::STAR:
+		next(); // Consume '*'
+		if (!(operand = parse_unary_expr(depth + 1))) {
+			return nullptr;
+		}
+		return new_node<AstUnaryExpr>(Op::DEREF, operand, token.range.include(operand->range()));
+	case Token::Kind::BAND:
+		next(); // Consume '&'
+		if (!(operand = parse_unary_expr(depth + 1))) {
+			return nullptr;
+		}
+		return new_node<AstUnaryExpr>(Op::ADDROF, operand, token.range.include(operand->range()));
+	case Token::Kind::ELLIPSIS:
+		next();
+		if (!(operand = parse_unary_expr(depth + 1))) {
+			return nullptr;
+		}
+		return new_node<AstExplodeExpr>(operand, token.range.include(operand->range()));
+	default:
+		return parse_postfix_expr(depth + 1);
+	}
+	BIRON_UNREACHABLE();
+}
+
 // PostfixExpr
-//	::= PrimaryExpr '.' PrimaryExpr -- AstBinExpr (DOT)
-//	  | PrimaryExpr '[' Expr ']'    -- AstIndexExpr
-//	  | TypeExpr    '[' ']'         -- AstAggExpr
-//	  | PrimaryExpr TupleExpr       -- AstCallExpr
-//	  | TypeExpr    '{' Expr* '}'   -- AstAggExpr
-AstExpr* Parser::parse_postfix_expr() noexcept {
-	auto operand = parse_primary_expr();
+//	::= <PrimaryExpr> '.' <PrimaryExpr>
+//	  | <PrimaryExpr> '[' <Expr> ']'
+//	  | <PrimaryExpr> <TupleExpr>
+//	  | <TypeExpr>    '{' <Expr>* '}'
+AstExpr* Parser::parse_postfix_expr(Ulen call_depth) noexcept {
+	auto operand = parse_primary_expr(call_depth + 1);
 	if (!operand) {
 		return nullptr;
 	}
@@ -130,7 +549,7 @@ AstExpr* Parser::parse_postfix_expr() noexcept {
 		case Token::Kind::DOT:
 			{
 				next(); // Consume '.'
-				auto expr = parse_primary_expr();
+				auto expr = parse_primary_expr(call_depth + 1);
 				if (!expr) {
 					return nullptr;
 				}
@@ -139,18 +558,18 @@ AstExpr* Parser::parse_postfix_expr() noexcept {
 			}
 			break;
 		case Token::Kind::LBRACKET:
-			if (!(operand = parse_index_expr(operand))) {
+			if (!(operand = parse_index_expr(call_depth + 1, operand))) {
 				return nullptr;
 			}
 			break;
 		case Token::Kind::LPAREN:
-			if (!(operand = parse_call_expr(operand))) {
+			if (!(operand = parse_call_expr(call_depth + 1, operand))) {
 				return nullptr;
 			}
 			break;
 		case Token::Kind::LBRACE:
 			if (operand->is_expr<AstTypeExpr>()) {
-				if (!(operand = parse_agg_expr(operand))) {
+				if (!(operand = parse_agg_expr(call_depth + 1, operand))) {
 					return nullptr;
 				}
 			} else {
@@ -164,77 +583,18 @@ AstExpr* Parser::parse_postfix_expr() noexcept {
 	return nullptr;
 }
 
-// UnaryExpr
-//	::= PostfixExpr
-//	  | '!' UnaryExpr
-//	  | '-' UnaryExpr
-//	  | '+' UnaryExpr
-//	  | '*' UnaryExpr
-//	  | '&' UnaryExpr
-//	  | '...' UnaryExpr
-AstExpr* Parser::parse_unary_expr() noexcept {
-	using Op = AstUnaryExpr::Op;
-	AstExpr* operand = nullptr;
-	auto token = peek();
-	switch (token.kind) {
-	case Token::Kind::NOT:
-		next(); // Consume '!'
-		if (!(operand = parse_unary_expr())) {
-			return nullptr;
-		}
-		return new_node<AstUnaryExpr>(Op::NOT, operand, token.range.include(operand->range()));
-	case Token::Kind::MINUS:
-		next(); // Consume '-'
-		if (!(operand = parse_unary_expr())) {
-			return nullptr;
-		}
-		return new_node<AstUnaryExpr>(Op::NEG, operand, token.range.include(operand->range()));
-	case Token::Kind::PLUS:
-		next(); // Consume '+'
-		return parse_unary_expr();
-	case Token::Kind::STAR:
-		next(); // Consume '*'
-		if (!(operand = parse_unary_expr())) {
-			return nullptr;
-		}
-		return new_node<AstUnaryExpr>(Op::DEREF, operand, token.range.include(operand->range()));
-	case Token::Kind::BAND:
-		next(); // Consume '&'
-		if (!(operand = parse_unary_expr())) {
-			return nullptr;
-		}
-		return new_node<AstUnaryExpr>(Op::ADDROF, operand, token.range.include(operand->range()));
-	case Token::Kind::ELLIPSIS:
-		next();
-		if (!(operand = parse_unary_expr())) {
-			return nullptr;
-		}
-		return new_node<AstExplodeExpr>(operand, token.range.include(operand->range()));
-	default:
-		return parse_postfix_expr();
-	}
-	BIRON_UNREACHABLE();
-}
-
-// Expr
-//	::= PrimaryExpr BinOpRHS
-AstExpr* Parser::parse_expr() noexcept {
-	auto lhs = parse_unary_expr();
-	if (!lhs) {
-		return nullptr;
-	}
-	return parse_binop_rhs(0, lhs);
-}
-
 // PrimaryExpr
-//	::= VarExpr
-//	  | BoolExpr
-//	  | IntExpr
-//	  | StrExpr
-//	  | ChrExpr
-//	  | TupleExpr
-//	  | TypeExpr (* and @)
-AstExpr* Parser::parse_primary_expr() noexcept {
+//	::= <SelectorExpr>
+//	  | <VarExpr>
+//	  | <BoolExpr>
+//	  | <IntExpr>
+//	  | <FltExpr>
+//	  | <StrExpr>
+//	  | <ChrExpr>
+//	  | <TupleExpr>
+//	  | 'new' <TypeExpr>
+//	  | <AggExpr>
+AstExpr* Parser::parse_primary_expr(Ulen call_depth) noexcept {
 	switch (peek().kind) {
 	case Token::Kind::DOT:
 		return parse_selector_expr();
@@ -254,85 +614,21 @@ AstExpr* Parser::parse_primary_expr() noexcept {
 	case Token::Kind::LIT_CHR:
 		return parse_chr_expr();
 	case Token::Kind::LPAREN:
-		return parse_tuple_expr();
+		return parse_tuple_expr(call_depth + 1);
 	case Token::Kind::KW_NEW:
 		next(); // Consume 'new'
 		return parse_type_expr();
 	case Token::Kind::LBRACE:
 		// Aggregate initializer without any type specified
-		return parse_agg_expr(nullptr);
+		return parse_agg_expr(call_depth + 1, nullptr);
 	default:
 		break;
 	}
 	return ERROR("Unknown token '%S' in primary expression", peek().name());
 }
 
-AstExpr* Parser::parse_agg_expr(AstExpr* type_expr) noexcept {
-	AstType* type = nullptr;
-	if (type_expr) {
-		if (auto expr = type_expr->to_expr<AstTypeExpr>()) {
-			type = expr->type();
-		} else {
-			return nullptr;
-		}
-	}
-	if (peek().kind != Token::Kind::LBRACE) {
-		return type_expr;
-	}
-	Array<AstExpr*> exprs{m_arena};
-	auto beg_token = next(); // Skip '{'
-	auto range = beg_token.range;
-	while (peek().kind != Token::Kind::RBRACE) {
-		auto expr = parse_expr();
-		if (!expr) {
-			return nullptr;
-		}
-		if (!exprs.push_back(expr)) {
-			return oom();
-		}
-		if (peek().kind == Token::Kind::COMMA) {
-			next(); // Consume ','
-		} else {
-			break;
-		}
-	}
-	if (peek().kind != Token::Kind::RBRACE) {
-		return ERROR("Expected '}'");
-	}
-	auto end_token = next(); // Skip '}'
-
-	range = range.include(end_token.range);
-
-	if (type) {
-		range = range.include(type->range());
-	}
-
-	return new_node<AstAggExpr>(type, move(exprs), range);
-}
-
-// TypeExpr
-//	::= Type
-AstExpr* Parser::parse_type_expr() noexcept {
-	auto type = parse_type();
-	if (!type) {
-		return nullptr;
-	}
-	return new_node<AstTypeExpr>(type, type->range());
-}
-
-// VarExpr
-//	::= Ident
-AstExpr* Parser::parse_var_expr() noexcept {
-	if (peek().kind != Token::Kind::IDENT) {
-		return ERROR("Expected identifier");
-	}
-	auto token = next(); // Consume ident
-	auto name = m_lexer.string(token.range);
-	return new_node<AstVarExpr>(name, token.range);
-}
-
 // SelectorExpr
-//	::= '.' Ident
+//	::= '.' <Ident>
 AstExpr* Parser::parse_selector_expr() noexcept {
 	if (peek().kind != Token::Kind::DOT) {
 		return ERROR("Expected '.'");
@@ -347,10 +643,39 @@ AstExpr* Parser::parse_selector_expr() noexcept {
 	return new_node<AstSelectorExpr>(name, range);
 }
 
+// VarExpr
+//	::= <Ident>
+AstExpr* Parser::parse_var_expr() noexcept {
+	if (peek().kind != Token::Kind::IDENT) {
+		return ERROR("Expected identifier");
+	}
+	auto token = next(); // Consume ident
+	auto name = m_lexer.string(token.range);
+	return new_node<AstVarExpr>(name, token.range);
+}
+
+// BoolExpr
+//	::= 'true'
+//	  | 'false'
+AstBoolExpr* Parser::parse_bool_expr() noexcept {
+	if (peek().kind != Token::Kind::KW_TRUE &&
+	    peek().kind != Token::Kind::KW_FALSE)
+	{
+		return ERROR("Expected 'true' or 'false'");
+	}
+	auto token = next();
+	if (token.kind == Token::Kind::KW_TRUE) {
+		return new_node<AstBoolExpr>(true, token.range);
+	} else {
+		return new_node<AstBoolExpr>(false, token.range);
+	}
+	BIRON_UNREACHABLE();
+}
+
 // IntExpr
-//	::= '0x' (HexDigit DigitSep?)+
-//	  | '0b' (BinDigit DigitSep?)+
-//	  | (DecDigit DigitSep?)+
+//	::= '0x' (<HexDigit> <DigitSep>?)+
+//	  | '0b' (<BinDigit> <DigitSep>?)+
+//	  | (<DecDigit> <DigitSep>?)+
 // DigitSep
 //	::= "'"
 AstIntExpr* Parser::parse_int_expr() noexcept {
@@ -433,22 +758,8 @@ AstIntExpr* Parser::parse_int_expr() noexcept {
 	return new_node<AstIntExpr>(AstIntExpr::Untyped{n}, token.range);
 }
 
-// ChrExpr
-//	::= Byte
-AstIntExpr* Parser::parse_chr_expr() noexcept {
-	if (peek().kind != Token::Kind::LIT_CHR) {
-		return ERROR("Expected character literal");
-	}
-	auto token = next(); // Consume CHR
-	auto literal = m_lexer.string(token.range);
-	// The lexer retains the quotes in the string so that token.range is accurate,
-	// here we just slice them off.
-	literal = literal.slice(1, literal.length() - 2);
-	return new_node<AstIntExpr>(Uint8(literal[0]), token.range);
-}
-
 // FltExpr
-//	::= (DecDigit DigitSep?)+
+//	::= (<DecDigit> <DigitSep>?)+
 AstFltExpr* Parser::parse_flt_expr() noexcept {
 	if (peek().kind != Token::Kind::LIT_FLT) {
 		return ERROR("Expected float literal");
@@ -500,27 +811,23 @@ AstStrExpr* Parser::parse_str_expr() noexcept {
 	return new_node<AstStrExpr>(literal, token.range);
 }
 
-// BoolExpr
-//	::= true
-//	  | false
-AstBoolExpr* Parser::parse_bool_expr() noexcept {
-	if (peek().kind != Token::Kind::KW_TRUE &&
-	    peek().kind != Token::Kind::KW_FALSE)
-	{
-		return ERROR("Expected 'true' or 'false'");
+// ChrExpr
+//	::= ...
+AstIntExpr* Parser::parse_chr_expr() noexcept {
+	if (peek().kind != Token::Kind::LIT_CHR) {
+		return ERROR("Expected character literal");
 	}
-	auto token = next();
-	if (token.kind == Token::Kind::KW_TRUE) {
-		return new_node<AstBoolExpr>(true, token.range);
-	} else {
-		return new_node<AstBoolExpr>(false, token.range);
-	}
-	BIRON_UNREACHABLE();
+	auto token = next(); // Consume CHR
+	auto literal = m_lexer.string(token.range);
+	// The lexer retains the quotes in the string so that token.range is accurate,
+	// here we just slice them off.
+	literal = literal.slice(1, literal.length() - 2);
+	return new_node<AstIntExpr>(Uint8(literal[0]), token.range);
 }
 
 // TupleExpr
-//	::= '(' Expr (',' Expr)* ')'
-AstTupleExpr* Parser::parse_tuple_expr() noexcept {
+//	::= '(' <Expr> (',' <Expr>)* ')'
+AstTupleExpr* Parser::parse_tuple_expr(Ulen call_depth) noexcept {
 	auto beg_token = peek();
 	if (beg_token.kind != Token::Kind::LPAREN) {
 		return ERROR("Expected '('");
@@ -528,7 +835,7 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 	next(); // Consume '('
 	Array<AstExpr*> exprs{m_arena};
 	while (peek().kind != Token::Kind::RPAREN) {
-		auto expr = parse_expr();
+		auto expr = parse_expr(call_depth + 1);
 		if (!expr) {
 			return nullptr;
 		}
@@ -553,127 +860,39 @@ AstTupleExpr* Parser::parse_tuple_expr() noexcept {
 	return new_node<AstTupleExpr>(move(exprs), range);
 }
 
-// Type
-//	::= IdentType
-//	  | TupleType
-//	  | PtrType
-//	  | AtomType
-//	  | ArrayType
-//	  | SliceType
-//	  | FnType
-//	  | VarArgsType
-//	  | UnionType
-// UnionType
-//	::= Type '|' Type ('|' Type)*
-AstType* Parser::parse_type() noexcept {
-	Array<AstType*> types{m_arena};
-	Array<AstAttr*> attrs{m_arena};
-	// | separates types for union
-	for (;;) {
-		AstType* type = nullptr;
-		switch (peek().kind) {
-		case Token::Kind::IDENT:
-			type = parse_ident_type(move(attrs));
-			break;
-		case Token::Kind::LBRACE:
-			type = parse_tuple_type(move(attrs));
-			break;
-		case Token::Kind::LPAREN:
-			type = parse_group_type();
-			break;
-		case Token::Kind::STAR:
-			type = parse_ptr_type(move(attrs));
-			break;
-		case Token::Kind::AT:
-			next(); // Consume '@'
-			if (peek().kind == Token::Kind::LPAREN) {
-				if (auto at = parse_attrs()) {
-					attrs = move(*at);
-				} else {
-					return nullptr;
-				}
-				continue;
-			} else {
-				type = parse_atom_type(move(attrs));
-			}
-			break;
-		case Token::Kind::LBRACKET:
-			type = parse_bracket_type(move(attrs));
-			break;
-		case Token::Kind::KW_FN:
-			type = parse_fn_type(move(attrs));
-			break;
-		case Token::Kind::ELLIPSIS:
-			type = parse_varargs_type(move(attrs));
-			break;
-		default:
-			return ERROR("Unexpected token '%S' while parsing type", peek().name());
-		}
-		if (!type) {
-			return nullptr;
-		}
-		if (!types.push_back(type)) {
-			return oom();
-		}
-		if (peek().kind == Token::Kind::BOR) {
-			next(); // Consume '|'
+// TypeExpr
+//	::= <Type>
+AstExpr* Parser::parse_type_expr() noexcept {
+	auto type = parse_type();
+	if (!type) {
+		return nullptr;
+	}
+	return new_node<AstTypeExpr>(type, type->range());
+}
+
+// AggExpr
+//	::= '{' Expr* '}'
+AstExpr* Parser::parse_agg_expr(Ulen call_depth, AstExpr* type_expr) noexcept {
+	AstType* type = nullptr;
+	if (type_expr) {
+		if (auto expr = type_expr->to_expr<AstTypeExpr>()) {
+			type = expr->type();
 		} else {
-			break;
-		}
-	}
-	if (types.length() == 1) {
-		return types[0];
-	} else {
-		auto range = types[0]->range();
-		for (auto type : types) {
-			range = range.include(type->range());
-		}
-		return new_node<AstUnionType>(move(types), move(attrs), range);
-	}
-	BIRON_UNREACHABLE();
-}
-
-// IdentType
-//	::= Ident
-AstIdentType* Parser::parse_ident_type(Array<AstAttr*>&& attrs) noexcept {
-	if (peek().kind != Token::Kind::IDENT) {
-		return ERROR("Expected identifier");
-	}
-	auto token = next(); // consume Ident
-	auto name = m_lexer.string(token.range);
-	return new_node<AstIdentType>(name, move(attrs), token.range);
-}
-
-// TupleType
-//	::= '{' '}'
-//	  | '{' TupleElem (',' TupleElem)* '}'
-// TupleElem
-//	::= (Ident ':')? Type
-AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept {
-	if (peek().kind != Token::Kind::LBRACE) {
-		return ERROR("Expected '{'");
-	}
-	auto beg_token = next(); // Consume '('
-	Array<AstTupleType::Elem> elems{m_arena};
-	while (peek().kind != Token::Kind::RBRACE) {
-		auto type = parse_type();
-		if (!type) {
 			return nullptr;
 		}
-		if (peek().kind == Token::Kind::COLON) {
-			if (auto ident = type->to_type<AstIdentType>()) {
-				next(); // Consume ':'
-				auto type = parse_type();
-				if (!type) {
-					return nullptr;
-				}
-				if (!elems.emplace_back(ident->name(), type)) {
-					return oom();
-				}
-			} else {
-				return error(type->range(), "Expected identifier");
-			}
-		} else if (!elems.emplace_back(None{}, type)) {
+	}
+	if (peek().kind != Token::Kind::LBRACE) {
+		return type_expr;
+	}
+	Array<AstExpr*> exprs{m_arena};
+	auto beg_token = next(); // Skip '{'
+	auto range = beg_token.range;
+	while (peek().kind != Token::Kind::RBRACE) {
+		auto expr = parse_expr(call_depth + 1);
+		if (!expr) {
+			return nullptr;
+		}
+		if (!exprs.push_back(expr)) {
 			return oom();
 		}
 		if (peek().kind == Token::Kind::COMMA) {
@@ -683,168 +902,28 @@ AstTupleType* Parser::parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept 
 		}
 	}
 	if (peek().kind != Token::Kind::RBRACE) {
-		return ERROR("Expected '}' to terminate tuple type");
+		return ERROR("Expected '}'");
 	}
-	auto end_token = next(); // Consume '}'
-	return new_node<AstTupleType>(move(elems),
-	                              attrs ? move(*attrs) : AttrArray{ m_arena },
-	                              beg_token.range.include(end_token.range));
+	auto end_token = next(); // Skip '}'
+
+	range = range.include(end_token.range);
+
+	if (type) {
+		range = range.include(type->range());
+	}
+
+	return new_node<AstAggExpr>(type, move(exprs), range);
 }
 
-// ArgsType
-//	::= '(' ')'
-//	  | '(' ArgsElem (',' ArgsElem)* ')'
-// ArgsElem
-//	::= (Ident ':')? Type
-AstArgsType* Parser::parse_args_type() noexcept {
-	if (peek().kind != Token::Kind::LPAREN) {
-		return ERROR("Expected '('");
-	}
-	auto beg_token = next(); // Consume '('
-	Array<AstArgsType::Elem> elems{m_arena};
-	while (peek().kind != Token::Kind::RPAREN) {
-		auto type = parse_type();
-		if (!type) {
-			return nullptr;
-		}
-		if (peek().kind == Token::Kind::COLON) {
-			if (auto ident = type->to_type<AstIdentType>()) {
-				next(); // Consume ':'
-				auto type = parse_type();
-				if (!type) {
-					return nullptr;
-				}
-				if (!elems.emplace_back(ident->name(), type)) {
-					return oom();
-				}
-			} else {
-				return error(type->range(), "Expected identifier");
-			}
-		} else if (!elems.emplace_back(None{}, type)) {
-			return oom();
-		}
-		if (peek().kind == Token::Kind::COMMA) {
-			next(); // Consume ','
-		} else {
-			break;
-		}
-	}
-	if (peek().kind != Token::Kind::RPAREN) {
-		return ERROR("Expected ')' to terminate arguments");
-	}
-	auto end_token = next(); // Consume ')'
-	auto range = beg_token.range.include(end_token.range);
-	return new_node<AstArgsType>(move(elems), range);
-}
-
-// GroupType
-//	::= '(' Type+ ')'
-AstGroupType* Parser::parse_group_type() noexcept {
-	if (peek().kind != Token::Kind::LPAREN) {
-		return ERROR("Expected '('");
-	}
-	auto beg_token = next(); // Consume '('
-	auto type = parse_type();
-	if (!type) {
-		return nullptr;
-	}
-	if (peek().kind != Token::Kind::RPAREN) {
-		return ERROR("Expected ')'");
-	}
-	auto end_token = next(); // Consume ')'
-	auto range = beg_token.range.include(end_token.range);
-	return new_node<AstGroupType>(type, range);
-}
-
-// VarArgsType
-//	::= '...'
-AstVarArgsType* Parser::parse_varargs_type(Array<AstAttr*>&& attrs) noexcept {
-	if (peek().kind != Token::Kind::ELLIPSIS) {
-		return ERROR("Expected '...'");
-	}
-	auto token = next(); // Consume '...'
-	return new_node<AstVarArgsType>(move(attrs), token.range);
-}
-
-// PtrType
-//	::= '*' Type
-AstPtrType* Parser::parse_ptr_type(Array<AstAttr*>&& attrs) noexcept {
-	if (peek().kind != Token::Kind::STAR) {
-		return ERROR("Expected '*'");
-	}
-	auto token = next(); // Consume '*'
-	auto type = parse_type();
-	if (!type) {
-		return nullptr;
-	}
-	return new_node<AstPtrType>(type, move(attrs), token.range.include(type->range()));
-}
-
-// AtomType
-//	::= '@' Type
-AstAtomType* Parser::parse_atom_type(Array<AstAttr*>&& attrs) noexcept {
-	// The '@' is consumed by the caller.
-	auto type = parse_type();
-	if (!type) {
-		return nullptr;
-	}
-	return new_node<AstAtomType>(type, move(attrs), type->range());
-}
-
-// BracketType
-//	::= EnumType
-//	  | ArrayType
-//	  | SliceType
-// ArrayType
-//	::= '[' (Expr | '?') ']' Type
-// SliceType
-//	::= '[' ']' Type
-// EnumType
-//	::= '[' Enum (',' Enum)* ']'
-// Enum
-//	::= '.' Ident ('=' Expr)?
-AstType* Parser::parse_bracket_type(Array<AstAttr*>&& attrs) noexcept {
+// IndexExpr
+//	::= '[' <Expr> ']'
+AstExpr* Parser::parse_index_expr(Ulen call_depth, AstExpr* operand) noexcept {
 	if (peek().kind != Token::Kind::LBRACKET) {
 		return ERROR("Expected '['");
 	}
 	auto beg_token = next(); // Consume '['
-	Array<AstEnumType::Enumerator> enums{m_arena};
-	AstExpr* expr = nullptr;
-	if (peek().kind == Token::Kind::DOT) {
-		while (peek().kind != Token::Kind::RBRACKET) {
-			if (peek().kind != Token::Kind::DOT) {
-				return ERROR("Expected '.' prefix in enumerator");
-			}
-			next(); // Consume '.'
-			if (peek().kind != Token::Kind::IDENT) {
-				return ERROR("Expected identifier");
-			}
-			auto name_token = next(); // Consume Ident
-			AstExpr* init = nullptr;
-			if (peek().kind == Token::Kind::EQ) {
-				next(); // Consume '='
-				init = parse_expr();
-				if (!init) {
-					return nullptr;
-				}
-			}
-			auto name = m_lexer.string(name_token.range);
-			if (!enums.emplace_back(name, init)) {
-				return oom();
-			}
-			if (peek().kind == Token::Kind::COMMA) {
-				next(); // Consume ','
-			} else {
-				break;
-			}
-		}
-	} else if (peek().kind == Token::Kind::QUESTION) {
-		auto token = next(); // Consume '?'
-		expr = new_node<AstInferSizeExpr>(token.range);
-	} else {
-		expr = parse_expr();
-	}
-	if (enums.empty() && !expr) {
+	auto index = parse_expr(call_depth + 1);
+	if (!index) {
 		return nullptr;
 	}
 	if (peek().kind != Token::Kind::RBRACKET) {
@@ -852,96 +931,22 @@ AstType* Parser::parse_bracket_type(Array<AstAttr*>&& attrs) noexcept {
 	}
 	auto end_token = next(); // Consume ']'
 	auto range = beg_token.range.include(end_token.range);
-	if (enums.empty()) {
-		auto type = parse_type();
-		if (!type) {
-			return nullptr;
-		}
-		range = range.include(type->range());
-		if (expr) {
-			return new_node<AstArrayType>(type, expr, move(attrs), range);
-		} else {
-			return new_node<AstSliceType>(type, move(attrs), range);
-		}
-	}
-	return new_node<AstEnumType>(move(enums), move(attrs), range);
+	return new_node<AstIndexExpr>(operand, index, range);
 }
 
-// FnType
-//	::= 'fn' ArgsType ArgsType? Effects? ('->' Type)? BlockStmt
-// Effects
-//	::= '<' Ident (',' Ident)* '>'
-AstFnType* Parser::parse_fn_type(Array<AstAttr*>&& attrs) noexcept {
-	if (peek().kind != Token::Kind::KW_FN) {
-		return ERROR("Expected 'fn'");
-	}
-
-	auto beg_token = next(); // Consume 'fn'
-
-	// This might be the objs or args list.
-	AstArgsType* tuple = parse_args_type();
-	if (!tuple) {
+// CallExpr
+//	::= <Expr> <TupleExpr>
+AstExpr* Parser::parse_call_expr(Ulen call_depth, AstExpr* operand) noexcept {
+	auto args = parse_tuple_expr(call_depth + 1);
+	if (!args) {
 		return nullptr;
 	}
-	
-	AstArgsType* objs = nullptr;
-	AstArgsType* args = nullptr;
-	if (peek().kind == Token::Kind::LPAREN) {
-		objs = tuple;
-		args = parse_args_type();
-		if (!args) {
-			return nullptr;
-		}
-	} else {
-		// When there are no objs we use an empty args.
-		objs = new_node<AstArgsType>(m_arena, Range{0, 0});
-		if (!objs) {
-			return nullptr;
-		}
-		args = tuple;
+	auto range = operand->range().include(args->range());
+	Bool is_c = false;
+	if (operand->is_expr<AstVarExpr>()) {
+		is_c = static_cast<const AstVarExpr*>(operand)->name() == "printf";
 	}
-
-	Array<AstIdentType*> effects{m_arena};
-	if (peek().kind == Token::Kind::LT) {
-		next(); // Consume '<'
-		while (peek().kind != Token::Kind::GT) {
-			auto type = parse_ident_type({m_arena});
-			if (!type) {
-				return nullptr;
-			}
-			if (!effects.push_back(type)) {
-				return oom();
-			}
-			if (peek().kind == Token::Kind::COMMA) {
-				next(); // Consume ','
-			} else {
-				break;
-			}
-		}
-		if (peek().kind != Token::Kind::GT) {
-			return ERROR("Expected '>'");
-		}
-		next(); // Consume '>'
-	}
-
-	AstType* ret = nullptr;
-	if (peek().kind == Token::Kind::ARROW) {
-		next(); // Consume '->'
-		ret = parse_type();
-		if (!ret) {
-			return nullptr;
-		}
-	} else {
-		// When there are no return types we return the "empty tuple"
-		ret = new_node<AstTupleType>(m_arena, m_arena, Range{0, 0});
-		if (!ret) {
-			return oom();
-		}
-	}
-
-	auto range = beg_token.range.include(ret->range());
-
-	return new_node<AstFnType>(objs, args, move(effects), ret, move(attrs), range);
+	return new_node<AstCallExpr>(operand, args, is_c, range);
 }
 
 // Stmt
@@ -993,7 +998,7 @@ AstStmt* Parser::parse_stmt() noexcept {
 }
 
 // BlockStmt
-//	::= '{' Stmt* '}'
+//	::= '{' <Stmt>* '}'
 AstBlockStmt* Parser::parse_block_stmt() noexcept {
 	if (peek().kind != Token::Kind::LBRACE) {
 		return ERROR("Expected '{'");
@@ -1022,7 +1027,7 @@ AstBlockStmt* Parser::parse_block_stmt() noexcept {
 }
 
 // ReturnStmt
-//	::= 'return' Expr? ';'
+//	::= 'return' <Expr>? ';'
 AstReturnStmt* Parser::parse_return_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_RETURN) {
 		return ERROR("Expected 'return'");
@@ -1033,7 +1038,7 @@ AstReturnStmt* Parser::parse_return_stmt() noexcept {
 	auto beg_token = next(); // Consume 'return'
 	AstExpr* expr = nullptr;
 	if (peek().kind != Token::Kind::SEMI) {
-		expr = parse_expr();
+		expr = parse_expr(0);
 		if (!expr) {
 			return nullptr;
 		}
@@ -1050,7 +1055,7 @@ AstReturnStmt* Parser::parse_return_stmt() noexcept {
 }
 
 // DeferStmt
-//	::= 'defer' Stmt
+//	::= 'defer' <Stmt>
 AstDeferStmt* Parser::parse_defer_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_DEFER) {
 		return ERROR("Expected 'defer'");
@@ -1094,7 +1099,7 @@ AstContinueStmt* Parser::parse_continue_stmt() noexcept {
 }
 
 // IfStmt
-//	::= 'if' LetStmt? Expr BlockStmt ('else' (IfStmt | BlockStmt))?
+//	::= 'if' <LetStmt>? <Expr> <BlockStmt> ('else' (<IfStmt> | <BlockStmt>))?
 AstIfStmt* Parser::parse_if_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_IF) {
 		return ERROR("Expected 'if'");
@@ -1107,7 +1112,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 			return nullptr;
 		}
 	}
-	auto expr = parse_expr();
+	auto expr = parse_expr(0);
 	if (!expr) {
 		return nullptr;
 	}
@@ -1144,7 +1149,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 }
 
 // LetStmt
-//	::= 'let' Ident '=' Expr ';'
+//	::= 'let' <Ident> '=' <Expr> ';'
 AstStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noexcept {
 	if (peek().kind != Token::Kind::KW_LET) {
 		return ERROR("Expected 'let'");
@@ -1159,7 +1164,7 @@ AstStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noe
 		return ERROR("Expected expression");
 	}
 	next(); // Consume '='
-	auto init = parse_expr();
+	auto init = parse_expr(0);
 	if (!init) {
 		return nullptr;
 	}
@@ -1183,7 +1188,7 @@ AstStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noe
 }
 
 // UsingStmt
-//	::= 'using' Ident '=' Expr ';'
+//	::= 'using' <Ident> '=' <Expr> ';'
 AstUsingStmt* Parser::parse_using_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_USING) {
 		return ERROR("Expected 'using'");
@@ -1198,7 +1203,7 @@ AstUsingStmt* Parser::parse_using_stmt() noexcept {
 		return ERROR("Expected expression");
 	}
 	next(); // Consume '='
-	auto init = parse_expr();
+	auto init = parse_expr(0);
 	if (!init) {
 		return nullptr;
 	}
@@ -1210,79 +1215,8 @@ AstUsingStmt* Parser::parse_using_stmt() noexcept {
 	return new_node<AstUsingStmt>(name, init, range);
 }
 
-// Module
-//	::= 'module' Ident ';'
-AstModule* Parser::parse_module() noexcept {
-	if (peek().kind != Token::Kind::KW_MODULE) {
-		return ERROR("Expected 'module'");
-	}
-	auto module_token = next(); // Consume 'module'
-	if (peek().kind != Token::Kind::IDENT) {
-		return ERROR("Expected identifier after 'module'");
-	}
-	auto ident_token = next(); // Consume Ident
-	if (peek().kind != Token::Kind::SEMI) {
-		return ERROR("Expected ';'");
-	}
-	next(); // Consume ';'
-	auto ident_string = m_lexer.string(ident_token.range);
-	auto range = module_token.range.include(ident_token.range);
-	return new_node<AstModule>(ident_string, range);
-}
-
-// Import
-//	::= 'import' Ident ';'
-AstImport* Parser::parse_import() noexcept {
-	if (peek().kind != Token::Kind::KW_IMPORT) {
-		return ERROR("Expected 'import'");
-	}
-	auto import_token = next(); // Consume 'import'
-	if (peek().kind != Token::Kind::IDENT) {
-		return ERROR("Expected identifier after 'import'");
-	}
-	auto ident_token = next(); // Consume Ident
-	if (peek().kind != Token::Kind::SEMI) {
-		return ERROR("Expected ';'");
-	}
-	next(); // Consume ';'
-	auto ident_string = m_lexer.string(ident_token.range);
-	auto range = import_token.range.include(ident_token.range);
-	return new_node<AstImport>(ident_string, range);
-}
-
-// Effect
-//	::= 'effect' Ident '=' Type ';'
-AstEffect* Parser::parse_effect() noexcept {
-	if (peek().kind != Token::Kind::KW_EFFECT) {
-		return ERROR("Expected 'effect'");
-	}
-	auto effect_token = next(); // Consume 'effect'
-	auto range = effect_token.range;
-	if (peek().kind != Token::Kind::IDENT) {
-		return ERROR("Expected identifier after 'effect'");
-	}
-	auto ident_token = next(); // Consume ident
-	range = range.include(ident_token.range);
-	if (peek().kind != Token::Kind::EQ) {
-		return ERROR("Expected '='");
-	}
-	next(); // Consume '='
-	auto type = parse_type();
-	if (!type) {
-		return nullptr;
-	}
-	range = range.include(type->range());
-	if (peek().kind != Token::Kind::SEMI) {
-		return ERROR("Expected ';'");
-	}
-	next(); // Consume ';'
-	auto ident_string = m_lexer.string(ident_token.range);
-	return new_node<AstEffect>(ident_string, type, range);
-}
-
 // ForStmt
-//	::= 'for' BlockStmt
-//	  | 'for' LetStmt? Expr BlockStmt ('else' BlockStmt)?
+//	::= 'for' (<LetStmt>? <Expr> <Stmt>?)? <BlockStmt> ('else' <BlockStmt>)?
 AstForStmt* Parser::parse_for_stmt() noexcept {
 	if (peek().kind != Token::Kind::KW_FOR) {
 		return ERROR("Expected 'for'");
@@ -1296,7 +1230,7 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 		}
 	}
 	if (peek().kind != Token::Kind::LBRACE) {
-		if (!(expr = parse_expr())) {
+		if (!(expr = parse_expr(0))) {
 			return nullptr;
 		}
 	}
@@ -1336,10 +1270,9 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 }
 
 // ExprStmt
-//	::= Expr ';'
-//	  | Expr '=' Expr ';'
+//	::= <Expr> ('=' <Expr>)? ';'
 AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
-	auto expr = parse_expr();
+	auto expr = parse_expr(0);
 	if (!expr) {
 		return nullptr;
 	}
@@ -1353,7 +1286,7 @@ AstStmt* Parser::parse_expr_stmt(Bool semi) noexcept {
 	 || token.kind == Token::Kind::FSLASHEQ)
 	{
 		next(); // Consume '='
-		auto value = parse_expr();
+		auto value = parse_expr(0);
 		if (!value) {
 			return nullptr;
 		}
@@ -1460,7 +1393,7 @@ AstFn* Parser::parse_fn(Array<AstAttr*>&& attrs) noexcept {
 }
 
 // Typedef
-//	::= 'type' Ident '=' Type ';'
+//	::= 'type' <Ident> '=' <Type> ';'
 AstTypedef* Parser::parse_typedef(Array<AstAttr*>&& attrs) noexcept {
 	if (peek().kind != Token::Kind::KW_TYPE) {
 		return ERROR("Expected type");
@@ -1487,10 +1420,80 @@ AstTypedef* Parser::parse_typedef(Array<AstAttr*>&& attrs) noexcept {
 	return new_node<AstTypedef>(name, type, move(attrs), range);
 }
 
+// Module
+//	::= 'module' <Ident> ';'
+AstModule* Parser::parse_module() noexcept {
+	if (peek().kind != Token::Kind::KW_MODULE) {
+		return ERROR("Expected 'module'");
+	}
+	auto module_token = next(); // Consume 'module'
+	if (peek().kind != Token::Kind::IDENT) {
+		return ERROR("Expected identifier after 'module'");
+	}
+	auto ident_token = next(); // Consume Ident
+	if (peek().kind != Token::Kind::SEMI) {
+		return ERROR("Expected ';'");
+	}
+	next(); // Consume ';'
+	auto ident_string = m_lexer.string(ident_token.range);
+	auto range = module_token.range.include(ident_token.range);
+	return new_node<AstModule>(ident_string, range);
+}
+
+// Import
+//	::= 'import' <Ident> ';'
+AstImport* Parser::parse_import() noexcept {
+	if (peek().kind != Token::Kind::KW_IMPORT) {
+		return ERROR("Expected 'import'");
+	}
+	auto import_token = next(); // Consume 'import'
+	if (peek().kind != Token::Kind::IDENT) {
+		return ERROR("Expected identifier after 'import'");
+	}
+	auto ident_token = next(); // Consume Ident
+	if (peek().kind != Token::Kind::SEMI) {
+		return ERROR("Expected ';'");
+	}
+	next(); // Consume ';'
+	auto ident_string = m_lexer.string(ident_token.range);
+	auto range = import_token.range.include(ident_token.range);
+	return new_node<AstImport>(ident_string, range);
+}
+
+// Effect
+//	::= 'effect' <Ident> '=' <Type> ';'
+AstEffect* Parser::parse_effect() noexcept {
+	if (peek().kind != Token::Kind::KW_EFFECT) {
+		return ERROR("Expected 'effect'");
+	}
+	auto effect_token = next(); // Consume 'effect'
+	auto range = effect_token.range;
+	if (peek().kind != Token::Kind::IDENT) {
+		return ERROR("Expected identifier after 'effect'");
+	}
+	auto ident_token = next(); // Consume ident
+	range = range.include(ident_token.range);
+	if (peek().kind != Token::Kind::EQ) {
+		return ERROR("Expected '='");
+	}
+	next(); // Consume '='
+	auto type = parse_type();
+	if (!type) {
+		return nullptr;
+	}
+	range = range.include(type->range());
+	if (peek().kind != Token::Kind::SEMI) {
+		return ERROR("Expected ';'");
+	}
+	next(); // Consume ';'
+	auto ident_string = m_lexer.string(ident_token.range);
+	return new_node<AstEffect>(ident_string, type, range);
+}
+
 // AttrList
-//	::= '@' '(' Attr (',' Attr)* ')'
+//	::= '@' '(' <Attr> (',' <Attr>)* ')'
 // Attr
-//	::= Ident TupleExpr
+//	::= <Ident> <TupleExpr>?
 Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 	// The '@' is consumed by the caller
 	if (peek().kind != Token::Kind::LPAREN) {
@@ -1516,7 +1519,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 		} else {
 			return ERROR("Unknown attribute: '%S'", name);
 		}
-		auto args = parse_tuple_expr();
+		auto args = parse_tuple_expr(0);
 		if (!args || args->length() != 1) {
 			return None{};
 		}

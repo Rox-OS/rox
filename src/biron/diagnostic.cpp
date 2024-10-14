@@ -51,7 +51,8 @@ void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept
 	m_terminal.err(StringView { msg->data(), msg->length() });
 
 	// Print the offending line.
-	if (range.offset == 0) {
+	const auto len = m_lexer.data().length();
+	if (range.offset == 0 || range.offset >= len) {
 		// Do not print the offending line when the error range is invalid.
 		return;
 	}
@@ -61,7 +62,7 @@ void Diagnostic::diagnostic(Range range, Kind kind, StringView message) noexcept
 	while (line_beg && m_lexer[line_beg - 1] != '\n') {
 		line_beg--;
 	}
-	while (m_lexer[line_end] != '\n') {
+	while (line_end < len && m_lexer[line_end] != '\n') {
 		line_end++;
 	}
 	const auto line_len = line_end - line_beg;

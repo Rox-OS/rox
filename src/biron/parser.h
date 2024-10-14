@@ -54,49 +54,6 @@ struct Parser {
 
 	~Parser() noexcept = default;
 
-	// Biron Expression
-	[[nodiscard]] AstExpr*         parse_expr() noexcept;
-	[[nodiscard]] AstTupleExpr*    parse_tuple_expr() noexcept;
-	[[nodiscard]] AstIntExpr*      parse_int_expr() noexcept;
-	[[nodiscard]] AstFltExpr*      parse_flt_expr() noexcept;
-	[[nodiscard]] AstStrExpr*      parse_str_expr() noexcept;
-	[[nodiscard]] AstBoolExpr*     parse_bool_expr() noexcept;
-	[[nodiscard]] AstIntExpr*      parse_chr_expr() noexcept;
-
-	// Types
-	[[nodiscard]] AstType*         parse_type() noexcept;
-	[[nodiscard]] AstTupleType*    parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
-	[[nodiscard]] AstArgsType*     parse_args_type() noexcept;
-	[[nodiscard]] AstGroupType*    parse_group_type() noexcept;
-	[[nodiscard]] AstIdentType*    parse_ident_type(Array<AstAttr*>&& attrs) noexcept;
-	[[nodiscard]] AstVarArgsType*  parse_varargs_type(Array<AstAttr*>&& attrs) noexcept;
-	[[nodiscard]] AstPtrType*      parse_ptr_type(Array<AstAttr*>&& attrs) noexcept;
-	[[nodiscard]] AstAtomType*     parse_atom_type(Array<AstAttr*>&& attrs) noexcept;
-	[[nodiscard]] AstFnType*       parse_fn_type(Array<AstAttr*>&& attrs) noexcept;
-
-	// Statements
-	[[nodiscard]] AstStmt*         parse_stmt() noexcept;
-	[[nodiscard]] AstBlockStmt*    parse_block_stmt() noexcept;
-	[[nodiscard]] AstReturnStmt*   parse_return_stmt() noexcept;
-	[[nodiscard]] AstDeferStmt*    parse_defer_stmt() noexcept;
-	[[nodiscard]] AstBreakStmt*    parse_break_stmt() noexcept;
-	[[nodiscard]] AstContinueStmt* parse_continue_stmt() noexcept;
-	[[nodiscard]] AstIfStmt*       parse_if_stmt() noexcept;
-	[[nodiscard]] AstStmt*         parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noexcept;
-	[[nodiscard]] AstUsingStmt*    parse_using_stmt() noexcept;
-	[[nodiscard]] AstForStmt*      parse_for_stmt() noexcept;
-	[[nodiscard]] AstStmt*         parse_expr_stmt(Bool semi) noexcept;
-
-	// Attributes
-	[[nodiscard]] Maybe<Array<AstAttr*>>  parse_attrs() noexcept;
-
-	// Top-level elements
-	[[nodiscard]] AstFn*           parse_fn(Array<AstAttr*>&& attrs) noexcept;
-	[[nodiscard]] AstTypedef*      parse_typedef(Array<AstAttr*>&& attrs) noexcept;
-	[[nodiscard]] AstModule*       parse_module() noexcept;
-	[[nodiscard]] AstImport*       parse_import() noexcept;
-	[[nodiscard]] AstEffect*       parse_effect() noexcept;
-
 	Maybe<Ast> parse() noexcept;
 
 private:
@@ -123,18 +80,59 @@ private:
 		return fatal("Out of memory while parsing");
 	}
 
-	[[nodiscard]] AstExpr* parse_primary_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_postfix_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_unary_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_var_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_selector_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_agg_expr(AstExpr* type) noexcept;
-	[[nodiscard]] AstExpr* parse_type_expr() noexcept;
-	[[nodiscard]] AstExpr* parse_index_expr(AstExpr* operand) noexcept;
-	[[nodiscard]] AstExpr* parse_call_expr(AstExpr* operand) noexcept;
-	[[nodiscard]] AstExpr* parse_binop_rhs(int expr_prec, AstExpr* lhs) noexcept;
-	[[nodiscard]] AstType* parse_bracket_type(Array<AstAttr*>&& attrs) noexcept;
-	[[nodiscard]] AstType* parse_enum_type(Array<AstAttr*>&& attrs) noexcept;
+	// Types
+	[[nodiscard]] AstType*                parse_type() noexcept;
+	[[nodiscard]] AstIdentType*           parse_ident_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstTupleType*           parse_tuple_type(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstPtrType*             parse_ptr_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstAtomType*            parse_atom_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstType*                parse_bracket_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstFnType*              parse_fn_type(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstArgsType*            parse_args_type() noexcept; // meta type
+	[[nodiscard]] AstGroupType*           parse_group_type() noexcept; // meta t
+	[[nodiscard]] AstVarArgsType*         parse_varargs_type(Array<AstAttr*>&& attrs) noexcept;
+
+	// Expressions
+	[[nodiscard]] AstExpr*                parse_expr(Ulen call_depth) noexcept;
+	[[nodiscard]] AstExpr*                parse_unary_expr(Ulen call_depth) noexcept;
+	[[nodiscard]] AstExpr*                parse_postfix_expr(Ulen call_depth) noexcept;
+	[[nodiscard]] AstExpr*                parse_primary_expr(Ulen call_depth) noexcept;
+
+	[[nodiscard]] AstExpr*                parse_selector_expr() noexcept;
+	[[nodiscard]] AstExpr*                parse_var_expr() noexcept;
+	[[nodiscard]] AstBoolExpr*            parse_bool_expr() noexcept;
+	[[nodiscard]] AstIntExpr*             parse_int_expr() noexcept;
+	[[nodiscard]] AstFltExpr*             parse_flt_expr() noexcept;
+	[[nodiscard]] AstStrExpr*             parse_str_expr() noexcept;
+	[[nodiscard]] AstIntExpr*             parse_chr_expr() noexcept;
+	[[nodiscard]] AstTupleExpr*           parse_tuple_expr(Ulen call_depth) noexcept;
+	[[nodiscard]] AstExpr*                parse_type_expr() noexcept;
+	[[nodiscard]] AstExpr*                parse_agg_expr(Ulen call_depth, AstExpr* type) noexcept;
+	
+	[[nodiscard]] AstExpr*                parse_index_expr(Ulen call_depth, AstExpr* operand) noexcept;
+	[[nodiscard]] AstExpr*                parse_call_expr(Ulen call_depth, AstExpr* operand) noexcept;
+	[[nodiscard]] AstExpr*                parse_binop_rhs(Ulen call_depth, int expr_prec, AstExpr* lhs) noexcept;
+
+	// Statements
+	[[nodiscard]] AstStmt*                parse_stmt() noexcept;
+	[[nodiscard]] AstBlockStmt*           parse_block_stmt() noexcept;
+	[[nodiscard]] AstReturnStmt*          parse_return_stmt() noexcept;
+	[[nodiscard]] AstDeferStmt*           parse_defer_stmt() noexcept;
+	[[nodiscard]] AstBreakStmt*           parse_break_stmt() noexcept;
+	[[nodiscard]] AstContinueStmt*        parse_continue_stmt() noexcept;
+	[[nodiscard]] AstIfStmt*              parse_if_stmt() noexcept;
+	[[nodiscard]] AstStmt*                parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noexcept;
+	[[nodiscard]] AstUsingStmt*           parse_using_stmt() noexcept;
+	[[nodiscard]] AstForStmt*             parse_for_stmt() noexcept;
+	[[nodiscard]] AstStmt*                parse_expr_stmt(Bool semi) noexcept;
+
+	// Attributes
+	[[nodiscard]] Maybe<Array<AstAttr*>>  parse_attrs() noexcept;
+	[[nodiscard]] AstFn*                  parse_fn(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstTypedef*             parse_typedef(Array<AstAttr*>&& attrs) noexcept;
+	[[nodiscard]] AstModule*              parse_module() noexcept;
+	[[nodiscard]] AstImport*              parse_import() noexcept;
+	[[nodiscard]] AstEffect*              parse_effect() noexcept;
 
 	Token next() noexcept {
 		m_last_token = m_this_token;

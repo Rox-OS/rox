@@ -47,6 +47,12 @@ Maybe<Cond> Cond::make(const System& system) noexcept {
 	return Cond { system, cond };
 }
 
+Cond::~Cond() {
+	if (m_cond) {
+		m_system.cond_destroy(m_system, m_cond);
+	}
+}
+
 void Cond::wait(Mutex& mutex) noexcept {
 	m_system.cond_wait(m_system, m_cond, mutex.m_mutex);
 }
