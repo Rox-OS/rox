@@ -80,26 +80,25 @@ struct Ast {
 		return new (addr, Nat{}) T{forward<Ts>(args)...};
 	}
 
-private:
-	friend struct AstIdentType; // hack for now
+	template<typename T>
+	const Cache* cache() const noexcept {
+		static const Uint32 id = AstID::id<T>();
+		const auto cache = m_caches.at(id);
+		return cache && *cache ? &cache->some() : nullptr;
+	}
 
+private:
 	Allocator&          m_allocator;
 	Array<Maybe<Cache>> m_caches;
 };
 
 template<typename T>
 struct AstRef {
-	T& obj(Ast& ast) noexcept {
-		return *ptr(ast);
+	T* read(Ast& ast) noexcept {
+		return static_cast<T*>((*ast.cache<T>())[m_index]);
 	}
-	const T& obj(const Ast& ast) const noexcept {
-		return *ptr(ast);
-	}
-	T* ptr(Ast& ast) noexcept {
-		return static_cast<T*>(ast.m_caches[AstID::id<T>()][m_index]);
-	}
-	const T* ptr(const Ast& ast) const noexcept {
-		return static_cast<const T*>(ast.m_caches[AstID::id<T>()][m_index]);
+	const T* read(const Ast& ast) const noexcept {
+		return static_cast<const T*>((*ast.cache<T>())[m_index]);
 	}
 private:
 	Uint32 m_index;

@@ -332,14 +332,13 @@ Bool AstModule::codegen(Cg& cg) const noexcept {
 
 Bool Ast::codegen(Cg& cg) const noexcept {
 	// We should have at least one top-level module.
-	auto& modules = m_caches[AstID::id<AstModule>()];
+	const auto modules = cache<AstModule>();
 	if (!modules || modules->empty()) {
 		return cg.error(Range{0, 0}, "Missing 'module'");
 	}
 	if (modules->length() > 1) {
 		return cg.error(Range{0, 0}, "Multiple 'module' definitions in file");
 	}
-
 	auto module = static_cast<const AstModule*>((*modules)[0]);
 	if (!module->codegen(cg)) {
 		return false;
@@ -434,50 +433,53 @@ Bool Ast::codegen(Cg& cg) const noexcept {
 
 	// Emit all the global let statements first since types may depend on them for
 	// e.g array extents and what not.
-	const auto& glets = m_caches[AstID::id<AstGLetStmt>()];
-	if (glets) for (auto let : *glets) {
-		cg.scratch->clear();
-		if (!static_cast<const AstGLetStmt*>(let)->codegen(cg)) {
-			return false;
+	if (const auto glets = cache<AstGLetStmt>()) {
+		for (auto let : *glets) {
+			cg.scratch->clear();
+			if (!static_cast<const AstGLetStmt*>(let)->codegen(cg)) {
+				return false;
+			}
 		}
 	}
 
 	// Emit all the types next. Each type will recurse and resolve their types
 	// and mark the type as already being generated so that this main loop does
 	// not generate the same type twice. This is how we do a topological sort.
-	const auto& typedefs = m_caches[AstID::id<AstTypedef>()];
-	if (typedefs) for (auto type : *typedefs) {
-		cg.scratch->clear();
-		if (!static_cast<const AstTypedef*>(type)->codegen(cg)) {
-			return false;
+	if (const auto typedefs = cache<AstTypedef>()) {
+		for (auto type : *typedefs) {
+			cg.scratch->clear();
+			if (!static_cast<const AstTypedef*>(type)->codegen(cg)) {
+				return false;
+			}
 		}
 	}
 
 	// Emit all the effects next.
-	const auto& effects = m_caches[AstID::id<AstEffect>()];
-	if (effects) for (auto effect : *effects) {
-		cg.scratch->clear();
-		if (!static_cast<const AstEffect*>(effect)->codegen(cg)) {
-			return false;
+	if (const auto effects = cache<AstEffect>()) {
+		for (auto effect : *effects) {
+			cg.scratch->clear();
+			if (!static_cast<const AstEffect*>(effect)->codegen(cg)) {
+				return false;
+			}
 		}
 	}
 
-	// Before we codegen functions we do a preprocessing step to make sure all
-	// functions have values generated for them so that we do not need function
-	// prototypes in our language.
-	const auto& fns = m_caches[AstID::id<AstFn>()];
-	if (fns) for (auto fn : *fns) {
-		cg.scratch->clear();
-		if (!static_cast<const AstFn*>(fn)->prepass(cg)) {
-			return false;
+	if (const auto fns = cache<AstFn>()) {
+		// Before we codegen functions we do a preprocessing step to make sure all
+		// functions have values generated for them so that we do not need function
+		// prototypes in our language.
+		for (auto fn : *fns) {
+			cg.scratch->clear();
+			if (!static_cast<const AstFn*>(fn)->prepass(cg)) {
+				return false;
+			}
 		}
-	}
-
-	// We can then codegen functions in any order we so desire.
-	if (fns) for (auto fn : *fns) {
-		cg.scratch->clear();
-		if (!static_cast<const AstFn*>(fn)->codegen(cg)) {
-			return false;
+		// We can then codegen functions in any order we so desire.
+		for (auto fn : *fns) {
+			cg.scratch->clear();
+			if (!static_cast<const AstFn*>(fn)->codegen(cg)) {
+				return false;
+			}
 		}
 	}
 

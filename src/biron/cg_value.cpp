@@ -149,7 +149,7 @@ CgAddr CgAddr::at(Cg& cg, const CgValue& index) const noexcept {
 
 CgAddr CgAddr::at_virt(Cg& cg, Ulen v) const noexcept {
 	auto base = m_type->deref();
-	for (Ulen l = m_type->length(), i = 0, k = 0; i < l; i++) {
+	for (Ulen l = base->length(), i = 0, k = 0; i < l; i++) {
 		if (auto type = base->at(i); type->is_padding()) {
 			continue;
 		} else if (k++ == v) {
