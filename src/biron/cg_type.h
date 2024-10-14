@@ -15,7 +15,7 @@ struct CgTypeCache;
 struct AstType;
 
 struct CgType {
-	enum class Kind {
+	enum class Kind : Uint8 {
 		U8, U16, U32, U64, // Uint{8,16,32,64}
 		S8, S16, S32, S64, // Sint{8,16,32,64}
 		B8, B16, B32, B64, // Bool{8,16,32,64}

@@ -21,7 +21,7 @@ struct AstType;
 struct ConstField;
 
 struct AstConst {
-	enum class Kind {
+	enum class Kind : Uint8 {
 		NONE,
 		U8, U16, U32, U64, // digit+
 		S8, S16, S32, S64, // digit+

@@ -18,27 +18,27 @@ struct AstConst;
 struct AstExpr : AstNode {
 	static inline constexpr const auto KIND = Kind::EXPR;
 	enum class Kind : Uint8 {
-		TUPLE,     // '(' Expr* ')'
-		CALL,      // Expr '(' Expr* ')'
-		TYPE,      // Type
-		VAR,       // Ident
-		INT,       // Int
-		FLT,       // Real
-		BOOL,      // Bool
-		STR,       // String
-		AGG,       // 'new' Type '{' Expr* '}'
-		BIN,       // Expr BinOp Expr
-		LBIN,      // Expr ('&&' | '||') Expr
-		UNARY,     // UnaryOp Expr
-		INDEX,     // Expr '[' Expr ']'
-		EXPLODE,   // Expr '...'
-		EFF,       // Ident
-		SELECTOR,  // '.' Ident
+		TUPLE,     // '(' <Expr>* ')'
+		CALL,      // <Expr> '(' <Expr>* ')'
+		TYPE,      // <Type>
+		VAR,       // <Ident>
+		INT,       // <Int>
+		FLT,       // <Real>
+		BOOL,      // <Bool>
+		STR,       // <String>
+		AGG,       // 'new' <Type> '{' <Expr>* '}'
+		BIN,       // <Expr> BinOp <Expr>
+		LBIN,      // <Expr> ('&&' | '||') <Expr>
+		UNARY,     // UnaryOp <Expr>
+		INDEX,     // <Expr> '[' <Expr> ']'
+		EXPLODE,   // <Expr> '...'
+		EFF,       // <Ident>
+		SELECTOR,  // '.' <Ident>
 		INFERSIZE, // '?'
-		ACCESS,    // Expr '.' Expr
-		CAST,      // Expr 'as' Type
-		TEST,      // Expr 'is' Type
-		PROP,      // Ident 'of' Expr
+		ACCESS,    // <Expr> '.' <Expr>
+		CAST,      // <Expr> 'as' <Type>
+		TEST,      // <Expr> 'is' <Type>
+		PROP,      // <Ident> 'of' <Expr>
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstExpr(Kind kind, Range range) noexcept
@@ -157,7 +157,7 @@ private:
 
 struct AstIntExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::INT;
-	enum class Kind {
+	enum class Kind : Uint8 {
 		U8, U16, U32, U64,
 		S8, S16, S32, S64,
 		UNTYPED
@@ -199,7 +199,7 @@ private:
 
 struct AstFltExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::FLT;
-	enum class Kind {
+	enum class Kind : Uint8 {
 		F32, F64,
 		UNTYPED
 	};
@@ -328,7 +328,10 @@ private:
 struct AstUnaryExpr : AstExpr {
 	static inline constexpr const auto KIND = Kind::UNARY;
 	enum class Op {
-		NEG, NOT, DEREF, ADDROF
+		NEG,    // '-' <Expr>
+		NOT,    // '!' <Expr>
+		DEREF,  // '*' <Expr>
+		ADDROF  // '&' <Expr>
 	};
 	constexpr AstUnaryExpr(Op op, AstExpr *operand, Range range) noexcept
 		: AstExpr{Kind::UNARY, range}

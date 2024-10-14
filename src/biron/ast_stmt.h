@@ -13,7 +13,7 @@ struct Cg;
 
 struct AstStmt : AstNode {
 	static inline constexpr auto KIND = Kind::STMT;
-	enum class Kind {
+	enum class Kind : Uint8 {
 		BLOCK,    // '{' <Stmt>* '}'
 		RETURN,   // 'return' <ExprStmt>?
 		DEFER,    // 'defer' <Stmt>

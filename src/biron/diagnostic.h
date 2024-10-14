@@ -10,7 +10,7 @@ struct Lexer;
 struct Terminal;
 
 struct Diagnostic {
-	enum class Kind {
+	enum class Kind : Uint8 {
 		WARNING,
 		ERROR,
 		FATAL,

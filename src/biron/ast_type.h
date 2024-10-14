@@ -17,19 +17,19 @@ using AttrArray = Array<AstAttr*>;
 
 struct AstType : AstNode {
 	static inline constexpr auto const KIND = Kind::TYPE;
-	enum class Kind {
-		TUPLE,   // '{' Type (',' Type)*? '}'
-		ARGS,    // '(' Type (',' Type)*? ')' -- Special compiler metatype only
-		GROUP,   // '(' Type+ ')'
-		UNION,   // Type ('|' Type)+
-		ENUM,    // '[' Enum+ ']'
-		PTR,     // '*' Type
-		ATOM,    // '@' T
-		ARRAY,   // '[' Expr ']' Type
-		SLICE,   // '[]' Type
-		IDENT,   // Ident
-		VARARGS, // ...
-		FN,      // 'fn' ArgsType? ArgsType Effects? ('->' Type)?
+	enum class Kind : Uint8 {
+		TUPLE,   // '{' <Type> (',' <Type>)* '}'
+		ARGS,    // '(' <Type> (',' <Type>)* ')' -- Special compiler metatype only
+		GROUP,   // '(' <Type> ')'
+		UNION,   // <Type> ('|' <Type>)+
+		ENUM,    // '[' ('.' <Ident> ('=' <Expr>)?)+ ']'
+		PTR,     // '*' <Type>
+		ATOM,    // '@' <Type>
+		ARRAY,   // '[' <Expr> ']' <Type>
+		SLICE,   // '[]' <Type>
+		IDENT,   // <Ident>
+		VARARGS, // '...'
+		FN,      // 'fn' <ArgsType>? <ArgsType> <Effects>? ('->' <Type>)?
 	};
 	constexpr AstType(Kind kind, Range range) noexcept
 		: AstNode{KIND, range}
