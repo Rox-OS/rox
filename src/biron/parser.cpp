@@ -1132,7 +1132,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 	range = range.include(expr->range());
 	range = range.include(then->range());
 	if (elif) range = range.include(elif->range());
-	auto node = new_node<AstIfStmt>(init ? init->to_stmt<AstLetStmt>() : nullptr,
+	auto node = new_node<AstIfStmt>(init ? init->to_stmt<AstLLetStmt>() : nullptr,
 	                                expr,
 	                                then,
 	                                elif,
@@ -1174,10 +1174,10 @@ AstStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noe
 		                             attrs ? move(*attrs) : AttrArray{m_arena},
 		                             range);
 	} else {
-		return new_node<AstLetStmt>(name,
-		                            init,
-		                            attrs ? move(*attrs) : AttrArray{m_arena},
-		                            range);
+		return new_node<AstLLetStmt>(name,
+		                             init,
+		                             attrs ? move(*attrs) : AttrArray{m_arena},
+		                             range);
 	}
 	BIRON_UNREACHABLE();
 }
@@ -1323,7 +1323,7 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 		}
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstForStmt>(let ? let->to_stmt<AstLetStmt>() : nullptr,
+	auto node = new_node<AstForStmt>(let ? let->to_stmt<AstLLetStmt>() : nullptr,
 	                                 expr,
 	                                 post,
 	                                 body,

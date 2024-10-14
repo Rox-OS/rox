@@ -189,7 +189,7 @@ Bool AstIfStmt::codegen(Cg& cg) const noexcept {
 	return true;
 }
 
-Bool AstLetStmt::codegen(Cg& cg) const noexcept {
+Bool AstLLetStmt::codegen(Cg& cg) const noexcept {
 	// When the initializer is an AstAggExpr or AstTupleExpr we can generate the
 	// storage in-place and assign that as our CgVar skipping a copy.
 	Maybe<CgAddr> addr;

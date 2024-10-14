@@ -37,7 +37,6 @@ struct AstDeferStmt;
 struct AstBreakStmt;
 struct AstContinueStmt;
 struct AstIfStmt;
-struct AstLetStmt;
 struct AstUsingStmt;
 struct AstForStmt;
 struct AstExprStmt;

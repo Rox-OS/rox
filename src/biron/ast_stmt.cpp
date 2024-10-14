@@ -15,13 +15,12 @@ const char* AstStmt::name() const noexcept {
 	case Kind::BREAK:    return "BREAK";
 	case Kind::CONTINUE: return "CONTINUE";
 	case Kind::IF:       return "IF";
-	case Kind::LET:      return "LET";
+	case Kind::LLET:     return "LLET";
 	case Kind::GLET:     return "GLET";
 	case Kind::USING:    return "USING";
 	case Kind::FOR:      return "FOR";
 	case Kind::EXPR:     return "EXPR";
 	case Kind::ASSIGN:   return "ASSIGN";
-	case Kind::ASM:      return "ASM";
 	}
 	BIRON_UNREACHABLE();
 }
@@ -95,7 +94,7 @@ void AstIfStmt::dump(StringBuilder& builder, int depth) const noexcept {
 	}
 }
 
-void AstLetStmt::dump(StringBuilder& builder, int depth) const noexcept {
+void AstLLetStmt::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.repeat('\t', depth);
 	builder.append("let");
 	builder.append(' ');

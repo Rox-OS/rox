@@ -14,7 +14,18 @@ struct Cg;
 struct AstStmt : AstNode {
 	static inline constexpr auto KIND = Kind::STMT;
 	enum class Kind {
-		BLOCK, RETURN, DEFER, BREAK, CONTINUE, IF, LET, GLET, USING, FOR, EXPR, ASSIGN, ASM
+		BLOCK,    // '{' <Stmt>* '}'
+		RETURN,   // 'return' <ExprStmt>?
+		DEFER,    // 'defer' <Stmt>
+		BREAK,    // 'break' ';'
+		CONTINUE, // 'continue' ';'
+		IF,       // 'if' <LLetStmt>? <Expr> <BlockStmt> ('else' <BlockStmt>)?
+		LLET,     // 'let' <Ident> '=' <Expr> ';'
+		GLET,     // 'let' <Ident> '=' <Expr> ';'
+		USING,    // 'using' <Ident> '=' <Expr> ';'
+		FOR,      // 'for' <LLetStmt>? <ExprStmt> <Expr>? <BlockStmt> ('else' <BlockStmt>)?
+		EXPR,     // <Expr> ';'
+		ASSIGN    // <Expr> '=' <Expr> ';'
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstStmt(Kind kind, Range range) noexcept
@@ -100,11 +111,11 @@ struct AstContinueStmt : AstStmt {
 	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
 };
 
-struct AstLetStmt;
+struct AstLLetStmt;
 
 struct AstIfStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::IF;
-	constexpr AstIfStmt(AstLetStmt* init, AstExpr* expr, AstBlockStmt* then, AstStmt* elif, Range range) noexcept 
+	constexpr AstIfStmt(AstLLetStmt* init, AstExpr* expr, AstBlockStmt* then, AstStmt* elif, Range range) noexcept 
 		: AstStmt{KIND, range}
 		, m_init{init}
 		, m_expr{expr}
@@ -115,15 +126,15 @@ struct AstIfStmt : AstStmt {
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
 private:
-	AstLetStmt*   m_init;
+	AstLLetStmt*  m_init;
 	AstExpr*      m_expr;
 	AstBlockStmt* m_then;
 	AstStmt*      m_elif; // Either IfStmt or BlockStmt
 };
 
-struct AstLetStmt : AstStmt {
-	static inline constexpr auto KIND = Kind::LET;
-	constexpr AstLetStmt(StringView name, AstExpr* init, Array<AstAttr*>&& attrs, Range range) noexcept
+struct AstLLetStmt : AstStmt {
+	static inline constexpr auto KIND = Kind::LLET;
+	constexpr AstLLetStmt(StringView name, AstExpr* init, Array<AstAttr*>&& attrs, Range range) noexcept
 		: AstStmt{KIND, range}
 		, m_name{name}
 		, m_init{init}
@@ -175,7 +186,7 @@ private:
 
 struct AstForStmt : AstStmt {
 	static inline constexpr auto KIND = Kind::FOR;
-	constexpr AstForStmt(AstLetStmt* init, AstExpr* expr, AstStmt* post, AstBlockStmt* body, AstBlockStmt* elze, Range range) noexcept
+	constexpr AstForStmt(AstLLetStmt* init, AstExpr* expr, AstStmt* post, AstBlockStmt* body, AstBlockStmt* elze, Range range) noexcept
 		: AstStmt{KIND, range}
 		, m_init{init}
 		, m_expr{expr}
@@ -187,7 +198,7 @@ struct AstForStmt : AstStmt {
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
 private:
-	AstLetStmt*   m_init;
+	AstLLetStmt*  m_init;
 	AstExpr*      m_expr;
 	AstStmt*      m_post;
 	AstBlockStmt* m_body;
