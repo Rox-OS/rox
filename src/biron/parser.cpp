@@ -15,14 +15,6 @@
 
 namespace Biron {
 
-Parser::~Parser() noexcept {
-	for (auto& cache : m_caches) {
-		for (auto node : cache) {
-			static_cast<AstNode*>(node)->~AstNode();
-		}
-	}
-}
-
 // IndexExpr
 //	::= '[' Expr ']'
 AstExpr* Parser::parse_index_expr(AstExpr* operand) noexcept {

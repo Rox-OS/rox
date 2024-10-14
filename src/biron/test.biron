@@ -1,11 +1,6 @@
 module main;
 
-effect Print = fn(msg: String);
-
 @(export(true))
 fn main(argc: Sint32, argv: **Uint8) {
-  for let p = 0_u32; p < 10; p += 1 {
-  }
-
-  foo("hello", 10, "");
+  printf("Hello, world!\n");
 }

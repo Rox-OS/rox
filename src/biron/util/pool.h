@@ -60,6 +60,8 @@ struct Pool {
 	[[nodiscard]] constexpr ConstIterator end() const noexcept { return { *this, m_object_count }; }
 
 private:
+	friend struct Cache;
+
 	constexpr Pool(Allocator& allocator, Ulen object_size, Ulen object_count, Uint32* occupied, Uint8* storage) noexcept
 		: m_allocator{allocator}
 		, m_object_size{object_size}
@@ -150,6 +152,13 @@ struct Cache {
 	[[nodiscard]] constexpr Iterator end() noexcept { return { m_pools, m_pools.end() }; }
 	[[nodiscard]] constexpr ConstIterator begin() const noexcept { return { m_pools, m_pools.begin() }; }
 	[[nodiscard]] constexpr ConstIterator end() const noexcept { return { m_pools, m_pools.end() }; }
+
+	[[nodiscard]] constexpr void* operator[](Ulen index) noexcept {
+		return m_pools[index / m_object_count].address(index % m_object_count);
+	}
+	[[nodiscard]] constexpr const void* operator[](Ulen index) const noexcept {
+		return m_pools[index / m_object_count].address(index % m_object_count);
+	}
 
 	template<typename T, typename... Ts>
 	[[nodiscard]] T* make(Ts&&... args) noexcept {

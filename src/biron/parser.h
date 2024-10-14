@@ -48,12 +48,12 @@ struct Parser {
 		: m_arena{allocator}
 		, m_lexer{lexer}
 		, m_in_defer{false}
-		, m_caches{allocator}
+		, m_ast{allocator}
 		, m_diagnostic{diagnostic}
 	{
 	}
 
-	~Parser() noexcept;
+	~Parser() noexcept = default;
 
 	// Biron Expression
 	[[nodiscard]] AstExpr*         parse_expr() noexcept;
@@ -156,21 +156,7 @@ private:
 
 	template<typename T, typename... Ts>
 	[[nodiscard]] T* new_node(Ts&&... args) noexcept {
-		for (auto& cache : m_caches) {
-			// Search for maching cache size
-			if (cache.object_size() != sizeof(T)) {
-				continue;
-			}
-			if (auto node = cache.make<T>(forward<Ts>(args)...)) {
-				return node;
-			} else {
-				return error("Out of memory in cache");
-			}
-		}
-		if (!m_caches.emplace_back(m_arena, sizeof(T), Ulen(1024))) {
-			return error("Out of memory in caches");
-		}
-		return new_node<T>(forward<Ts>(args)...);
+		return m_ast.new_node<T>(forward<Ts>(args)...);
 	}
 
 	ArenaAllocator m_arena;
@@ -179,7 +165,7 @@ private:
 	Token m_last_token;
 	Maybe<Token> m_peek_token;
 	Bool m_in_defer;
-	Array<Cache> m_caches;
+	Ast m_ast;
 	Diagnostic& m_diagnostic;
 };
 

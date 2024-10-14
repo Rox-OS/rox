@@ -21,7 +21,34 @@ extern "C" {
 		fprintf(stderr, "Pure virtual function call\n");
 		abort();
 	}
-}
+
+	// C++ allows concurrent initialize of static constants. We do not rely on this
+	// behavior so just stub them out
+	using namespace Biron;
+
+	struct Guard {
+		Uint8 done;
+		Uint8 pending;
+		Uint8 padding[62];
+	};
+	static_assert(sizeof(Guard) == 64);
+
+	int __cxa_guard_acquire(Guard* guard) noexcept {
+		if (guard->done) {
+			return 0;
+		}
+		if (guard->pending) {
+			fprintf(stderr, "Recursive initialization of statics are not supported");
+			abort();
+		}
+		guard->pending = 1;
+		return 1;
+	}
+
+	void __cxa_guard_release(Guard* guard) noexcept {
+		guard->done = 1;
+	}
+} // extern "C"
 
 // We bring them into the global namespace though since that is where the
 // new and delete operators must be defined.
