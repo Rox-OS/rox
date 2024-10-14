@@ -16,6 +16,7 @@ const char* AstStmt::name() const noexcept {
 	case Kind::CONTINUE: return "CONTINUE";
 	case Kind::IF:       return "IF";
 	case Kind::LET:      return "LET";
+	case Kind::GLET:     return "GLET";
 	case Kind::USING:    return "USING";
 	case Kind::FOR:      return "FOR";
 	case Kind::EXPR:     return "EXPR";
@@ -95,6 +96,17 @@ void AstIfStmt::dump(StringBuilder& builder, int depth) const noexcept {
 }
 
 void AstLetStmt::dump(StringBuilder& builder, int depth) const noexcept {
+	builder.repeat('\t', depth);
+	builder.append("let");
+	builder.append(' ');
+	builder.append(m_name);
+	builder.append(" = ");
+	m_init->dump(builder);
+	builder.append(';');
+	builder.append('\n');
+}
+
+void AstGLetStmt::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.repeat('\t', depth);
 	builder.append("let");
 	builder.append(' ');

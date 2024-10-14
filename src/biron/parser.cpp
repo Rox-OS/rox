@@ -968,7 +968,7 @@ AstStmt* Parser::parse_stmt() noexcept {
 	case Token::Kind::KW_IF:
 		return parse_if_stmt();
 	case Token::Kind::KW_LET:
-		return parse_let_stmt(None{});
+		return parse_let_stmt(None{}, false);
 	case Token::Kind::KW_USING:
 		return parse_using_stmt();
 	case Token::Kind::KW_FOR:
@@ -983,7 +983,7 @@ AstStmt* Parser::parse_stmt() noexcept {
 			if (peek().kind != Token::Kind::KW_LET) {
 				return ERROR("Expected 'let' statement");
 			}
-			return parse_let_stmt(move(*attrs));
+			return parse_let_stmt(move(*attrs), false);
 		}
 		break;
 	default:
@@ -1100,9 +1100,9 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 		return ERROR("Expected 'if'");
 	}
 	auto beg_token = next(); // Consume 'if'
-	AstLetStmt* init = nullptr;
+	AstStmt* init = nullptr;
 	if (peek().kind == Token::Kind::KW_LET) {
-		init = parse_let_stmt(None{});
+		init = parse_let_stmt(None{}, false);
 		if (!init) {
 			return nullptr;
 		}
@@ -1132,7 +1132,11 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 	range = range.include(expr->range());
 	range = range.include(then->range());
 	if (elif) range = range.include(elif->range());
-	auto node = new_node<AstIfStmt>(init, expr, then, elif, range);
+	auto node = new_node<AstIfStmt>(init ? init->to_stmt<AstLetStmt>() : nullptr,
+	                                expr,
+	                                then,
+	                                elif,
+	                                range);
 	if (!node) {
 		return nullptr;
 	}
@@ -1141,7 +1145,7 @@ AstIfStmt* Parser::parse_if_stmt() noexcept {
 
 // LetStmt
 //	::= 'let' Ident '=' Expr ';'
-AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
+AstStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noexcept {
 	if (peek().kind != Token::Kind::KW_LET) {
 		return ERROR("Expected 'let'");
 	}
@@ -1164,10 +1168,18 @@ AstLetStmt* Parser::parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept {
 	}
 	next(); // Consume ';'
 	auto range = beg_token.range.include(init->range());
-	return new_node<AstLetStmt>(name,
-	                            init,
-	                            attrs ? move(*attrs) : AttrArray{m_arena},
-	                            range);
+	if (global) {
+		return new_node<AstGLetStmt>(name,
+		                             init,
+		                             attrs ? move(*attrs) : AttrArray{m_arena},
+		                             range);
+	} else {
+		return new_node<AstLetStmt>(name,
+		                            init,
+		                            attrs ? move(*attrs) : AttrArray{m_arena},
+		                            range);
+	}
+	BIRON_UNREACHABLE();
 }
 
 // UsingStmt
@@ -1276,10 +1288,10 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 		return ERROR("Expected 'for'");
 	}
 	auto beg_token = next(); // Consume 'for'
-	AstLetStmt* let = nullptr;
+	AstStmt* let = nullptr;
 	AstExpr* expr = nullptr;
 	if (peek().kind == Token::Kind::KW_LET) {
-		if (!(let = parse_let_stmt(None{}))) {
+		if (!(let = parse_let_stmt(None{}, false))) {
 			return nullptr;
 		}
 	}
@@ -1311,7 +1323,12 @@ AstForStmt* Parser::parse_for_stmt() noexcept {
 		}
 	}
 	auto range = beg_token.range.include(body->range());
-	auto node = new_node<AstForStmt>(let, expr, post, body, elze, range);
+	auto node = new_node<AstForStmt>(let ? let->to_stmt<AstLetStmt>() : nullptr,
+	                                 expr,
+	                                 post,
+	                                 body,
+	                                 elze,
+	                                 range);
 	if (!node) {
 		return nullptr;
 	}
@@ -1525,8 +1542,7 @@ Maybe<Array<AstAttr*>> Parser::parse_attrs() noexcept {
 	return attrs;
 }
 
-Maybe<AstUnit> Parser::parse() noexcept {
-	AstUnit unit{m_arena};
+Maybe<Ast> Parser::parse() noexcept {
 	Array<AstAttr*> attrs{m_arena};
 	for (;;) switch (peek().kind) {
 	case Token::Kind::AT:
@@ -1538,62 +1554,38 @@ Maybe<AstUnit> Parser::parse() noexcept {
 		}
 		break;
 	case Token::Kind::KW_FN:
-		if (auto fn = parse_fn(move(attrs))) {
-			if (!unit.add_fn(fn)) {
-				return oom();
-			}
-		} else {
+		if (!parse_fn(move(attrs))) {
 			return None{};
 		}
 		break;
 	case Token::Kind::KW_TYPE:
-		if (auto type = parse_typedef(move(attrs))) {
-			if (!unit.add_typedef(type)) {
-				return oom();
-			}
-		} else {
+		if (!parse_typedef(move(attrs))) {
 			return None{};
 		}
 		break;
 	case Token::Kind::KW_LET:
 		// We allow top-level constant declarations
-		if (auto let = parse_let_stmt(move(attrs))) {
-			if (!unit.add_let(let)) {
-				return oom();
-			}
-		} else {
+		if (!parse_let_stmt(move(attrs), true)) {
 			return None{};
 		}
 		break;
 	case Token::Kind::KW_MODULE:
-		if (auto module = parse_module()) {
-			if (!unit.assign_module(module)) {
-				return ERROR("Duplicate 'module' in file");
-			}
-		} else {
+		if (!parse_module()) {
 			return None{};
 		}
 		break;
 	case Token::Kind::KW_IMPORT:
-		if (auto import = parse_import()) {
-			if (!unit.add_import(import)) {
-				return ERROR("Duplicate 'import' in file");
-			}
-		} else {
+		if (!parse_import()) {
 			return None{};
 		}
 		break;
 	case Token::Kind::KW_EFFECT:
-		if (auto effect = parse_effect()) {
-			if (!unit.add_effect(effect)) {
-				return oom();
-			}
-		} else {
+		if (!parse_effect()) {
 			return None{};
 		}
 		break;
 	case Token::Kind::END:
-		return unit;
+		return move(m_ast);
 	default:
 		return ERROR("Unexpected token '%S' while parsing top-level", peek().name());
 	}

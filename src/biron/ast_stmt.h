@@ -14,7 +14,7 @@ struct Cg;
 struct AstStmt : AstNode {
 	static inline constexpr auto KIND = Kind::STMT;
 	enum class Kind {
-		BLOCK, RETURN, DEFER, BREAK, CONTINUE, IF, LET, USING, FOR, EXPR, ASSIGN, ASM
+		BLOCK, RETURN, DEFER, BREAK, CONTINUE, IF, LET, GLET, USING, FOR, EXPR, ASSIGN, ASM
 	};
 	[[nodiscard]] const char *name() const noexcept;
 	constexpr AstStmt(Kind kind, Range range) noexcept
@@ -27,6 +27,14 @@ struct AstStmt : AstNode {
 	template<DerivedFrom<AstStmt> T>
 	[[nodiscard]] constexpr Bool is_stmt() const noexcept {
 		return m_kind == T::KIND;
+	}
+	template<DerivedFrom<AstStmt> T>
+	[[nodiscard]] constexpr const T* to_stmt() const noexcept {
+		return is_stmt<T>() ? static_cast<const T*>(this) : nullptr;
+	}
+	template<DerivedFrom<AstStmt> T>
+	[[nodiscard]] constexpr T* to_stmt() noexcept {
+		return is_stmt<T>() ? static_cast<T*>(this) : nullptr;
 	}
 	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept;
 private:
@@ -125,7 +133,24 @@ struct AstLetStmt : AstStmt {
 	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
 	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
 	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
-	Bool codegen_global(Cg& cg) const noexcept;
+private:
+	StringView      m_name;
+	AstExpr*        m_init;
+	Array<AstAttr*> m_attrs;
+};
+
+struct AstGLetStmt : AstStmt {
+	static inline constexpr auto KIND = Kind::GLET;
+	constexpr AstGLetStmt(StringView name, AstExpr* init, Array<AstAttr*>&& attrs, Range range) noexcept
+		: AstStmt{KIND, range}
+		, m_name{name}
+		, m_init{init}
+		, m_attrs{move(attrs)}
+	{
+	}
+	virtual void dump(StringBuilder& builder, int depth) const noexcept override;
+	[[nodiscard]] constexpr StringView name() const noexcept { return m_name; }
+	[[nodiscard]] virtual Bool codegen(Cg& cg) const noexcept override;
 private:
 	StringView      m_name;
 	AstExpr*        m_init;

@@ -38,6 +38,9 @@ private:
 	Range m_range;
 };
 
+struct Cg;
+struct StringBuilder;
+
 struct Ast {
 	constexpr Ast(Allocator& allocator) noexcept
 		: m_allocator{allocator}
@@ -45,13 +48,20 @@ struct Ast {
 	{
 	}
 
-	~Ast() noexcept {
-		for (auto& cache : m_caches) if (cache) {
-			for (auto node : *cache) {
-				static_cast<AstNode*>(node)->~AstNode();
-			}
-		}
+	Ast(Ast&& other) noexcept
+		: m_allocator{other.m_allocator}
+		, m_caches{move(other.m_caches)}
+	{
 	}
+
+	Ast(const Ast&) = delete;
+	Ast& operator=(const Ast&) = delete;
+	Ast& operator=(Ast&&) = delete;
+
+	~Ast() noexcept;
+	void dump(StringBuilder& builder) const noexcept;
+
+	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 
 	template<typename T, typename... Ts>
 	[[nodiscard]] T* new_node(Ts&&... args) noexcept {
@@ -71,6 +81,8 @@ struct Ast {
 	}
 
 private:
+	friend struct AstIdentType; // hack for now
+
 	Allocator&          m_allocator;
 	Array<Maybe<Cache>> m_caches;
 };

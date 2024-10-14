@@ -83,7 +83,7 @@ struct Parser {
 	[[nodiscard]] AstBreakStmt*    parse_break_stmt() noexcept;
 	[[nodiscard]] AstContinueStmt* parse_continue_stmt() noexcept;
 	[[nodiscard]] AstIfStmt*       parse_if_stmt() noexcept;
-	[[nodiscard]] AstLetStmt*      parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs) noexcept;
+	[[nodiscard]] AstStmt*         parse_let_stmt(Maybe<Array<AstAttr*>>&& attrs, Bool global) noexcept;
 	[[nodiscard]] AstUsingStmt*    parse_using_stmt() noexcept;
 	[[nodiscard]] AstForStmt*      parse_for_stmt() noexcept;
 	[[nodiscard]] AstStmt*         parse_expr_stmt(Bool semi) noexcept;
@@ -98,7 +98,7 @@ struct Parser {
 	[[nodiscard]] AstImport*       parse_import() noexcept;
 	[[nodiscard]] AstEffect*       parse_effect() noexcept;
 
-	Maybe<AstUnit> parse() noexcept;
+	Maybe<Ast> parse() noexcept;
 
 private:
 	template<typename... Ts>

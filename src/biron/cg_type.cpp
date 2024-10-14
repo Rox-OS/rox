@@ -373,7 +373,9 @@ CgType* AstIdentType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 
 	// Check the unit for non-generated types and generate them here. This will
 	// basically perform an implicit dependency sort of the types for us for free.
-	for (const auto& type : cg.unit->m_typedefs) {
+	const auto& typedefs = cg.ast->m_caches[AstID::id<AstTypedef>()];
+	if (typedefs) for (auto opaque : *typedefs) {
+		const auto type = static_cast<const AstTypedef*>(opaque);
 		if (type->name() == m_ident) {
 			if (type->codegen(cg)) {
 				return codegen(cg, name);
@@ -381,7 +383,9 @@ CgType* AstIdentType::codegen(Cg& cg, Maybe<StringView> name) const noexcept {
 		}
 	}
 
-	for (const auto& effect : cg.unit->m_effects) {
+	const auto& effects = cg.ast->m_caches[AstID::id<AstEffect>()];
+	if (effects) for (auto opaque : *effects) {
+		const auto effect = static_cast<const AstEffect*>(opaque);
 		if (effect->name() == m_ident) {
 			if (effect->codegen(cg)) {
 				return codegen(cg, name);

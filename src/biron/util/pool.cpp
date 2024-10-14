@@ -70,6 +70,7 @@ Bool Pool::deallocate(Uint8* addr) noexcept {
 void* Cache::allocate() noexcept {
 	for (auto& pool : m_pools) {
 		if (auto addr = pool.allocate()) {
+			m_length++;
 			return addr;
 		}
 	}
@@ -85,6 +86,7 @@ void* Cache::allocate() noexcept {
 Bool Cache::deallocate(void* addr) noexcept {
 	for (auto& pool : m_pools) {
 		if (pool.deallocate(static_cast<Uint8*>(addr))) {
+			m_length--;
 			return true;
 		}
 	}

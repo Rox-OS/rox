@@ -4,6 +4,14 @@
 
 namespace Biron {
 
+void AstModule::dump(StringBuilder& builder) const noexcept {
+	builder.append("module");
+	builder.append(' ');
+	builder.append(m_name);
+	builder.append(';');
+	builder.append('\n');
+}
+
 void AstFn::dump(StringBuilder& builder, int depth) const noexcept {
 	builder.append("fn");
 	m_objs->dump(builder);
@@ -28,23 +36,20 @@ void AstFn::dump(StringBuilder& builder, int depth) const noexcept {
 	m_body->dump(builder, depth);
 }
 
-Bool AstUnit::add_import(AstImport* import) noexcept {
-	for (auto existing : m_imports) {
-		if (existing->name() == import->name()) {
-			// Duplicate import
-			return false;
+Ast::~Ast() noexcept {
+	for (auto& cache : m_caches) if (cache) {
+		for (auto node : *cache) {
+			static_cast<AstNode*>(node)->~AstNode();
 		}
 	}
-	return m_imports.push_back(import);
 }
 
-Bool AstUnit::assign_module(AstModule* module) noexcept {
-	if (m_module) {
-		// Cannot have more than once instance of 'module' in a unit.
-		return false;
+void Ast::dump(StringBuilder& builder) const noexcept {
+	static_cast<const AstModule*>((*m_caches[AstID::id<AstModule>()])[0])->dump(builder);
+	const auto& fns = m_caches[AstID::id<AstFn>()];
+	if (fns) for (auto fn : *fns) {
+		static_cast<const AstFn*>(fn)->dump(builder, 0);
 	}
-	m_module = module;
-	return true;
 }
 
 } // namespace Biron

@@ -117,9 +117,9 @@ int main(int argc, char **argv) {
 		Lexer lexer{source.name, code};
 		Diagnostic diagnostic{lexer, terminal, allocator};
 		Parser parser{lexer, diagnostic, allocator};
-		auto unit = parser.parse();
-		if (!unit) {
-			terminal.err("Could not parse unit\n");
+		auto ast = parser.parse();
+		if (!ast) {
+			terminal.err("Could not parse\n");
 			return 1;
 		}
 
@@ -131,11 +131,11 @@ int main(int argc, char **argv) {
 
 		if (dump_ast) {
 			StringBuilder builder{allocator};
-			unit->dump(builder);
+			ast->dump(builder);
 			terminal.err(builder.view());
 		}
 
-		if (!unit->codegen(*cg)) {
+		if (!ast->codegen(*cg)) {
 			return 1;
 		}
 

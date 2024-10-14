@@ -1,6 +1,4 @@
 module main;
-
 @(export(true))
-fn main(argc: Sint32, argv: **Uint8) {
-  printf("Hello, world!\n");
+fn main() {
 }

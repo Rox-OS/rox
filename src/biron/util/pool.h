@@ -11,12 +11,13 @@ struct Allocator;
 struct Pool {
 	template<Bool Const>
 	struct SelectIterator {
-		using Type = Conditional<const Pool, Pool, Const>;
+		using PoolType = Conditional<const Pool, Pool, Const>;
+		using ItemType = Conditional<const void*, void*, Const>;
 		constexpr SelectIterator() noexcept
 			: m_pool{nullptr}, m_index{0}
 		{
 		}
-		constexpr SelectIterator(Type& pool, Ulen index) noexcept
+		constexpr SelectIterator(PoolType& pool, Ulen index) noexcept
 			: m_pool{&pool}, m_index{index}
 		{
 		}
@@ -32,7 +33,7 @@ struct Pool {
 		[[nodiscard]] constexpr Bool operator==(const SelectIterator& other) const noexcept {
 			return m_pool == other.m_pool && m_index == other.m_index;
 		}
-		[[nodiscard]] constexpr void* operator*() const noexcept {
+		[[nodiscard]] constexpr ItemType operator*() const noexcept {
 			// NOTE(dweiler): There should be a cleaner way to express this without
 			// checking each dereference since iterators are not dereferenced when the
 			// end is reached but the way Cache::SelectIterator operator++ works makes
@@ -40,14 +41,18 @@ struct Pool {
 			return m_pool ? m_pool->address(m_index) : nullptr;
 		}
 	private:
-		Type* m_pool;
-		Ulen  m_index;
+		PoolType* m_pool;
+		Ulen      m_index;
 	};
 	using Iterator = SelectIterator<false>;
 	using ConstIterator = SelectIterator<true>;
 
 	Pool(Pool&& other) noexcept;
+	constexpr Pool(const Pool&) noexcept = delete;
 	~Pool() noexcept;
+
+	constexpr Pool& operator=(const Pool&) noexcept = delete;
+	constexpr Pool& operator=(Pool&&) noexcept = delete;
 
 	static Maybe<Pool> make(Allocator& allocator, Ulen object_size, Ulen object_count) noexcept;
 
@@ -100,8 +105,8 @@ private:
 struct Cache {
 	template<Bool Const>
 	struct SelectIterator {
-		using Type = Conditional<const Array<Pool>, Array<Pool>, Const>;
-		constexpr SelectIterator(Type& pools, Array<Pool>::SelectIterator<Const> pool) noexcept
+		using PoolType = Conditional<const Array<Pool>, Array<Pool>, Const>;
+		constexpr SelectIterator(PoolType& pools, Array<Pool>::SelectIterator<Const> pool) noexcept
 			: m_pools{&pools}
 			, m_pool{pool}
 			, m_item{}
@@ -123,11 +128,11 @@ struct Cache {
 		[[nodiscard]] constexpr Bool operator!=(const SelectIterator& other) const noexcept {
 			return other.m_pool != m_pool || other.m_item != m_item;
 		}
-		[[nodiscard]] constexpr void* operator*() const noexcept {
+		[[nodiscard]] constexpr auto operator*() const noexcept {
 			return *m_item;
 		}
 	private:
-		Type*                              m_pools;
+		PoolType*                          m_pools;
 		Array<Pool>::SelectIterator<Const> m_pool;
 		Pool::SelectIterator<Const>        m_item;
 	};
@@ -139,8 +144,12 @@ struct Cache {
 		: m_pools{allocator}
 		, m_object_size{object_size}
 		, m_object_count{object_count}
+		, m_length{0}
 	{
 	}
+
+	Cache(Cache&&) noexcept = default;
+
 	[[nodiscard]] void* allocate() noexcept;
 	[[nodiscard]] Bool deallocate(void* addr) noexcept;
 	[[nodiscard]] constexpr Allocator& allocator() const noexcept { return m_pools.allocator(); }
@@ -160,6 +169,14 @@ struct Cache {
 		return m_pools[index / m_object_count].address(index % m_object_count);
 	}
 
+	[[nodiscard]] constexpr Ulen length() const noexcept {
+		return m_length;
+	}
+
+	[[nodiscard]] constexpr Bool empty() const noexcept {
+		return m_length == 0;
+	}
+
 	template<typename T, typename... Ts>
 	[[nodiscard]] T* make(Ts&&... args) noexcept {
 		if (auto addr = allocate()) {
@@ -172,6 +189,7 @@ private:
 	Array<Pool> m_pools;
 	Ulen        m_object_size;
 	Ulen        m_object_count;
+	Ulen        m_length;
 };
 
 } // namespace Biron

@@ -15,7 +15,7 @@ struct Terminal;
 
 struct Diagnostic;
 
-struct AstUnit;
+struct Ast;
 struct AstStmt;
 struct AstFn;
 
@@ -175,8 +175,8 @@ struct Cg {
 	Array<CgTypeDef>    typedefs;
 	Array<CgTypeDef>    effects;
 	Array<CgVar>        intrinsics;
-	const AstUnit*      unit; // Current unit
-	const AstFn*        fn;   // Current function
+	const Ast*          ast; // Current unit
+	const AstFn*        fn;  // Current function
 	LLVM::BasicBlockRef entry;
 	StringView          prefix;
 
@@ -194,7 +194,7 @@ struct Cg {
 		, typedefs{move(other.typedefs)}
 		, effects{move(other.effects)}
 		, intrinsics{move(other.intrinsics)}
-		, unit{exchange(other.unit, nullptr)}
+		, ast{exchange(other.ast, nullptr)}
 		, fn{exchange(other.fn, nullptr)}
 		, entry{exchange(other.entry, nullptr)}
 		, prefix{move(other.prefix)}
@@ -228,7 +228,7 @@ private:
 		, typedefs{allocator}
 		, effects{allocator}
 		, intrinsics{allocator}
-		, unit{nullptr}
+		, ast{nullptr}
 		, fn{nullptr}
 		, entry{nullptr}
 		, prefix{}

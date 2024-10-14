@@ -21,6 +21,7 @@ struct AstModule : AstNode {
 		, m_name{name}
 	{
 	}
+	void dump(StringBuilder& builder) const noexcept;
 	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
 private:
 	StringView m_name;
@@ -103,45 +104,6 @@ private:
 	StringView   m_name;
 	AstType*     m_type;
 	mutable Bool m_generated;
-};
-
-struct AstLetStmt;
-
-struct AstUnit {
-	constexpr AstUnit(Allocator& allocator) noexcept
-		: m_module{nullptr}
-		, m_fns{allocator}
-		, m_lets{allocator}
-		, m_typedefs{allocator}
-		, m_imports{allocator}
-		, m_effects{allocator}
-	{
-	}
-	[[nodiscard]] Bool add_fn(AstFn* fn) noexcept {
-		return m_fns.push_back(fn);
-	}
-	[[nodiscard]] Bool add_let(AstLetStmt* let) noexcept {
-		return m_lets.push_back(let);
-	}
-	[[nodiscard]] Bool add_typedef(AstTypedef* type) noexcept {
-		return m_typedefs.push_back(type);
-	}
-	[[nodiscard]] Bool add_effect(AstEffect* effect) noexcept {
-		return m_effects.push_back(effect);
-	}
-	[[nodiscard]] Bool add_import(AstImport* import) noexcept;
-	[[nodiscard]] Bool assign_module(AstModule* module) noexcept;
-	[[nodiscard]] Bool codegen(Cg& cg) const noexcept;
-	void dump(StringBuilder& builder) const noexcept;
-private:
-	friend struct AstIdentType;
-	friend struct AstUsingStmt;
-	AstModule*         m_module;
-	Array<AstFn*>      m_fns;
-	Array<AstLetStmt*> m_lets;
-	Array<AstTypedef*> m_typedefs;
-	Array<AstImport*>  m_imports;
-	Array<AstEffect*>  m_effects;
 };
 
 } // namespace Biron

@@ -2,6 +2,7 @@
 #include <biron/ast_type.h>
 #include <biron/ast_stmt.h>
 #include <biron/ast_attr.h>
+#include <biron/ast.h>
 
 #include <biron/cg.h>
 #include <biron/cg_value.h>
@@ -329,17 +330,23 @@ Bool AstModule::codegen(Cg& cg) const noexcept {
 	return true;
 }
 
-Bool AstUnit::codegen(Cg& cg) const noexcept {
-	if (!m_module) {
+Bool Ast::codegen(Cg& cg) const noexcept {
+	// We should have at least one top-level module.
+	auto& modules = m_caches[AstID::id<AstModule>()];
+	if (!modules || modules->empty()) {
 		return cg.error(Range{0, 0}, "Missing 'module'");
 	}
+	if (modules->length() > 1) {
+		return cg.error(Range{0, 0}, "Multiple 'module' definitions in file");
+	}
 
-	if (!m_module->codegen(cg)) {
+	auto module = static_cast<const AstModule*>((*modules)[0]);
+	if (!module->codegen(cg)) {
 		return false;
 	}
 
-	// Somewhat frustrating this is needed until we add a dependency sort.
-	cg.unit = this;
+	// Somewhat frustrating this is needed until we add a dependency sorter.
+	cg.ast = this;
 	
 	// Register a "printf" function for debugging purposes
 	{
@@ -425,11 +432,12 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 		}
 	}
 
-	// Emit all the global constants first since types may depend on them for
+	// Emit all the global let statements first since types may depend on them for
 	// e.g array extents and what not.
-	for (auto let : m_lets) {
+	const auto& glets = m_caches[AstID::id<AstGLetStmt>()];
+	if (glets) for (auto let : *glets) {
 		cg.scratch->clear();
-		if (!let->codegen_global(cg)) {
+		if (!static_cast<const AstGLetStmt*>(let)->codegen(cg)) {
 			return false;
 		}
 	}
@@ -437,17 +445,19 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// Emit all the types next. Each type will recurse and resolve their types
 	// and mark the type as already being generated so that this main loop does
 	// not generate the same type twice. This is how we do a topological sort.
-	for (auto type : m_typedefs) {
+	const auto& typedefs = m_caches[AstID::id<AstTypedef>()];
+	if (typedefs) for (auto type : *typedefs) {
 		cg.scratch->clear();
-		if (!type->codegen(cg)) {
+		if (!static_cast<const AstTypedef*>(type)->codegen(cg)) {
 			return false;
 		}
 	}
 
 	// Emit all the effects next.
-	for (auto effect : m_effects) {
+	const auto& effects = m_caches[AstID::id<AstEffect>()];
+	if (effects) for (auto effect : *effects) {
 		cg.scratch->clear();
-		if (!effect->codegen(cg)) {
+		if (!static_cast<const AstEffect*>(effect)->codegen(cg)) {
 			return false;
 		}
 	}
@@ -455,28 +465,23 @@ Bool AstUnit::codegen(Cg& cg) const noexcept {
 	// Before we codegen functions we do a preprocessing step to make sure all
 	// functions have values generated for them so that we do not need function
 	// prototypes in our language.
-	for (auto fn : m_fns) {
+	const auto& fns = m_caches[AstID::id<AstFn>()];
+	if (fns) for (auto fn : *fns) {
 		cg.scratch->clear();
-		if (!fn->prepass(cg)) {
+		if (!static_cast<const AstFn*>(fn)->prepass(cg)) {
 			return false;
 		}
 	}
 
 	// We can then codegen functions in any order we so desire.
-	for (auto fn : m_fns) {
+	if (fns) for (auto fn : *fns) {
 		cg.scratch->clear();
-		if (!fn->codegen(cg)) {
+		if (!static_cast<const AstFn*>(fn)->codegen(cg)) {
 			return false;
 		}
 	}
 
 	return true;
-}
-
-void AstUnit::dump(StringBuilder& builder) const noexcept {
-	for (auto fn : m_fns) {
-		fn->dump(builder, 0);
-	}
 }
 
 } // namespace Biron
